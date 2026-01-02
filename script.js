@@ -79,6 +79,11 @@ class ModuleManager {
         document.getElementById('fullscreenBtn').addEventListener('click', () => {
             this.toggleFullscreen();
         });
+
+        // Developer actions
+        document.getElementById('clearWidgetsBtn').addEventListener('click', () => {
+            this.clearAllWidgets();
+        });
     }
 
     setupDragAndDrop() {
@@ -449,6 +454,28 @@ class ModuleManager {
                 (m.instanceKey || this.getInstanceKey(m.name, m.type)) === key
             ).length
         }));
+    }
+
+    // Developer method to clear all widgets and instances
+    clearAllWidgets() {
+        if (confirm('Are you sure you want to clear all widgets? This action cannot be undone.')) {
+            console.log('[clearAllWidgets] Clearing all widgets and instances...');
+
+            // Clear all data
+            this.modules = [];
+            this.moduleInstances = {};
+            this.moduleIdCounter = 0;
+
+            // Clear localStorage
+            localStorage.removeItem('homeHubModules');
+            localStorage.removeItem('homeHubModuleInstances');
+            localStorage.removeItem('homeHubModuleIdCounter');
+
+            // Re-render empty grid
+            this.renderModules();
+
+            console.log('[clearAllWidgets] All widgets and instances cleared');
+        }
     }
 
     toggleFullscreen() {

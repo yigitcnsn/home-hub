@@ -10,6 +10,8 @@ A modern, modular web dashboard for home automation and monitoring.
 - **Local Storage**: All modules are saved locally in your browser
 - **Responsive**: Works on desktop, tablet, and mobile devices
 - **Multiple Module Types**: Temperature, Lighting, Security, Energy, Weather, and Custom modules
+- **Instance Management**: One instance per widget type ensures consistency
+- **Developer Tools**: Clear all widgets for development and testing
 
 ## Getting Started
 
@@ -55,6 +57,12 @@ Works in all modern browsers that support:
 - Local Storage
 - Drag and Drop API
 
+## Developer Features
+
+The sidebar includes a developer section with tools for development and testing:
+
+- **Clear All Widgets**: Removes all modules and instances, resetting the dashboard to a clean state. Useful for testing and development.
+
 ## Future Enhancements
 
 - Real-time data integration
@@ -62,4 +70,5 @@ Works in all modern browsers that support:
 - Theme customization
 - Export/import configurations
 - Widget marketplace
+- Cross-device synchronization
 

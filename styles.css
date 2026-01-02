@@ -159,6 +159,75 @@ body {
     transform: translateY(1px);
 }
 
+/* Developer Section */
+.developer-section {
+    padding: 20px 12px;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+}
+
+.developer-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 0 8px;
+}
+
+.developer-icon {
+    font-size: 14px;
+    margin-right: 8px;
+    opacity: 0.7;
+}
+
+.developer-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.developer-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.developer-btn {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 6px;
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.developer-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.developer-btn:active {
+    transform: translateY(1px);
+}
+
+.btn-icon {
+    font-size: 12px;
+}
+
+.btn-text {
+    font-size: 11px;
+}
+
 /* Main Content */
 .main-content {
     flex: 1;
