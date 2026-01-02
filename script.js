@@ -141,6 +141,7 @@ class ModuleManager {
         document.getElementById('moduleName').value = '';
         document.getElementById('moduleType').value = 'temperature';
         document.getElementById('moduleSize').value = 'medium';
+        document.getElementById('addBtn').textContent = 'Add Module';
     }
 
     closeAddModuleModal() {
@@ -157,18 +158,44 @@ class ModuleManager {
             return;
         }
 
+        const instanceKey = this.getInstanceKey(name, type);
+
+        // Check if a module with the same name and type already exists
+        const existingModuleIndex = this.modules.findIndex(m =>
+            (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
+        );
+
+        if (existingModuleIndex !== -1) {
+            // Update existing module instead of adding new one
+            const existingModule = this.modules[existingModuleIndex];
+            existingModule.size = size;
+            existingModule.createdAt = new Date().toISOString();
+
+            // Update instance data if it doesn't exist
+            if (!this.moduleInstances[instanceKey]) {
+                this.moduleInstances[instanceKey] = this.getSampleData(type);
+            }
+
+            this.saveModules();
+            this.saveInstances();
+            this.renderModules();
+            this.closeAddModuleModal();
+            return;
+        }
+
+        // Create new module if it doesn't exist
         const module = {
             id: this.moduleIdCounter++,
             name: name,
             type: type,
             size: size,
             createdAt: new Date().toISOString(),
-            instanceKey: this.getInstanceKey(name, type)
+            instanceKey: instanceKey
         };
 
         // Initialize instance data if it doesn't exist
-        if (!this.moduleInstances[module.instanceKey]) {
-            this.moduleInstances[module.instanceKey] = this.getSampleData(type);
+        if (!this.moduleInstances[instanceKey]) {
+            this.moduleInstances[instanceKey] = this.getSampleData(type);
         }
 
         this.modules.push(module);
@@ -183,7 +210,25 @@ class ModuleManager {
     }
 
     removeModule(id) {
+        const moduleToRemove = this.modules.find(m => m.id === id);
+        if (!moduleToRemove) return;
+
+        const instanceKey = moduleToRemove.instanceKey || this.getInstanceKey(moduleToRemove.name, moduleToRemove.type);
+
+        // Remove the module
         this.modules = this.modules.filter(m => m.id !== id);
+
+        // Check if any other modules use this instance
+        const modulesWithInstance = this.modules.filter(m =>
+            (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
+        );
+
+        // If no other modules use this instance, clean up the instance data
+        if (modulesWithInstance.length === 0 && this.moduleInstances[instanceKey]) {
+            delete this.moduleInstances[instanceKey];
+            this.saveInstances();
+        }
+
         this.saveModules();
         this.renderModules();
     }
@@ -384,7 +429,26 @@ class ModuleManager {
             this.moduleInstances[instanceKey] = { ...this.moduleInstances[instanceKey], ...data };
             this.saveInstances();
             this.renderModules();
+            console.log(`[updateInstanceData] Updated instance ${instanceKey} with data:`, data);
         }
+    }
+
+    // Method to sync instance data across devices (for future real-time sync)
+    syncInstanceData(instanceKey, data) {
+        this.updateInstanceData(instanceKey, data);
+        // In a real implementation, this would broadcast to other devices
+        console.log(`[syncInstanceData] Syncing ${instanceKey} across devices`);
+    }
+
+    // Method to get all unique instances for device sync
+    getAllInstances() {
+        return Object.keys(this.moduleInstances).map(key => ({
+            key: key,
+            data: this.moduleInstances[key],
+            modules: this.modules.filter(m =>
+                (m.instanceKey || this.getInstanceKey(m.name, m.type)) === key
+            ).length
+        }));
     }
 
     toggleFullscreen() {
