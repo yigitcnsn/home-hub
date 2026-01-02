@@ -53,9 +53,14 @@ class ModuleManager {
         });
 
         // Top bar actions
-        document.getElementById('darkModeBtn').addEventListener('click', () => {
-            this.toggleDarkMode();
-        });
+        const darkModeBtn = document.getElementById('darkModeBtn');
+        if (darkModeBtn) {
+            darkModeBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleDarkMode();
+            };
+        }
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
             this.refreshModules();
@@ -349,7 +354,9 @@ class ModuleManager {
 
     updateDarkModeIcon(isDark) {
         const btn = document.getElementById('darkModeBtn');
-        btn.textContent = isDark ? '◑' : '◐';
+        if (btn) {
+            btn.textContent = isDark ? '◑' : '◐';
+        }
     }
 
     capitalizeFirst(str) {
