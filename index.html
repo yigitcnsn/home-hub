@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Hub - Smart Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">Home Hub</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">≡</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="rooms">
+                    <span class="nav-icon">□</span>
+                    <span class="nav-text">Rooms</span>
+                </a>
+                <a href="#" class="nav-item" data-view="devices">
+                    <span class="nav-icon">◉</span>
+                    <span class="nav-text">Devices</span>
+                </a>
+                <a href="#" class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙</span>
+                    <span class="nav-text">Settings</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="add-module-btn" id="addModuleBtn">
+                    <span>+</span> Add Module
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h2 class="page-title">Dashboard</h2>
+                <div class="top-bar-actions">
+                    <button class="icon-btn" id="refreshBtn" title="Refresh">
+                        ↻
+                    </button>
+                    <button class="icon-btn" id="fullscreenBtn" title="Fullscreen">
+                        ⛶
+                    </button>
+                </div>
+            </header>
+
+            <!-- Module Grid -->
+            <div class="modules-grid" id="modulesGrid">
+                <!-- Modules will be dynamically added here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Module Modal -->
+    <div class="modal" id="addModuleModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Module</h3>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="moduleName">Module Name</label>
+                    <input type="text" id="moduleName" placeholder="e.g., Living Room Temperature">
+                </div>
+                <div class="form-group">
+                    <label for="moduleType">Module Type</label>
+                    <select id="moduleType">
+                        <option value="temperature">Temperature</option>
+                        <option value="lighting">Lighting</option>
+                        <option value="security">Security</option>
+                        <option value="energy">Energy</option>
+                        <option value="weather">Weather</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="moduleSize">Size</label>
+                    <select id="moduleSize">
+                        <option value="small">Small (1x1)</option>
+                        <option value="medium" selected>Medium (2x1)</option>
+                        <option value="large">Large (2x2)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                <button class="btn btn-primary" id="addBtn">Add Module</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
