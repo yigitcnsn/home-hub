@@ -392,27 +392,33 @@ class ModuleManager {
     }
 
     updateTime() {
-        const timeDisplay = document.getElementById('timeDisplay');
-        if (!timeDisplay) {
+        const timeValue = document.getElementById('timeValue');
+        const dateValue = document.getElementById('dateValue');
+
+        if (!timeValue || !dateValue) {
             return;
         }
 
         const now = new Date();
-        const options = {
+
+        const timeOptions = {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
             hour12: true
         };
-        const timeString = now.toLocaleTimeString(undefined, options);
-        const dateString = now.toLocaleDateString(undefined, {
+        const timeString = now.toLocaleTimeString(undefined, timeOptions);
+
+        const dateOptions = {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric'
-        });
+        };
+        const dateString = now.toLocaleDateString(undefined, dateOptions);
 
-        timeDisplay.textContent = `${dateString} • ${timeString}`;
+        timeValue.textContent = timeString;
+        dateValue.textContent = dateString;
     }
 
     capitalizeFirst(str) {

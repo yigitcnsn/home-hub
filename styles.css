@@ -179,7 +179,7 @@ body {
 .top-bar-left {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
 }
 
 .page-title {
@@ -191,10 +191,32 @@ body {
 }
 
 .time-display {
-    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
+    min-width: 280px;
+}
+
+.time-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--primary-color);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+}
+
+.date-value {
+    font-size: 13px;
     color: var(--text-secondary);
     font-weight: 500;
-    font-variant-numeric: tabular-nums;
+    text-transform: capitalize;
+    letter-spacing: 0.2px;
 }
 
 .top-bar-actions {
