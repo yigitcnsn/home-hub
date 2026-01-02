@@ -9,6 +9,7 @@ class ModuleManager {
 
     init() {
         this.loadModules();
+        this.loadDarkMode();
         this.setupEventListeners();
         this.setupDragAndDrop();
         this.renderModules();
@@ -52,6 +53,10 @@ class ModuleManager {
         });
 
         // Top bar actions
+        document.getElementById('darkModeBtn').addEventListener('click', () => {
+            this.toggleDarkMode();
+        });
+
         document.getElementById('refreshBtn').addEventListener('click', () => {
             this.refreshModules();
         });
@@ -319,6 +324,32 @@ class ModuleManager {
         if (savedCounter) {
             this.moduleIdCounter = parseInt(savedCounter);
         }
+    }
+
+    toggleDarkMode() {
+        const body = document.body;
+        const isDark = body.classList.toggle('dark-mode');
+        this.saveDarkMode(isDark);
+        this.updateDarkModeIcon(isDark);
+    }
+
+    loadDarkMode() {
+        const saved = localStorage.getItem('homeHubDarkMode');
+        if (saved === 'true') {
+            document.body.classList.add('dark-mode');
+            this.updateDarkModeIcon(true);
+        } else {
+            this.updateDarkModeIcon(false);
+        }
+    }
+
+    saveDarkMode(isDark) {
+        localStorage.setItem('homeHubDarkMode', isDark.toString());
+    }
+
+    updateDarkModeIcon(isDark) {
+        const btn = document.getElementById('darkModeBtn');
+        btn.textContent = isDark ? '◑' : '◐';
     }
 
     capitalizeFirst(str) {
