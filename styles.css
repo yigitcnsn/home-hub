@@ -176,11 +176,25 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+.top-bar-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .page-title {
     font-size: 32px;
     font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.5px;
+    margin: 0;
+}
+
+.time-display {
+    font-size: 14px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
 }
 
 .top-bar-actions {

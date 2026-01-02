@@ -14,6 +14,7 @@ class ModuleManager {
         this.setupEventListeners();
         this.setupDragAndDrop();
         this.renderModules();
+        this.startClock();
         console.log('[ModuleManager] Initialization complete');
     }
 
@@ -381,6 +382,37 @@ class ModuleManager {
         } else {
             console.warn('[updateDarkModeIcon] Button not found!');
         }
+    }
+
+    startClock() {
+        this.updateTime();
+        setInterval(() => {
+            this.updateTime();
+        }, 1000);
+    }
+
+    updateTime() {
+        const timeDisplay = document.getElementById('timeDisplay');
+        if (!timeDisplay) {
+            return;
+        }
+
+        const now = new Date();
+        const options = {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        };
+        const timeString = now.toLocaleTimeString(undefined, options);
+        const dateString = now.toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        timeDisplay.textContent = `${dateString} • ${timeString}`;
     }
 
     capitalizeFirst(str) {
