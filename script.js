@@ -8,11 +8,13 @@ class ModuleManager {
     }
 
     init() {
+        console.log('[ModuleManager] Initializing...');
         this.loadModules();
         this.loadDarkMode();
         this.setupEventListeners();
         this.setupDragAndDrop();
         this.renderModules();
+        console.log('[ModuleManager] Initialization complete');
     }
 
     setupEventListeners() {
@@ -54,12 +56,17 @@ class ModuleManager {
 
         // Top bar actions
         const darkModeBtn = document.getElementById('darkModeBtn');
+        console.log('[setupEventListeners] Dark mode button found:', darkModeBtn);
         if (darkModeBtn) {
             darkModeBtn.onclick = (e) => {
+                console.log('[darkModeBtn] Click event triggered');
                 e.preventDefault();
                 e.stopPropagation();
                 this.toggleDarkMode();
             };
+            console.log('[setupEventListeners] Dark mode button onclick handler attached');
+        } else {
+            console.error('[setupEventListeners] Dark mode button not found!');
         }
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -332,30 +339,47 @@ class ModuleManager {
     }
 
     toggleDarkMode() {
+        console.log('[toggleDarkMode] Called');
         const body = document.body;
+        const wasDark = body.classList.contains('dark-mode');
         const isDark = body.classList.toggle('dark-mode');
+        console.log('[toggleDarkMode] Dark mode state changed:', wasDark, '->', isDark);
+        console.log('[toggleDarkMode] Body classes:', body.className);
         this.saveDarkMode(isDark);
         this.updateDarkModeIcon(isDark);
+        console.log('[toggleDarkMode] Complete');
     }
 
     loadDarkMode() {
+        console.log('[loadDarkMode] Loading dark mode preference...');
         const saved = localStorage.getItem('homeHubDarkMode');
+        console.log('[loadDarkMode] Saved preference:', saved);
         if (saved === 'true') {
             document.body.classList.add('dark-mode');
+            console.log('[loadDarkMode] Dark mode enabled');
             this.updateDarkModeIcon(true);
         } else {
+            console.log('[loadDarkMode] Light mode (default)');
             this.updateDarkModeIcon(false);
         }
     }
 
     saveDarkMode(isDark) {
+        console.log('[saveDarkMode] Saving dark mode preference:', isDark);
         localStorage.setItem('homeHubDarkMode', isDark.toString());
+        console.log('[saveDarkMode] Saved to localStorage');
     }
 
     updateDarkModeIcon(isDark) {
+        console.log('[updateDarkModeIcon] Updating icon, isDark:', isDark);
         const btn = document.getElementById('darkModeBtn');
+        console.log('[updateDarkModeIcon] Button found:', btn);
         if (btn) {
-            btn.textContent = isDark ? '◑' : '◐';
+            const icon = isDark ? '◑' : '◐';
+            btn.textContent = icon;
+            console.log('[updateDarkModeIcon] Icon updated to:', icon);
+        } else {
+            console.warn('[updateDarkModeIcon] Button not found!');
         }
     }
 
@@ -367,6 +391,8 @@ class ModuleManager {
 // Initialize the module manager when DOM is loaded
 let moduleManager;
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('[DOMContentLoaded] DOM ready, initializing ModuleManager...');
     moduleManager = new ModuleManager();
+    console.log('[DOMContentLoaded] ModuleManager instance created:', moduleManager);
 });
 
