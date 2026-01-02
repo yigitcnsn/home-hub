@@ -4,12 +4,14 @@ class ModuleManager {
         this.modules = [];
         this.moduleIdCounter = 0;
         this.draggedElement = null;
+        this.moduleInstances = {}; // Store shared data for module instances
         this.init();
     }
 
     init() {
         console.log('[ModuleManager] Initializing...');
         this.loadModules();
+        this.loadInstances();
         this.loadDarkMode();
         this.setupEventListeners();
         this.setupDragAndDrop();
@@ -160,13 +162,24 @@ class ModuleManager {
             name: name,
             type: type,
             size: size,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            instanceKey: this.getInstanceKey(name, type)
         };
+
+        // Initialize instance data if it doesn't exist
+        if (!this.moduleInstances[module.instanceKey]) {
+            this.moduleInstances[module.instanceKey] = this.getSampleData(type);
+        }
 
         this.modules.push(module);
         this.saveModules();
+        this.saveInstances();
         this.renderModules();
         this.closeAddModuleModal();
+    }
+
+    getInstanceKey(name, type) {
+        return `${type}_${name.toLowerCase().replace(/\s+/g, '_')}`;
     }
 
     removeModule(id) {
@@ -190,6 +203,7 @@ class ModuleManager {
         div.className = `module ${module.size}`;
         div.draggable = true;
         div.dataset.moduleId = module.id;
+        div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
 
         const typeLabels = {
             temperature: 'Temperature',
@@ -200,7 +214,15 @@ class ModuleManager {
             custom: 'Custom'
         };
 
-        const sampleData = this.getSampleData(module.type);
+        // Get instance data (shared across all modules with same name+type)
+        const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+        const instanceData = this.moduleInstances[instanceKey] || this.getSampleData(module.type);
+
+        // If instance doesn't exist, create it
+        if (!this.moduleInstances[instanceKey]) {
+            this.moduleInstances[instanceKey] = instanceData;
+            this.saveInstances();
+        }
 
         div.innerHTML = `
             <div class="module-header">
@@ -214,7 +236,7 @@ class ModuleManager {
                 </div>
             </div>
             <div class="module-content">
-                ${this.getModuleContent(module.type, sampleData)}
+                ${this.getModuleContent(module.type, instanceData)}
             </div>
         `;
 
@@ -278,11 +300,37 @@ class ModuleManager {
             // Change add button to update
             const addBtn = document.getElementById('addBtn');
             addBtn.textContent = 'Update Module';
+            const oldInstanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+
             addBtn.onclick = () => {
-                module.name = document.getElementById('moduleName').value.trim();
-                module.type = document.getElementById('moduleType').value;
-                module.size = document.getElementById('moduleSize').value;
+                const newName = document.getElementById('moduleName').value.trim();
+                const newType = document.getElementById('moduleType').value;
+                const newSize = document.getElementById('moduleSize').value;
+                const newInstanceKey = this.getInstanceKey(newName, newType);
+
+                // If instance key changed, migrate data
+                if (oldInstanceKey !== newInstanceKey && this.moduleInstances[oldInstanceKey]) {
+                    if (!this.moduleInstances[newInstanceKey]) {
+                        this.moduleInstances[newInstanceKey] = this.moduleInstances[oldInstanceKey];
+                    }
+                    // Update all modules with old key to new key
+                    this.modules.forEach(m => {
+                        if (m.instanceKey === oldInstanceKey) {
+                            m.instanceKey = newInstanceKey;
+                        }
+                    });
+                }
+
+                module.name = newName;
+                module.type = newType;
+                module.size = newSize;
+                module.instanceKey = newInstanceKey;
+
+                // Update all modules with same instance key
+                this.updateInstanceModules(newInstanceKey);
+
                 this.saveModules();
+                this.saveInstances();
                 this.renderModules();
                 this.closeAddModuleModal();
                 addBtn.textContent = 'Add Module';
@@ -291,12 +339,37 @@ class ModuleManager {
         }
     }
 
+    updateInstanceModules(instanceKey) {
+        // Update all modules that share this instance
+        const instanceData = this.moduleInstances[instanceKey];
+        if (instanceData) {
+            this.renderModules();
+        }
+    }
+
     refreshModules() {
-        // Simulate data refresh
+        // Simulate data refresh and update all instances
+        const uniqueInstances = new Set();
         this.modules.forEach(module => {
-            // In a real app, this would fetch new data
-            console.log(`Refreshing ${module.name}...`);
+            const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+            uniqueInstances.add(instanceKey);
+            console.log(`Refreshing ${module.name} (instance: ${instanceKey})...`);
         });
+
+        // Update instance data (in a real app, this would fetch new data)
+        uniqueInstances.forEach(instanceKey => {
+            const modulesWithInstance = this.modules.filter(m =>
+                (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
+            );
+            if (modulesWithInstance.length > 0) {
+                const module = modulesWithInstance[0];
+                // Update instance data - in real app, fetch from API
+                this.moduleInstances[instanceKey] = this.getSampleData(module.type);
+            }
+        });
+
+        this.saveInstances();
+        this.renderModules();
 
         // Visual feedback
         const btn = document.getElementById('refreshBtn');
@@ -304,6 +377,14 @@ class ModuleManager {
         setTimeout(() => {
             btn.style.transform = 'rotate(0deg)';
         }, 500);
+    }
+
+    updateInstanceData(instanceKey, data) {
+        if (this.moduleInstances[instanceKey]) {
+            this.moduleInstances[instanceKey] = { ...this.moduleInstances[instanceKey], ...data };
+            this.saveInstances();
+            this.renderModules();
+        }
     }
 
     toggleFullscreen() {
@@ -326,16 +407,42 @@ class ModuleManager {
         localStorage.setItem('homeHubModuleIdCounter', this.moduleIdCounter.toString());
     }
 
+    saveInstances() {
+        localStorage.setItem('homeHubModuleInstances', JSON.stringify(this.moduleInstances));
+    }
+
     loadModules() {
         const saved = localStorage.getItem('homeHubModules');
         const savedCounter = localStorage.getItem('homeHubModuleIdCounter');
 
         if (saved) {
             this.modules = JSON.parse(saved);
+            // Ensure all modules have instanceKey
+            this.modules.forEach(module => {
+                if (!module.instanceKey) {
+                    module.instanceKey = this.getInstanceKey(module.name, module.type);
+                }
+            });
         }
 
         if (savedCounter) {
             this.moduleIdCounter = parseInt(savedCounter);
+        }
+    }
+
+    loadInstances() {
+        const saved = localStorage.getItem('homeHubModuleInstances');
+        if (saved) {
+            this.moduleInstances = JSON.parse(saved);
+        } else {
+            // Initialize instance data for existing modules
+            this.modules.forEach(module => {
+                const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+                if (!this.moduleInstances[instanceKey]) {
+                    this.moduleInstances[instanceKey] = this.getSampleData(module.type);
+                }
+            });
+            this.saveInstances();
         }
     }
 
