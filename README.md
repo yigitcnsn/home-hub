@@ -57,6 +57,50 @@ Works in all modern browsers that support:
 - Local Storage
 - Drag and Drop API
 
+## Cross-Device Synchronization
+
+The dashboard supports real-time synchronization across multiple devices using WebSocket technology.
+
+### Quick Start
+
+1. **Install Node.js** (download from nodejs.org)
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+3. **Start the sync server:**
+   ```bash
+   npm start
+   ```
+4. **Open multiple browser tabs** to `http://localhost:3000` or access from different devices on your network
+5. **Test sync**: Add/edit widgets on one device and watch them appear on others instantly
+
+### Accessing from Other Devices
+
+- **Same computer**: Open `http://localhost:3000` in multiple browser tabs
+- **Same network**: Use your computer's IP address (e.g., `http://192.168.1.100:3000`)
+- **Different networks**: Would require port forwarding and a domain name
+
+### Troubleshooting
+
+- **Server won't start**: Make sure port 3000 is available
+- **Can't connect from other devices**: Check firewall settings and network configuration
+- **Sync indicator shows disconnected**: Server may not be running or WebSocket blocked
+
+### How It Works
+
+- **Real-time Sync**: Uses WebSocket connections for instant updates
+- **Fallback Support**: Falls back to polling if WebSocket is unavailable
+- **Instance-based**: Only shared widget instances sync between devices
+- **Conflict-free**: Last update wins for simultaneous changes
+
+### Architecture
+
+- **Frontend**: JavaScript client with WebSocket support
+- **Backend**: Node.js server with Express and WebSocket
+- **Protocol**: JSON messages for state synchronization
+- **Storage**: In-memory server state (persists while server runs)
+
 ## Developer Features
 
 The sidebar includes a developer section with tools for development and testing:

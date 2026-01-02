@@ -17,6 +17,7 @@ class ModuleManager {
         this.setupDragAndDrop();
         this.renderModules();
         this.startClock();
+        this.initSync();
         console.log('[ModuleManager] Initialization complete');
     }
 
@@ -438,11 +439,175 @@ class ModuleManager {
         }
     }
 
-    // Method to sync instance data across devices (for future real-time sync)
+    // Method to sync instance data across devices
     syncInstanceData(instanceKey, data) {
         this.updateInstanceData(instanceKey, data);
-        // In a real implementation, this would broadcast to other devices
-        console.log(`[syncInstanceData] Syncing ${instanceKey} across devices`);
+
+        // Send to server for cross-device sync
+        if (this.syncEnabled && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: 'instance_update',
+                instanceKey: instanceKey,
+                data: data,
+                timestamp: Date.now()
+            }));
+            console.log(`[syncInstanceData] Synced ${instanceKey} to server`);
+            this.showSyncPulse();
+        }
+    }
+
+    // Show a brief pulse animation when data is synced
+    showSyncPulse() {
+        const statusElement = document.getElementById('syncStatus');
+        if (statusElement) {
+            statusElement.classList.add('pulse');
+            setTimeout(() => {
+                statusElement.classList.remove('pulse');
+            }, 1000);
+        }
+    }
+
+    // Initialize sync system
+    initSync() {
+        if (typeof WebSocket !== 'undefined') {
+            this.initWebSocketSync();
+        } else {
+            console.log('[initSync] WebSocket not supported, falling back to polling');
+            this.initPollingSync();
+        }
+    }
+
+    // WebSocket-based real-time sync
+    initWebSocketSync() {
+        try {
+            // Replace with your actual WebSocket server URL
+            this.ws = new WebSocket('ws://localhost:3000/dashboard');
+
+            this.updateSyncStatus('connecting', '⏳');
+
+            this.ws.onopen = () => {
+                console.log('[WebSocket] Connected to sync server');
+                this.syncEnabled = true;
+                this.updateSyncStatus('connected', '✓');
+                // Send current state to server
+                this.sendFullState();
+            };
+
+            this.ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    this.handleSyncMessage(message);
+                } catch (e) {
+                    console.error('[WebSocket] Error parsing message:', e);
+                }
+            };
+
+            this.ws.onclose = () => {
+                console.log('[WebSocket] Disconnected, retrying in 5 seconds...');
+                this.syncEnabled = false;
+                this.updateSyncStatus('disconnected', '✗');
+                setTimeout(() => this.initWebSocketSync(), 5000);
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('[WebSocket] Error:', error);
+                this.syncEnabled = false;
+                this.updateSyncStatus('disconnected', '✗');
+            };
+
+        } catch (e) {
+            console.error('[WebSocket] Failed to initialize:', e);
+            this.updateSyncStatus('disconnected', '✗');
+            this.initPollingSync();
+        }
+    }
+
+    // Fallback polling sync for older browsers or when WebSocket fails
+    initPollingSync() {
+        console.log('[Polling] Initializing polling sync every 30 seconds');
+        this.syncEnabled = true;
+        this.updateSyncStatus('connecting', '⟲');
+
+        this.pollingInterval = setInterval(() => {
+            this.checkForUpdates();
+        }, 30000);
+    }
+
+    // Handle incoming sync messages
+    handleSyncMessage(message) {
+        switch (message.type) {
+            case 'instance_update':
+                if (message.instanceKey && message.data) {
+                    console.log(`[Sync] Received update for ${message.instanceKey}`);
+                    this.updateInstanceData(message.instanceKey, message.data);
+                }
+                break;
+
+            case 'full_state':
+                if (message.state) {
+                    console.log('[Sync] Received full state update');
+                    this.applyFullState(message.state);
+                }
+                break;
+
+            case 'ping':
+                // Respond to server ping to maintain connection
+                this.ws.send(JSON.stringify({ type: 'pong' }));
+                break;
+        }
+    }
+
+    // Send current full state to server
+    sendFullState() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const fullState = {
+                modules: this.modules,
+                instances: this.moduleInstances,
+                timestamp: Date.now()
+            };
+
+            this.ws.send(JSON.stringify({
+                type: 'full_state_sync',
+                state: fullState
+            }));
+        }
+    }
+
+    // Apply full state received from server
+    applyFullState(state) {
+        if (state.modules) {
+            this.modules = state.modules;
+        }
+        if (state.instances) {
+            this.moduleInstances = state.instances;
+        }
+        this.saveModules();
+        this.saveInstances();
+        this.renderModules();
+    }
+
+    // Check for updates (polling fallback)
+    checkForUpdates() {
+        // In a real implementation, this would fetch from your server
+        // For now, just a placeholder
+        console.log('[Polling] Checking for updates...');
+    }
+
+    // Update sync status indicator
+    updateSyncStatus(status, icon) {
+        const statusElement = document.getElementById('syncStatus');
+        if (statusElement) {
+            statusElement.className = `sync-status ${status}`;
+            statusElement.querySelector('.sync-icon').textContent = icon;
+
+            // Update title attribute
+            const titles = {
+                connected: 'Sync: Connected - Real-time updates active',
+                connecting: 'Sync: Connecting...',
+                disconnected: 'Sync: Disconnected - Changes won\'t sync'
+            };
+            statusElement.title = titles[status] || 'Sync Status';
+        }
     }
 
     // Method to get all unique instances for device sync
