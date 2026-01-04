@@ -142,19 +142,76 @@ function getCpuUsage() {
 }
 
 function getCpuTemperature() {
-    try {
-        // For Raspberry Pi, read CPU temperature
-        const temp = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
-        return Math.round(parseInt(temp) / 1000); // Convert from millidegrees to degrees
-    } catch (e) {
-        // Fallback for other systems
-        return Math.round(os.loadavg()[0] * 10 + 40); // Rough estimate
-    }
+    return new Promise((resolve, reject) => {
+        try {
+            // For Raspberry Pi, try multiple temperature sources
+            const tempSources = [
+                '/sys/class/thermal/thermal_zone0/temp',  // CPU thermal zone
+                '/sys/class/hwmon/hwmon0/temp1_input',     // Alternative thermal sensor
+                '/sys/class/hwmon/hwmon1/temp1_input'      // Another alternative
+            ];
+
+            for (const source of tempSources) {
+                try {
+                    if (fs.existsSync(source)) {
+                        const temp = fs.readFileSync(source, 'utf8').trim();
+                        const tempValue = parseInt(temp);
+                        if (isNaN(tempValue)) {
+                            throw new Error(`Invalid temperature value from ${source}: ${temp}`);
+                        }
+                        // Handle both millidegrees (typical) and degrees
+                        const finalTemp = tempValue > 200 ? Math.round(tempValue / 1000) : tempValue;
+                        console.log(`[Temperature] Read ${finalTemp}°C from ${source}`);
+                        resolve(finalTemp);
+                        return;
+                    }
+                } catch (e) {
+                    console.error(`[Temperature] Failed to read from ${source}:`, e.message);
+                    continue; // Try next source
+                }
+            }
+
+            // If all thermal zone reads fail, try vcgencmd (Raspberry Pi specific)
+            exec('vcgencmd measure_temp 2>/dev/null', (error, stdout) => {
+                if (error) {
+                    reject(new Error(`vcgencmd command failed: ${error.message}`));
+                    return;
+                }
+
+                if (!stdout) {
+                    reject(new Error('vcgencmd returned no output'));
+                    return;
+                }
+
+                const match = stdout.match(/temp=([0-9.]+)'C/);
+                if (!match) {
+                    reject(new Error(`Unable to parse temperature from vcgencmd output: ${stdout}`));
+                    return;
+                }
+
+                const temp = Math.round(parseFloat(match[1]));
+                console.log(`[Temperature] Read ${temp}°C from vcgencmd`);
+                resolve(temp);
+            });
+        } catch (e) {
+            reject(new Error(`Temperature detection failed: ${e.message}`));
+        }
+    });
 }
 
 function getMemoryUsage() {
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
+
+    // Validate memory readings
+    if (totalMem === 0) {
+        throw new Error('Unable to read total memory (reported as 0)');
+    }
+
+    if (freeMem > totalMem) {
+        throw new Error(`Invalid memory readings: free (${freeMem}) > total (${totalMem})`);
+    }
+
     const usedMem = totalMem - freeMem;
     const usagePercent = Math.round((usedMem / totalMem) * 100);
 
@@ -163,26 +220,45 @@ function getMemoryUsage() {
         return `${gb}GB`;
     };
 
-    return {
+    const result = {
         usage: usagePercent,
         total: formatBytes(totalMem),
         used: formatBytes(usedMem),
         free: formatBytes(freeMem)
     };
+
+    console.log(`[Memory] Total: ${result.total}, Used: ${result.used}, Free: ${result.free}, Usage: ${result.usage}%`);
+
+    return result;
 }
 
 function getDiskUsage() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         exec('df / | tail -1', (error, stdout) => {
             if (error) {
-                resolve({ usage: 0, total: '0GB', used: '0GB' });
+                reject(new Error(`df command failed: ${error.message}`));
+                return;
+            }
+
+            if (!stdout || stdout.trim() === '') {
+                reject(new Error('df command returned no output'));
                 return;
             }
 
             const parts = stdout.trim().split(/\s+/);
-            const totalKb = parseInt(parts[1]) * 1024; // Convert to bytes
-            const usedKb = parseInt(parts[2]) * 1024;
+            if (parts.length < 6) {
+                reject(new Error(`Unexpected df output format: ${stdout}`));
+                return;
+            }
+
+            const totalKb = parseInt(parts[1]);
+            const usedKb = parseInt(parts[2]);
             const usagePercent = parseInt(parts[4].replace('%', ''));
+
+            if (isNaN(totalKb) || isNaN(usedKb) || isNaN(usagePercent)) {
+                reject(new Error(`Invalid disk usage values from df output: ${stdout}`));
+                return;
+            }
 
             const formatBytes = (bytes) => {
                 const gb = (bytes / (1024 * 1024 * 1024)).toFixed(1);
@@ -191,8 +267,8 @@ function getDiskUsage() {
 
             resolve({
                 usage: usagePercent,
-                total: formatBytes(totalKb),
-                used: formatBytes(usedKb)
+                total: formatBytes(totalKb * 1024), // Convert to bytes
+                used: formatBytes(usedKb * 1024)
             });
         });
     });
@@ -236,16 +312,42 @@ function getNetworkStatus() {
     }
 }
 
+function getRaspberryPiInfo() {
+    return new Promise((resolve) => {
+        exec('cat /proc/cpuinfo 2>/dev/null | grep "Model"', (error, stdout) => {
+            if (!error && stdout) {
+                const modelMatch = stdout.match(/Model\s*:\s*(.+)/);
+                if (modelMatch) {
+                    resolve(modelMatch[1].trim());
+                    return;
+                }
+            }
+            exec('cat /proc/device-tree/model 2>/dev/null', (error, stdout) => {
+                if (!error && stdout) {
+                    resolve(stdout.trim());
+                } else {
+                    resolve('Unknown');
+                }
+            });
+        });
+    });
+}
+
 async function updateSystemStats() {
     try {
-        const diskInfo = await getDiskUsage();
+        const [diskInfo, cpuTemp] = await Promise.all([
+            getDiskUsage(),
+            getCpuTemperature()
+        ]);
+
+        const memoryInfo = getMemoryUsage();
 
         systemStats = {
             cpuUsage: getCpuUsage(),
-            cpuTemp: getCpuTemperature(),
-            memoryUsage: getMemoryUsage().usage,
-            memoryTotal: getMemoryUsage().total,
-            memoryUsed: getMemoryUsage().used,
+            cpuTemp: cpuTemp,
+            memoryUsage: memoryInfo.usage,
+            memoryTotal: memoryInfo.total,
+            memoryUsed: memoryInfo.used,
             diskUsage: diskInfo.usage,
             diskTotal: diskInfo.total,
             diskUsed: diskInfo.used,
@@ -254,6 +356,8 @@ async function updateSystemStats() {
             loadAverage: os.loadavg().map(x => x.toFixed(2)).join(', ')
         };
 
+        console.log(`[System Monitor] Updated stats - CPU: ${systemStats.cpuUsage}%, Temp: ${systemStats.cpuTemp}°C, Memory: ${systemStats.memoryUsage}%`);
+
         // Broadcast system stats to all connected clients
         broadcastToOthers(null, {
             type: 'system_stats',
@@ -261,7 +365,18 @@ async function updateSystemStats() {
         });
 
     } catch (e) {
-        console.error('[System Monitor] Error updating stats:', e);
+        console.error('[System Monitor] Error updating stats:', e.message);
+        // Don't broadcast if we can't get valid data
+        systemStats = {
+            error: e.message,
+            lastError: new Date().toISOString()
+        };
+
+        // Still broadcast the error so the client knows something is wrong
+        broadcastToOthers(null, {
+            type: 'system_stats',
+            data: systemStats
+        });
     }
 }
 
@@ -281,8 +396,14 @@ setInterval(() => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
     console.log(`[Server] Home Hub WebSocket server running on port ${PORT}`);
     console.log(`[Server] WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
     console.log(`[Server] Static files served by Nginx on port 80`);
+
+    // Log system information
+    const piModel = await getRaspberryPiInfo();
+    console.log(`[Server] Detected Raspberry Pi model: ${piModel}`);
+    console.log(`[Server] Total memory: ${(os.totalmem() / (1024 * 1024 * 1024)).toFixed(1)}GB`);
+    console.log(`[Server] CPU cores: ${os.cpus().length}`);
 });

@@ -393,6 +393,26 @@ class ModuleManager {
                 <div class="module-status ${data.status}">Outside</div>
             `;
         } else if (type === 'system') {
+            // Check for error state
+            if (data.error) {
+                return `
+                    <div class="system-monitor error-state">
+                        <div class="system-header">
+                            <div class="system-title">System Monitor - ERROR</div>
+                            <div class="system-last-update">
+                                <span class="update-label">Error:</span>
+                                <span class="error-message">${data.error}</span>
+                            </div>
+                        </div>
+                        <div class="system-error">
+                            <div class="error-icon">⚠️</div>
+                            <div class="error-text">Unable to read system information</div>
+                            <div class="error-details">Check server logs for details</div>
+                        </div>
+                    </div>
+                `;
+            }
+
             // Create visual graphs and status indicators
             const getStatusIndicator = (status, value) => {
                 const statusClasses = {
@@ -784,7 +804,27 @@ class ModuleManager {
     updateSystemStats(stats) {
         // Update the system instance data
         const systemInstanceKey = 'system_monitoring';
-        this.updateInstanceData(systemInstanceKey, stats);
+
+        if (stats.error) {
+            console.error('[System] Stats update failed:', stats.error);
+            // Update with error state
+            this.updateInstanceData(systemInstanceKey, {
+                ...stats,
+                cpuUsage: 'ERR',
+                cpuTemp: 'ERR',
+                memoryUsage: 'ERR',
+                memoryTotal: 'ERR',
+                memoryUsed: 'ERR',
+                diskUsage: 'ERR',
+                diskTotal: 'ERR',
+                diskUsed: 'ERR',
+                uptime: 'ERR',
+                networkStatus: 'ERR',
+                loadAverage: 'ERR'
+            });
+        } else {
+            this.updateInstanceData(systemInstanceKey, stats);
+        }
     }
 
     // Check for updates (polling fallback)
