@@ -504,7 +504,7 @@ class ModuleManager {
                     <div class="system-logs">
                         <div class="logs-header">
                             <span class="logs-title">System Logs</span>
-                            <button class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${instanceKey}')">Clear</button>
+                            <button class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${module.instanceKey || this.getInstanceKey(module.name, module.type)}')">Clear</button>
                         </div>
                         <div class="logs-container" id="logs-container-${module.id}">
                             ${generateLogsHTML(data.logs)}
