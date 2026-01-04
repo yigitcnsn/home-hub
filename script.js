@@ -348,11 +348,11 @@ class ModuleManager {
                 lastUpdate: new Date().toISOString(),
                 // Historical data for graphs (last 20 data points)
                 history: {
-                    cpu: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
-                    memory: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
-                    disk: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
-                    temperature: [], // Start empty, will be populated with real data
-                    timestamps: Array.from({ length: 20 }, (_, i) => new Date(Date.now() - (19 - i) * 5000).toISOString())
+                    cpu: [],
+                    memory: [],
+                    disk: [],
+                    temperature: [],
+                    timestamps: []
                 },
                 logs: [
                     { timestamp: new Date(Date.now() - 30000).toISOString(), message: 'System monitor initialized', type: 'info' },
@@ -394,6 +394,26 @@ class ModuleManager {
                 <div class="module-status ${data.status}">Outside</div>
             `;
         } else if (type === 'system') {
+            // Check for loading state (no data yet)
+            if (!data || (!data.lastUpdate && !data.error)) {
+                return `
+                    <div class="system-monitor loading-state">
+                        <div class="system-header">
+                            <div class="system-title">System Monitor</div>
+                            <div class="system-last-update">
+                                <span class="update-label">Status:</span>
+                                <span class="loading-indicator">Connecting...</span>
+                            </div>
+                        </div>
+                        <div class="system-loading">
+                            <div class="loading-spinner"></div>
+                            <div class="loading-text">Initializing system monitoring</div>
+                            <div class="loading-details">Waiting for Raspberry Pi data</div>
+                        </div>
+                    </div>
+                `;
+            }
+
             // Check for error state
             if (data.error) {
                 return `
@@ -454,13 +474,49 @@ class ModuleManager {
                 }).join('');
             };
 
+            // Determine system status
+            const systemStatus = data.status === 'error' ? 'error' :
+                (data.cpuUsage === 'ERR' || data.memoryUsage === 'ERR') ? 'error' : 'online';
+
             return `
                 <div class="system-monitor">
                     <div class="system-header">
-                        <div class="system-title">System Health</div>
+                        <div class="system-title">
+                            System Monitor
+                            <span class="system-status ${systemStatus}">${systemStatus === 'online' ? '●' : '●'}</span>
+                        </div>
                         <div class="system-last-update">
                             <span class="update-label">Last update:</span>
                             <span class="update-time">${formatLastUpdate(data.lastUpdate || new Date().toISOString())}</span>
+                        </div>
+                    </div>
+
+                    <div class="system-metrics">
+                        <div class="metric-row cpu">
+                            <div class="metric-info">
+                                <span class="metric-label">CPU</span>
+                                <span class="metric-value">${data.cpuUsage === 'ERR' ? 'ERR' : data.cpuUsage + '%'}</span>
+                            </div>
+                        </div>
+                        <div class="metric-row memory">
+                            <div class="metric-info">
+                                <span class="metric-label">Memory</span>
+                                <span class="metric-value">${data.memoryUsage === 'ERR' ? 'ERR' : data.memoryUsage + '%'}</span>
+                            </div>
+                            <span class="metric-details">${data.memoryUsed === 'ERR' ? 'ERR' : data.memoryUsed} / ${data.memoryTotal === 'ERR' ? 'ERR' : data.memoryTotal}</span>
+                        </div>
+                        <div class="metric-row disk">
+                            <div class="metric-info">
+                                <span class="metric-label">Disk</span>
+                                <span class="metric-value">${data.diskUsage === 'ERR' ? 'ERR' : data.diskUsage + '%'}</span>
+                            </div>
+                            <span class="metric-details">${data.diskUsed === 'ERR' ? 'ERR' : data.diskUsed} / ${data.diskTotal === 'ERR' ? 'ERR' : data.diskTotal}</span>
+                        </div>
+                        <div class="metric-row temperature">
+                            <div class="metric-info">
+                                <span class="metric-label">Temperature</span>
+                                <span class="metric-value temp-indicator ${data.cpuTemp === 'ERR' ? 'temp-error' : getTempIndicator(data.cpuTemp)}">${data.cpuTemp === 'ERR' ? 'ERR' : data.cpuTemp + '°C'}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -489,10 +545,10 @@ class ModuleManager {
                                 </div>
                                 <canvas class="system-graph" id="disk-graph-${module.id}" width="300" height="80"></canvas>
                             </div>
-                            <div class="graph-container">
+                            <div class="graph-container temp-graph">
                                 <div class="graph-header">
                                     <span class="graph-title">CPU Temperature</span>
-                                    <span class="graph-value">${data.cpuTemp}°C</span>
+                                    <span class="graph-value temp-indicator ${getTempIndicator(data.cpuTemp)}">${data.cpuTemp}°C<span class="temp-status-indicator"></span></span>
                                 </div>
                                 <canvas class="system-graph" id="temp-graph-${module.id}" width="300" height="80"></canvas>
                             </div>
@@ -808,7 +864,7 @@ class ModuleManager {
 
         if (stats.error) {
             console.error('[System] Stats update failed:', stats.error);
-            // Update with error state
+            // Update with detailed error state
             this.updateInstanceData(systemInstanceKey, {
                 ...stats,
                 cpuUsage: 'ERR',
@@ -821,10 +877,20 @@ class ModuleManager {
                 diskUsed: 'ERR',
                 uptime: 'ERR',
                 networkStatus: 'ERR',
-                loadAverage: 'ERR'
+                loadAverage: 'ERR',
+                status: 'error',
+                errorDetails: stats.error,
+                lastErrorTime: stats.lastError || new Date().toISOString()
             });
         } else {
-            this.updateInstanceData(systemInstanceKey, stats);
+            // Clear any previous error state
+            this.updateInstanceData(systemInstanceKey, {
+                ...stats,
+                status: 'active',
+                error: undefined,
+                errorDetails: undefined,
+                lastErrorTime: undefined
+            });
         }
     }
 
@@ -1065,25 +1131,66 @@ class ModuleManager {
 
     // Draw system graphs using Canvas
     drawSystemGraphs(moduleId, data) {
-        // Don't draw graphs if there's no history data (error state)
-        if (!data.history || !data.history.cpu || !data.history.memory || !data.history.disk) {
-            console.log(`[System Graphs] Skipping graph drawing for module ${moduleId} - no history data available`);
-            return;
+        // CPU Graph - show error if no data
+        if (data.history?.cpu && data.history.cpu.length > 0 && typeof data.cpuUsage === 'number') {
+            this.drawGraph(`cpu-graph-${moduleId}`, data.history.cpu, '#3b82f6', data.cpuUsage);
+        } else {
+            this.showGraphError(`cpu-graph-${moduleId}`, 'CPU data unavailable');
         }
-        // CPU Graph
-        this.drawGraph(`cpu-graph-${moduleId}`, data.history.cpu, '#3b82f6', data.cpuUsage);
 
-        // Memory Graph
-        this.drawGraph(`memory-graph-${moduleId}`, data.history.memory, '#10b981', data.memoryUsage);
+        // Memory Graph - show error if no data
+        if (data.history?.memory && data.history.memory.length > 0 && typeof data.memoryUsage === 'number') {
+            this.drawGraph(`memory-graph-${moduleId}`, data.history.memory, '#10b981', data.memoryUsage);
+        } else {
+            this.showGraphError(`memory-graph-${moduleId}`, 'Memory data unavailable');
+        }
 
-        // Disk Graph
-        this.drawGraph(`disk-graph-${moduleId}`, data.history.disk, '#f59e0b', data.diskUsage);
+        // Disk Graph - show error if no data
+        if (data.history?.disk && data.history.disk.length > 0 && typeof data.diskUsage === 'number') {
+            this.drawGraph(`disk-graph-${moduleId}`, data.history.disk, '#f59e0b', data.diskUsage);
+        } else {
+            this.showGraphError(`disk-graph-${moduleId}`, 'Disk data unavailable');
+        }
 
-        // Temperature Graph (only draw if we have temperature history data)
-        if (data.history.temperature && data.history.temperature.length > 0) {
+        // Temperature Graph - show error if no data
+        if (data.history?.temperature && data.history.temperature.length > 0 && typeof data.cpuTemp === 'number') {
             const tempHistory = data.history.temperature.map(temp => Math.min((temp / 80) * 100, 100));
             this.drawGraph(`temp-graph-${moduleId}`, tempHistory, '#ef4444', (data.cpuTemp / 80) * 100);
+        } else {
+            this.showGraphError(`temp-graph-${moduleId}`, 'Temperature data unavailable');
         }
+    }
+
+    showGraphError(canvasId, message) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw error background
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw error border
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(2, 2, width - 4, height - 4);
+
+        // Draw error icon and text
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
+        ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚠', width / 2, height / 2 - 8);
+
+        ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText(message, width / 2, height / 2 + 8);
+
+        console.error(`[System Monitor] ${message} for ${canvasId}`);
     }
 
     drawGraph(canvasId, data, color, currentValue) {
@@ -1166,35 +1273,49 @@ class ModuleManager {
         // Update historical data
         if (!instanceData.history) {
             instanceData.history = {
-                cpu: Array.from({ length: 20 }, () => 0),
-                memory: Array.from({ length: 20 }, () => 0),
-                disk: Array.from({ length: 20 }, () => 0),
-                temperature: [], // Start empty, will be populated with real data
-                timestamps: Array.from({ length: 20 }, (_, i) => new Date(Date.now() - (19 - i) * 5000).toISOString())
+                cpu: [],
+                memory: [],
+                disk: [],
+                temperature: [],
+                timestamps: []
             };
         }
 
-        // Shift historical data and add new values
-        instanceData.history.cpu.shift();
-        instanceData.history.cpu.push(data.cpuUsage || 0);
+        // Add new values only if data is available (no fallbacks)
+        if (typeof data.cpuUsage === 'number' && !isNaN(data.cpuUsage)) {
+            instanceData.history.cpu.push(data.cpuUsage);
+            if (instanceData.history.cpu.length > 20) {
+                instanceData.history.cpu.shift();
+            }
+        }
 
-        instanceData.history.memory.shift();
-        instanceData.history.memory.push(data.memoryUsage || 0);
+        if (typeof data.memoryUsage === 'number' && !isNaN(data.memoryUsage)) {
+            instanceData.history.memory.push(data.memoryUsage);
+            if (instanceData.history.memory.length > 20) {
+                instanceData.history.memory.shift();
+            }
+        }
 
-        instanceData.history.disk.shift();
-        instanceData.history.disk.push(data.diskUsage || 0);
+        if (typeof data.diskUsage === 'number' && !isNaN(data.diskUsage)) {
+            instanceData.history.disk.push(data.diskUsage);
+            if (instanceData.history.disk.length > 20) {
+                instanceData.history.disk.shift();
+            }
+        }
 
         // Only add temperature data if we have a valid reading
-        if (data.cpuTemp && data.cpuTemp > 0) {
+        if (typeof data.cpuTemp === 'number' && !isNaN(data.cpuTemp) && data.cpuTemp > 0) {
             instanceData.history.temperature.push(data.cpuTemp);
-            // Keep only the last 20 temperature readings
             if (instanceData.history.temperature.length > 20) {
                 instanceData.history.temperature.shift();
             }
         }
 
-        instanceData.history.timestamps.shift();
+        // Always add timestamp for this data point
         instanceData.history.timestamps.push(new Date().toISOString());
+        if (instanceData.history.timestamps.length > 20) {
+            instanceData.history.timestamps.shift();
+        }
 
         // Add log entry for significant changes
         if (!instanceData.logs) instanceData.logs = [];
