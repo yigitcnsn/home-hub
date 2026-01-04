@@ -319,7 +319,7 @@ class ModuleManager {
                 </div>
             </div>
             <div class="module-content">
-                ${this.getModuleContent(module.type, instanceData)}
+                ${this.getModuleContent(module.type, instanceData, module)}
             </div>
         `;
 
@@ -366,7 +366,7 @@ class ModuleManager {
         return data[type] || data.custom;
     }
 
-    getModuleContent(type, data) {
+    getModuleContent(type, data, module) {
         if (type === 'temperature') {
             return `
                 <div class="module-value">${data.value}</div>
