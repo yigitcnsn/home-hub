@@ -209,6 +209,9 @@ class ModuleManager {
         this.saveInstances();
         this.renderModules();
         this.closeAddModuleModal();
+
+        // Sync the new instance across devices
+        this.syncInstanceData(instanceKey, this.moduleInstances[instanceKey]);
     }
 
     getInstanceKey(name, type) {
@@ -441,18 +444,22 @@ class ModuleManager {
 
     // Method to sync instance data across devices
     syncInstanceData(instanceKey, data) {
+        console.log(`[syncInstanceData] Called for ${instanceKey}`, data);
         this.updateInstanceData(instanceKey, data);
 
         // Send to server for cross-device sync
         if (this.syncEnabled && this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
+            const message = JSON.stringify({
                 type: 'instance_update',
                 instanceKey: instanceKey,
                 data: data,
                 timestamp: Date.now()
-            }));
+            });
+            this.ws.send(message);
             console.log(`[syncInstanceData] Synced ${instanceKey} to server`);
             this.showSyncPulse();
+        } else {
+            console.warn(`[syncInstanceData] Cannot sync - syncEnabled: ${this.syncEnabled}, ws readyState: ${this.ws ? this.ws.readyState : 'no ws'}`);
         }
     }
 
@@ -480,8 +487,10 @@ class ModuleManager {
     // WebSocket-based real-time sync
     initWebSocketSync() {
         try {
-            // Replace with your actual WebSocket server URL
-            this.ws = new WebSocket('ws://localhost:3000/dashboard');
+            // Use the same host as the current page, but with ws:// protocol
+            const wsUrl = `ws://${window.location.host}/dashboard`;
+            console.log('[WebSocket] Connecting to:', wsUrl);
+            this.ws = new WebSocket(wsUrl);
 
             this.updateSyncStatus('connecting', '⏳');
 
@@ -491,6 +500,7 @@ class ModuleManager {
                 this.updateSyncStatus('connected', '✓');
                 // Send current state to server
                 this.sendFullState();
+                console.log('[WebSocket] Full state sent, ready for sync');
             };
 
             this.ws.onmessage = (event) => {
