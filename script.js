@@ -348,10 +348,10 @@ class ModuleManager {
                 lastUpdate: new Date().toISOString(),
                 // Historical data for graphs (last 20 data points)
                 history: {
-                    cpu: Array.from({length: 20}, () => Math.floor(Math.random() * 100)),
-                    memory: Array.from({length: 20}, () => Math.floor(Math.random() * 100)),
-                    disk: Array.from({length: 20}, () => Math.floor(Math.random() * 100)),
-                    timestamps: Array.from({length: 20}, (_, i) => new Date(Date.now() - (19-i) * 5000).toISOString())
+                    cpu: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
+                    memory: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
+                    disk: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
+                    timestamps: Array.from({ length: 20 }, (_, i) => new Date(Date.now() - (19 - i) * 5000).toISOString())
                 },
                 logs: [
                     { timestamp: new Date(Date.now() - 30000).toISOString(), message: 'System monitor initialized', type: 'info' },
@@ -1118,10 +1118,10 @@ class ModuleManager {
         // Update historical data
         if (!instanceData.history) {
             instanceData.history = {
-                cpu: Array.from({length: 20}, () => 0),
-                memory: Array.from({length: 20}, () => 0),
-                disk: Array.from({length: 20}, () => 0),
-                timestamps: Array.from({length: 20}, (_, i) => new Date(Date.now() - (19-i) * 5000).toISOString())
+                cpu: Array.from({ length: 20 }, () => 0),
+                memory: Array.from({ length: 20 }, () => 0),
+                disk: Array.from({ length: 20 }, () => 0),
+                timestamps: Array.from({ length: 20 }, (_, i) => new Date(Date.now() - (19 - i) * 5000).toISOString())
             };
         }
 
