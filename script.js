@@ -351,6 +351,7 @@ class ModuleManager {
                     cpu: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
                     memory: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
                     disk: Array.from({ length: 20 }, () => Math.floor(Math.random() * 100)),
+                    temperature: [], // Start empty, will be populated with real data
                     timestamps: Array.from({ length: 20 }, (_, i) => new Date(Date.now() - (19 - i) * 5000).toISOString())
                 },
                 logs: [
@@ -1078,9 +1079,11 @@ class ModuleManager {
         // Disk Graph
         this.drawGraph(`disk-graph-${moduleId}`, data.history.disk, '#f59e0b', data.diskUsage);
 
-        // Temperature Graph (convert to percentage scale)
-        const tempHistory = data.history.cpu.map(temp => Math.min((temp / 80) * 100, 100));
-        this.drawGraph(`temp-graph-${moduleId}`, tempHistory, '#ef4444', (data.cpuTemp / 80) * 100);
+        // Temperature Graph (only draw if we have temperature history data)
+        if (data.history.temperature && data.history.temperature.length > 0) {
+            const tempHistory = data.history.temperature.map(temp => Math.min((temp / 80) * 100, 100));
+            this.drawGraph(`temp-graph-${moduleId}`, tempHistory, '#ef4444', (data.cpuTemp / 80) * 100);
+        }
     }
 
     drawGraph(canvasId, data, color, currentValue) {
@@ -1166,6 +1169,7 @@ class ModuleManager {
                 cpu: Array.from({ length: 20 }, () => 0),
                 memory: Array.from({ length: 20 }, () => 0),
                 disk: Array.from({ length: 20 }, () => 0),
+                temperature: [], // Start empty, will be populated with real data
                 timestamps: Array.from({ length: 20 }, (_, i) => new Date(Date.now() - (19 - i) * 5000).toISOString())
             };
         }
@@ -1179,6 +1183,15 @@ class ModuleManager {
 
         instanceData.history.disk.shift();
         instanceData.history.disk.push(data.diskUsage || 0);
+
+        // Only add temperature data if we have a valid reading
+        if (data.cpuTemp && data.cpuTemp > 0) {
+            instanceData.history.temperature.push(data.cpuTemp);
+            // Keep only the last 20 temperature readings
+            if (instanceData.history.temperature.length > 20) {
+                instanceData.history.temperature.shift();
+            }
+        }
 
         instanceData.history.timestamps.shift();
         instanceData.history.timestamps.push(new Date().toISOString());
