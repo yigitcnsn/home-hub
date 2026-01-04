@@ -262,6 +262,19 @@ class ModuleManager {
             const moduleElement = this.createModuleElement(module);
             grid.appendChild(moduleElement);
         });
+
+        // Draw graphs for system monitor modules
+        setTimeout(() => {
+            this.modules.forEach(module => {
+                if (module.type === 'system') {
+                    const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+                    const instanceData = this.moduleInstances[instanceKey];
+                    if (instanceData) {
+                        this.drawSystemGraphs(module.id, instanceData);
+                    }
+                }
+            });
+        }, 100); // Small delay to ensure DOM is ready
     }
 
     createModuleElement(module) {
@@ -331,7 +344,22 @@ class ModuleManager {
                 diskUsed: '13.4GB',
                 uptime: '2d 4h 23m',
                 networkStatus: 'online',
-                loadAverage: '0.15, 0.22, 0.18'
+                loadAverage: '0.15, 0.22, 0.18',
+                lastUpdate: new Date().toISOString(),
+                // Historical data for graphs (last 20 data points)
+                history: {
+                    cpu: Array.from({length: 20}, () => Math.floor(Math.random() * 100)),
+                    memory: Array.from({length: 20}, () => Math.floor(Math.random() * 100)),
+                    disk: Array.from({length: 20}, () => Math.floor(Math.random() * 100)),
+                    timestamps: Array.from({length: 20}, (_, i) => new Date(Date.now() - (19-i) * 5000).toISOString())
+                },
+                logs: [
+                    { timestamp: new Date(Date.now() - 30000).toISOString(), message: 'System monitor initialized', type: 'info' },
+                    { timestamp: new Date(Date.now() - 25000).toISOString(), message: 'CPU temperature monitoring started', type: 'info' },
+                    { timestamp: new Date(Date.now() - 20000).toISOString(), message: 'Memory usage tracking active', type: 'info' },
+                    { timestamp: new Date(Date.now() - 15000).toISOString(), message: 'Disk monitoring enabled', type: 'info' },
+                    { timestamp: new Date(Date.now() - 10000).toISOString(), message: 'Network status check completed', type: 'success' }
+                ]
             },
             custom: { value: 'Ready', status: 'active' }
         };
@@ -365,14 +393,7 @@ class ModuleManager {
                 <div class="module-status ${data.status}">Outside</div>
             `;
         } else if (type === 'system') {
-            // Create visual progress bars and status indicators
-            const getProgressBar = (percentage, colorClass = '') => {
-                const clampedPercent = Math.min(Math.max(percentage, 0), 100);
-                return `<div class="progress-bar ${colorClass}">
-                    <div class="progress-fill" style="width: ${clampedPercent}%"></div>
-                </div>`;
-            };
-
+            // Create visual graphs and status indicators
             const getStatusIndicator = (status, value) => {
                 const statusClasses = {
                     online: 'status-online',
@@ -389,61 +410,104 @@ class ModuleManager {
                 return `<span class="temp-indicator ${tempClass}">${temp}°C</span>`;
             };
 
+            const formatLastUpdate = (timestamp) => {
+                const now = new Date();
+                const update = new Date(timestamp);
+                const diff = Math.floor((now - update) / 1000);
+
+                if (diff < 60) return `${diff}s ago`;
+                if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+                if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+                return `${Math.floor(diff / 86400)}d ago`;
+            };
+
+            // Generate logs HTML
+            const generateLogsHTML = (logs) => {
+                if (!logs || logs.length === 0) return '<div class="no-logs">No logs available</div>';
+
+                return logs.slice(-10).reverse().map(log => {
+                    const time = new Date(log.timestamp).toLocaleTimeString();
+                    const logClass = `log-entry log-${log.type}`;
+                    const icon = log.type === 'error' ? '❌' : log.type === 'warning' ? '⚠️' : log.type === 'success' ? '✅' : 'ℹ️';
+                    return `<div class="${logClass}"><span class="log-time">${time}</span><span class="log-icon">${icon}</span><span class="log-message">${log.message}</span></div>`;
+                }).join('');
+            };
+
             return `
                 <div class="system-monitor">
                     <div class="system-header">
                         <div class="system-title">System Health</div>
-                        <div class="system-last-update">Updates every 5s</div>
+                        <div class="system-last-update">
+                            <span class="update-label">Last update:</span>
+                            <span class="update-time">${formatLastUpdate(data.lastUpdate || new Date().toISOString())}</span>
+                        </div>
                     </div>
 
-                    <div class="system-metrics">
-                        <div class="metric-row">
-                            <div class="metric-info">
-                                <span class="metric-label">CPU Usage</span>
-                                <span class="metric-value">${data.cpuUsage}%</span>
-                            </div>
-                            ${getProgressBar(data.cpuUsage, data.cpuUsage > 80 ? 'progress-high' : data.cpuUsage > 60 ? 'progress-warm' : 'progress-normal')}
-                        </div>
-
-                        <div class="metric-row">
-                            <div class="metric-info">
-                                <span class="metric-label">CPU Temp</span>
-                                ${getTempIndicator(data.cpuTemp)}
-                            </div>
-                            <div class="temp-gauge">
-                                <div class="temp-scale">
-                                    <div class="temp-marker" style="left: ${Math.min((data.cpuTemp / 80) * 100, 100)}%"></div>
+                    <div class="system-graphs">
+                        <div class="graph-row">
+                            <div class="graph-container">
+                                <div class="graph-header">
+                                    <span class="graph-title">CPU Usage</span>
+                                    <span class="graph-value">${data.cpuUsage}%</span>
                                 </div>
+                                <canvas class="system-graph" id="cpu-graph-${module.id}" width="300" height="80"></canvas>
+                            </div>
+                            <div class="graph-container">
+                                <div class="graph-header">
+                                    <span class="graph-title">Memory</span>
+                                    <span class="graph-value">${data.memoryUsage}%</span>
+                                </div>
+                                <canvas class="system-graph" id="memory-graph-${module.id}" width="300" height="80"></canvas>
                             </div>
                         </div>
-
-                        <div class="metric-row">
-                            <div class="metric-info">
-                                <span class="metric-label">Memory</span>
-                                <span class="metric-value">${data.memoryUsage}%</span>
+                        <div class="graph-row">
+                            <div class="graph-container">
+                                <div class="graph-header">
+                                    <span class="graph-title">Disk Usage</span>
+                                    <span class="graph-value">${data.diskUsage}%</span>
+                                </div>
+                                <canvas class="system-graph" id="disk-graph-${module.id}" width="300" height="80"></canvas>
                             </div>
-                            ${getProgressBar(data.memoryUsage, data.memoryUsage > 85 ? 'progress-high' : data.memoryUsage > 70 ? 'progress-warm' : 'progress-normal')}
-                            <div class="metric-details">${data.memoryUsed} / ${data.memoryTotal}</div>
+                            <div class="graph-container">
+                                <div class="graph-header">
+                                    <span class="graph-title">CPU Temperature</span>
+                                    <span class="graph-value">${data.cpuTemp}°C</span>
+                                </div>
+                                <canvas class="system-graph" id="temp-graph-${module.id}" width="300" height="80"></canvas>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="metric-row">
-                            <div class="metric-info">
-                                <span class="metric-label">Disk</span>
-                                <span class="metric-value">${data.diskUsage}%</span>
+                    <div class="system-details">
+                        <div class="detail-row">
+                            <div class="detail-item">
+                                <span class="detail-label">Memory Details</span>
+                                <span class="detail-value">${data.memoryUsed} / ${data.memoryTotal}</span>
                             </div>
-                            ${getProgressBar(data.diskUsage, data.diskUsage > 90 ? 'progress-high' : data.diskUsage > 75 ? 'progress-warm' : 'progress-normal')}
-                            <div class="metric-details">${data.diskUsed} / ${data.diskTotal}</div>
+                            <div class="detail-item">
+                                <span class="detail-label">Disk Details</span>
+                                <span class="detail-value">${data.diskUsed} / ${data.diskTotal}</span>
+                            </div>
                         </div>
+                        <div class="detail-row">
+                            <div class="detail-item">
+                                <span class="detail-label">Uptime</span>
+                                <span class="detail-value">${data.uptime}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Network</span>
+                                <span class="detail-value">${getStatusIndicator(data.networkStatus, data.networkStatus)}</span>
+                            </div>
+                        </div>
+                    </div>
 
-                        <div class="system-footer">
-                            <div class="footer-row">
-                                <span class="footer-label">Uptime</span>
-                                <span class="footer-value uptime-value">${data.uptime}</span>
-                            </div>
-                            <div class="footer-row">
-                                <span class="footer-label">Network</span>
-                                ${getStatusIndicator(data.networkStatus, data.networkStatus)}
-                            </div>
+                    <div class="system-logs">
+                        <div class="logs-header">
+                            <span class="logs-title">System Logs</span>
+                            <button class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${instanceKey}')">Clear</button>
+                        </div>
+                        <div class="logs-container" id="logs-container-${module.id}">
+                            ${generateLogsHTML(data.logs)}
                         </div>
                     </div>
                 </div>
@@ -676,7 +740,7 @@ class ModuleManager {
             case 'system_stats':
                 if (message.data) {
                     console.log('[System] Received system stats update');
-                    this.updateSystemStats(message.data);
+                    this.updateSystemMonitor('system_monitoring', message.data);
                 }
                 break;
 
@@ -956,6 +1020,172 @@ class ModuleManager {
 
     capitalizeFirst(str) {
         return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    // Draw system graphs using Canvas
+    drawSystemGraphs(moduleId, data) {
+        // CPU Graph
+        this.drawGraph(`cpu-graph-${moduleId}`, data.history.cpu, '#3b82f6', data.cpuUsage);
+
+        // Memory Graph
+        this.drawGraph(`memory-graph-${moduleId}`, data.history.memory, '#10b981', data.memoryUsage);
+
+        // Disk Graph
+        this.drawGraph(`disk-graph-${moduleId}`, data.history.disk, '#f59e0b', data.diskUsage);
+
+        // Temperature Graph (convert to percentage scale)
+        const tempHistory = data.history.cpu.map(temp => Math.min((temp / 80) * 100, 100));
+        this.drawGraph(`temp-graph-${moduleId}`, tempHistory, '#ef4444', (data.cpuTemp / 80) * 100);
+    }
+
+    drawGraph(canvasId, data, color, currentValue) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Set up gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, color + '40'); // Semi-transparent
+        gradient.addColorStop(1, color + '10');
+
+        // Draw area fill
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+
+        const points = data.length;
+        const stepX = width / (points - 1);
+
+        for (let i = 0; i < points; i++) {
+            const x = i * stepX;
+            const y = height - (data[i] / 100) * height;
+            ctx.lineTo(x, y);
+        }
+
+        ctx.lineTo(width, height);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw line
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i < points; i++) {
+            const x = i * stepX;
+            const y = height - (data[i] / 100) * height;
+
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+
+        ctx.stroke();
+
+        // Draw current value indicator
+        const currentX = (points - 1) * stepX;
+        const currentY = height - (currentValue / 100) * height;
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(currentX, currentY, 4, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Add glow effect
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    // Update system monitor with new data
+    updateSystemMonitor(instanceKey, data) {
+        const instanceData = this.moduleInstances[instanceKey];
+        if (!instanceData || !data) return;
+
+        // Update current values
+        Object.assign(instanceData, data);
+        instanceData.lastUpdate = new Date().toISOString();
+
+        // Update historical data
+        if (!instanceData.history) {
+            instanceData.history = {
+                cpu: Array.from({length: 20}, () => 0),
+                memory: Array.from({length: 20}, () => 0),
+                disk: Array.from({length: 20}, () => 0),
+                timestamps: Array.from({length: 20}, (_, i) => new Date(Date.now() - (19-i) * 5000).toISOString())
+            };
+        }
+
+        // Shift historical data and add new values
+        instanceData.history.cpu.shift();
+        instanceData.history.cpu.push(data.cpuUsage || 0);
+
+        instanceData.history.memory.shift();
+        instanceData.history.memory.push(data.memoryUsage || 0);
+
+        instanceData.history.disk.shift();
+        instanceData.history.disk.push(data.diskUsage || 0);
+
+        instanceData.history.timestamps.shift();
+        instanceData.history.timestamps.push(new Date().toISOString());
+
+        // Add log entry for significant changes
+        if (!instanceData.logs) instanceData.logs = [];
+
+        const addLogEntry = (message, type = 'info') => {
+            instanceData.logs.push({
+                timestamp: new Date().toISOString(),
+                message: message,
+                type: type
+            });
+
+            // Keep only last 50 logs
+            if (instanceData.logs.length > 50) {
+                instanceData.logs.shift();
+            }
+        };
+
+        // Check for significant changes and log them
+        const oldCpu = instanceData.history.cpu[instanceData.history.cpu.length - 2] || 0;
+        const oldMemory = instanceData.history.memory[instanceData.history.memory.length - 2] || 0;
+        const oldDisk = instanceData.history.disk[instanceData.history.disk.length - 2] || 0;
+
+        if (Math.abs(data.cpuUsage - oldCpu) > 20) {
+            const direction = data.cpuUsage > oldCpu ? 'increased' : 'decreased';
+            addLogEntry(`CPU usage ${direction} to ${data.cpuUsage}%`, data.cpuUsage > 80 ? 'warning' : 'info');
+        }
+
+        if (Math.abs(data.memoryUsage - oldMemory) > 15) {
+            const direction = data.memoryUsage > oldMemory ? 'increased' : 'decreased';
+            addLogEntry(`Memory usage ${direction} to ${data.memoryUsage}%`, data.memoryUsage > 85 ? 'warning' : 'info');
+        }
+
+        if (Math.abs(data.diskUsage - oldDisk) > 10) {
+            const direction = data.diskUsage > oldDisk ? 'increased' : 'decreased';
+            addLogEntry(`Disk usage ${direction} to ${data.diskUsage}%`, data.diskUsage > 90 ? 'error' : 'info');
+        }
+
+        // Update all modules that use this instance
+        this.renderModules();
+    }
+
+    // Clear system logs
+    clearSystemLogs(instanceKey) {
+        const instanceData = this.moduleInstances[instanceKey];
+        if (instanceData && instanceData.logs) {
+            instanceData.logs = [];
+            this.saveInstances();
+            this.renderModules();
+        }
     }
 }
 
