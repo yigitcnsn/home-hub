@@ -365,30 +365,86 @@ class ModuleManager {
                 <div class="module-status ${data.status}">Outside</div>
             `;
         } else if (type === 'system') {
+            // Create visual progress bars and status indicators
+            const getProgressBar = (percentage, colorClass = '') => {
+                const clampedPercent = Math.min(Math.max(percentage, 0), 100);
+                return `<div class="progress-bar ${colorClass}">
+                    <div class="progress-fill" style="width: ${clampedPercent}%"></div>
+                </div>`;
+            };
+
+            const getStatusIndicator = (status, value) => {
+                const statusClasses = {
+                    online: 'status-online',
+                    offline: 'status-offline',
+                    unknown: 'status-unknown'
+                };
+                return `<span class="status-indicator ${statusClasses[status] || 'status-unknown'}">${value}</span>`;
+            };
+
+            const getTempIndicator = (temp) => {
+                let tempClass = 'temp-normal';
+                if (temp > 70) tempClass = 'temp-high';
+                else if (temp > 50) tempClass = 'temp-warm';
+                return `<span class="temp-indicator ${tempClass}">${temp}°C</span>`;
+            };
+
             return `
-                <div class="system-stats">
-                    <div class="system-row">
-                        <span class="system-label">CPU:</span>
-                        <span class="system-value">${data.cpuUsage}%</span>
-                        <span class="system-temp">${data.cpuTemp}°C</span>
+                <div class="system-monitor">
+                    <div class="system-header">
+                        <div class="system-title">System Health</div>
+                        <div class="system-last-update">Updates every 5s</div>
                     </div>
-                    <div class="system-row">
-                        <span class="system-label">Memory:</span>
-                        <span class="system-value">${data.memoryUsage}%</span>
-                        <span class="system-mem">${data.memoryUsed}/${data.memoryTotal}</span>
-                    </div>
-                    <div class="system-row">
-                        <span class="system-label">Disk:</span>
-                        <span class="system-value">${data.diskUsage}%</span>
-                        <span class="system-disk">${data.diskUsed}/${data.diskTotal}</span>
-                    </div>
-                    <div class="system-row">
-                        <span class="system-label">Uptime:</span>
-                        <span class="system-uptime">${data.uptime}</span>
-                    </div>
-                    <div class="system-row">
-                        <span class="system-label">Network:</span>
-                        <span class="system-network ${data.networkStatus}">${data.networkStatus}</span>
+
+                    <div class="system-metrics">
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-label">CPU Usage</span>
+                                <span class="metric-value">${data.cpuUsage}%</span>
+                            </div>
+                            ${getProgressBar(data.cpuUsage, data.cpuUsage > 80 ? 'progress-high' : data.cpuUsage > 60 ? 'progress-warm' : 'progress-normal')}
+                        </div>
+
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-label">CPU Temp</span>
+                                ${getTempIndicator(data.cpuTemp)}
+                            </div>
+                            <div class="temp-gauge">
+                                <div class="temp-scale">
+                                    <div class="temp-marker" style="left: ${Math.min((data.cpuTemp / 80) * 100, 100)}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-label">Memory</span>
+                                <span class="metric-value">${data.memoryUsage}%</span>
+                            </div>
+                            ${getProgressBar(data.memoryUsage, data.memoryUsage > 85 ? 'progress-high' : data.memoryUsage > 70 ? 'progress-warm' : 'progress-normal')}
+                            <div class="metric-details">${data.memoryUsed} / ${data.memoryTotal}</div>
+                        </div>
+
+                        <div class="metric-row">
+                            <div class="metric-info">
+                                <span class="metric-label">Disk</span>
+                                <span class="metric-value">${data.diskUsage}%</span>
+                            </div>
+                            ${getProgressBar(data.diskUsage, data.diskUsage > 90 ? 'progress-high' : data.diskUsage > 75 ? 'progress-warm' : 'progress-normal')}
+                            <div class="metric-details">${data.diskUsed} / ${data.diskTotal}</div>
+                        </div>
+
+                        <div class="system-footer">
+                            <div class="footer-row">
+                                <span class="footer-label">Uptime</span>
+                                <span class="footer-value uptime-value">${data.uptime}</span>
+                            </div>
+                            <div class="footer-row">
+                                <span class="footer-label">Network</span>
+                                ${getStatusIndicator(data.networkStatus, data.networkStatus)}
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;

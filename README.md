@@ -27,6 +27,7 @@ A modern, modular web dashboard for home automation and monitoring.
 - **Security**: Security system status
 - **Energy**: Energy consumption monitoring
 - **Weather**: Weather information
+- **System Monitor**: Raspberry Pi health with visual graphs (CPU, memory, disk, network, temperature) - **Persistent widget**
 - **Custom**: Custom modules for any purpose
 
 ## Module Sizes
@@ -34,6 +35,24 @@ A modern, modular web dashboard for home automation and monitoring.
 - **Small (1x1)**: Compact module for simple data
 - **Medium (2x1)**: Standard width module
 - **Large (2x2)**: Large module for detailed information
+
+## System Monitoring
+
+The dashboard includes a persistent system monitor widget that provides real-time health monitoring of your Raspberry Pi:
+
+### Features
+- **Visual Progress Bars**: CPU, memory, and disk usage with color-coded status
+- **Temperature Gauge**: CPU temperature with color indicators (green/yellow/red)
+- **Real-time Updates**: Refreshes every 5 seconds across all connected devices
+- **Network Status**: Connection monitoring with status indicators
+- **Uptime Tracking**: System runtime display
+
+### Metrics Monitored
+- CPU usage percentage and temperature
+- Memory usage (RAM) with total/used breakdown
+- Disk space utilization with capacity display
+- Network connectivity status
+- System uptime duration
 
 ## File Structure
 
