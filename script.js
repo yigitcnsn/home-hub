@@ -1064,6 +1064,11 @@ class ModuleManager {
 
     // Draw system graphs using Canvas
     drawSystemGraphs(moduleId, data) {
+        // Don't draw graphs if there's no history data (error state)
+        if (!data.history || !data.history.cpu || !data.history.memory || !data.history.disk) {
+            console.log(`[System Graphs] Skipping graph drawing for module ${moduleId} - no history data available`);
+            return;
+        }
         // CPU Graph
         this.drawGraph(`cpu-graph-${moduleId}`, data.history.cpu, '#3b82f6', data.cpuUsage);
 
