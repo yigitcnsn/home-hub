@@ -347,6 +347,7 @@ async function updateSystemStats() {
         const memoryInfo = getMemoryUsage();
 
         systemStats = {
+            lastUpdate: new Date().toISOString(),
             cpuUsage: getCpuUsage(),
             cpuTemp: cpuTemp,
             memoryUsage: memoryInfo.usage,
