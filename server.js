@@ -5,7 +5,20 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+
+// WebSocket server for /dashboard path
+const wss = new WebSocket.Server({ noServer: true });
+
+// Handle WebSocket upgrades on /dashboard path
+server.on('upgrade', (request, socket, head) => {
+    if (request.url === '/dashboard') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    } else {
+        socket.destroy();
+    }
+});
 
 // Store the current dashboard state
 let dashboardState = {
@@ -112,13 +125,13 @@ setInterval(() => {
     broadcastToOthers(null, { type: 'ping' });
 }, 30000);
 
-// Serve static files
-app.use(express.static(path.join(__dirname)));
+// Note: Static files are served by Nginx on port 80
+// Node.js only handles WebSocket connections
 
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`[Server] Home Hub sync server running on http://localhost:${PORT}`);
+    console.log(`[Server] Home Hub WebSocket server running on port ${PORT}`);
     console.log(`[Server] WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
-    console.log(`[Server] Open http://localhost:${PORT} in your browser`);
+    console.log(`[Server] Static files served by Nginx on port 80`);
 });

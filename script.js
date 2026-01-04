@@ -487,8 +487,8 @@ class ModuleManager {
     // WebSocket-based real-time sync
     initWebSocketSync() {
         try {
-            // Use the same host as the current page, but with ws:// protocol
-            const wsUrl = `ws://${window.location.host}/dashboard`;
+            // Connect directly to the WebSocket server on port 3000
+            const wsUrl = `ws://${window.location.hostname}:3000/dashboard`;
             console.log('[WebSocket] Connecting to:', wsUrl);
             this.ws = new WebSocket(wsUrl);
 
