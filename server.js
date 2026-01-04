@@ -142,6 +142,7 @@ function getCpuUsage() {
 }
 
 function getCpuTemperature() {
+    console.log("[Temperature] Starting temperature detection...");
     return new Promise((resolve, reject) => {
         try {
             // For Raspberry Pi, try multiple temperature sources
@@ -151,6 +152,7 @@ function getCpuTemperature() {
                 '/sys/class/hwmon/hwmon1/temp1_input'      // Another alternative
             ];
 
+            console.log("[Temperature] Checking thermal zone files...");
             for (const source of tempSources) {
                 try {
                     if (fs.existsSync(source)) {
@@ -172,7 +174,9 @@ function getCpuTemperature() {
             }
 
             // If all thermal zone reads fail, try vcgencmd (Raspberry Pi specific)
-            exec('vcgencmd measure_temp 2>/dev/null', (error, stdout) => {
+            console.log('[Temperature] Trying vcgencmd fallback...' );
+            exec('vcgencmd measure_temp', (error, stdout) => {
+                console.log('[Temperature] vcgencmd error:', error, 'stdout:', stdout);
                 if (error) {
                     reject(new Error(`vcgencmd command failed: ${error.message}`));
                     return;
