@@ -164,6 +164,12 @@ class ModuleManager {
             return;
         }
 
+        // Prevent manual addition of system monitor
+        if (type === 'system') {
+            alert('System monitor is automatically added and cannot be created manually.');
+            return;
+        }
+
         const instanceKey = this.getInstanceKey(name, type);
 
         // Check if a module with the same name and type already exists
@@ -222,6 +228,12 @@ class ModuleManager {
         const moduleToRemove = this.modules.find(m => m.id === id);
         if (!moduleToRemove) return;
 
+        // Prevent removal of system monitor
+        if (moduleToRemove.type === 'system') {
+            alert('System monitor cannot be removed. It is a persistent widget.');
+            return;
+        }
+
         const instanceKey = moduleToRemove.instanceKey || this.getInstanceKey(moduleToRemove.name, moduleToRemove.type);
 
         // Remove the module
@@ -265,6 +277,7 @@ class ModuleManager {
             security: 'Security',
             energy: 'Energy',
             weather: 'Weather',
+            system: 'System Monitor',
             custom: 'Custom'
         };
 
@@ -285,8 +298,11 @@ class ModuleManager {
                     <div class="module-type">${typeLabels[module.type]}</div>
                 </div>
                 <div class="module-actions">
-                    <button class="module-action-btn" onclick="moduleManager.editModule(${module.id})" title="Edit">Edit</button>
-                    <button class="module-action-btn" onclick="moduleManager.removeModule(${module.id})" title="Remove">Delete</button>
+                    ${module.type === 'system' ?
+                '<span class="module-persistent" title="Persistent widget">🔒</span>' :
+                `<button class="module-action-btn" onclick="moduleManager.editModule(${module.id})" title="Edit">Edit</button>
+                         <button class="module-action-btn" onclick="moduleManager.removeModule(${module.id})" title="Remove">Delete</button>`
+            }
                 </div>
             </div>
             <div class="module-content">
@@ -304,6 +320,19 @@ class ModuleManager {
             security: { value: 'Armed', status: 'active' },
             energy: { value: '2.4 kW', status: 'active' },
             weather: { value: '18°C', status: 'active' },
+            system: {
+                cpuUsage: 15,
+                cpuTemp: 45,
+                memoryUsage: 35,
+                memoryTotal: '4GB',
+                memoryUsed: '1.4GB',
+                diskUsage: 42,
+                diskTotal: '32GB',
+                diskUsed: '13.4GB',
+                uptime: '2d 4h 23m',
+                networkStatus: 'online',
+                loadAverage: '0.15, 0.22, 0.18'
+            },
             custom: { value: 'Ready', status: 'active' }
         };
         return data[type] || data.custom;
@@ -334,6 +363,34 @@ class ModuleManager {
             return `
                 <div class="module-value">${data.value}</div>
                 <div class="module-status ${data.status}">Outside</div>
+            `;
+        } else if (type === 'system') {
+            return `
+                <div class="system-stats">
+                    <div class="system-row">
+                        <span class="system-label">CPU:</span>
+                        <span class="system-value">${data.cpuUsage}%</span>
+                        <span class="system-temp">${data.cpuTemp}°C</span>
+                    </div>
+                    <div class="system-row">
+                        <span class="system-label">Memory:</span>
+                        <span class="system-value">${data.memoryUsage}%</span>
+                        <span class="system-mem">${data.memoryUsed}/${data.memoryTotal}</span>
+                    </div>
+                    <div class="system-row">
+                        <span class="system-label">Disk:</span>
+                        <span class="system-value">${data.diskUsage}%</span>
+                        <span class="system-disk">${data.diskUsed}/${data.diskTotal}</span>
+                    </div>
+                    <div class="system-row">
+                        <span class="system-label">Uptime:</span>
+                        <span class="system-uptime">${data.uptime}</span>
+                    </div>
+                    <div class="system-row">
+                        <span class="system-label">Network:</span>
+                        <span class="system-network ${data.networkStatus}">${data.networkStatus}</span>
+                    </div>
+                </div>
             `;
         } else {
             return `
@@ -560,6 +617,13 @@ class ModuleManager {
                 }
                 break;
 
+            case 'system_stats':
+                if (message.data) {
+                    console.log('[System] Received system stats update');
+                    this.updateSystemStats(message.data);
+                }
+                break;
+
             case 'ping':
                 // Respond to server ping to maintain connection
                 this.ws.send(JSON.stringify({ type: 'pong' }));
@@ -594,6 +658,13 @@ class ModuleManager {
         this.saveModules();
         this.saveInstances();
         this.renderModules();
+    }
+
+    // Update system stats from server
+    updateSystemStats(stats) {
+        // Update the system instance data
+        const systemInstanceKey = 'system_monitoring';
+        this.updateInstanceData(systemInstanceKey, stats);
     }
 
     // Check for updates (polling fallback)
@@ -691,8 +762,41 @@ class ModuleManager {
             });
         }
 
+        // Always ensure system monitor widget exists
+        this.ensureSystemMonitor();
+
         if (savedCounter) {
             this.moduleIdCounter = parseInt(savedCounter);
+        }
+    }
+
+    // Ensure system monitor widget always exists
+    ensureSystemMonitor() {
+        const systemInstanceKey = 'system_monitoring';
+        const existingSystemMonitor = this.modules.find(m =>
+            (m.instanceKey || this.getInstanceKey(m.name, m.type)) === systemInstanceKey
+        );
+
+        if (!existingSystemMonitor) {
+            console.log('[System] Creating persistent system monitor widget');
+
+            const systemModule = {
+                id: this.moduleIdCounter++,
+                name: 'System Monitor',
+                type: 'system',
+                size: 'medium',
+                createdAt: new Date().toISOString(),
+                instanceKey: systemInstanceKey
+            };
+
+            // Initialize system monitor instance data
+            if (!this.moduleInstances[systemInstanceKey]) {
+                this.moduleInstances[systemInstanceKey] = this.getSampleData('system');
+            }
+
+            this.modules.push(systemModule);
+            this.saveModules();
+            this.saveInstances();
         }
     }
 

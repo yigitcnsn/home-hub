@@ -688,3 +688,74 @@ body {
     border-color: var(--primary-color);
     background: var(--bg-hover);
 }
+
+/* System Monitor Styles */
+.system-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.system-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+
+.system-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+    min-width: 60px;
+}
+
+.system-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.system-temp {
+    color: var(--warning);
+    font-weight: 500;
+    margin-left: 8px;
+}
+
+.system-mem {
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.system-disk {
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.system-uptime {
+    color: var(--success);
+    font-weight: 500;
+}
+
+.system-network.online {
+    color: var(--success);
+    font-weight: 500;
+}
+
+.system-network.offline {
+    color: var(--danger);
+    font-weight: 500;
+}
+
+.system-network.unknown {
+    color: var(--warning);
+    font-weight: 500;
+}
+
+.module-persistent {
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: help;
+    opacity: 0.7;
+}

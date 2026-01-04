@@ -2,6 +2,9 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
+const { exec } = require('child_process');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,6 +32,10 @@ let dashboardState = {
 
 // Connected clients
 const clients = new Set();
+
+// System monitoring data
+let systemStats = {};
+let lastCpuUsage = process.cpuUsage();
 
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
@@ -119,6 +126,150 @@ function broadcastToOthers(sender, message) {
         }
     });
 }
+
+// System monitoring functions
+function getCpuUsage() {
+    const currentCpuUsage = process.cpuUsage();
+    const diff = {
+        user: currentCpuUsage.user - lastCpuUsage.user,
+        system: currentCpuUsage.system - lastCpuUsage.system
+    };
+    lastCpuUsage = currentCpuUsage;
+
+    const total = diff.user + diff.system;
+    const usagePercent = Math.round((total / 1000000) * 100); // Convert to percentage
+    return Math.min(usagePercent, 100); // Cap at 100%
+}
+
+function getCpuTemperature() {
+    try {
+        // For Raspberry Pi, read CPU temperature
+        const temp = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
+        return Math.round(parseInt(temp) / 1000); // Convert from millidegrees to degrees
+    } catch (e) {
+        // Fallback for other systems
+        return Math.round(os.loadavg()[0] * 10 + 40); // Rough estimate
+    }
+}
+
+function getMemoryUsage() {
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const usagePercent = Math.round((usedMem / totalMem) * 100);
+
+    const formatBytes = (bytes) => {
+        const gb = (bytes / (1024 * 1024 * 1024)).toFixed(1);
+        return `${gb}GB`;
+    };
+
+    return {
+        usage: usagePercent,
+        total: formatBytes(totalMem),
+        used: formatBytes(usedMem),
+        free: formatBytes(freeMem)
+    };
+}
+
+function getDiskUsage() {
+    return new Promise((resolve) => {
+        exec('df / | tail -1', (error, stdout) => {
+            if (error) {
+                resolve({ usage: 0, total: '0GB', used: '0GB' });
+                return;
+            }
+
+            const parts = stdout.trim().split(/\s+/);
+            const totalKb = parseInt(parts[1]) * 1024; // Convert to bytes
+            const usedKb = parseInt(parts[2]) * 1024;
+            const usagePercent = parseInt(parts[4].replace('%', ''));
+
+            const formatBytes = (bytes) => {
+                const gb = (bytes / (1024 * 1024 * 1024)).toFixed(1);
+                return `${gb}GB`;
+            };
+
+            resolve({
+                usage: usagePercent,
+                total: formatBytes(totalKb),
+                used: formatBytes(usedKb)
+            });
+        });
+    });
+}
+
+function getUptime() {
+    const uptime = os.uptime();
+    const days = Math.floor(uptime / 86400);
+    const hours = Math.floor((uptime % 86400) / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+
+    let uptimeStr = '';
+    if (days > 0) uptimeStr += `${days}d `;
+    if (hours > 0) uptimeStr += `${hours}h `;
+    uptimeStr += `${minutes}m`;
+
+    return uptimeStr.trim();
+}
+
+function getNetworkStatus() {
+    // Simple network check - could be enhanced
+    try {
+        const interfaces = os.networkInterfaces();
+        let hasConnection = false;
+
+        for (const [name, addresses] of Object.entries(interfaces)) {
+            if (name !== 'lo' && addresses) {
+                const hasValidAddress = addresses.some(addr =>
+                    !addr.internal && addr.family === 'IPv4'
+                );
+                if (hasValidAddress) {
+                    hasConnection = true;
+                    break;
+                }
+            }
+        }
+
+        return hasConnection ? 'online' : 'offline';
+    } catch (e) {
+        return 'unknown';
+    }
+}
+
+async function updateSystemStats() {
+    try {
+        const diskInfo = await getDiskUsage();
+
+        systemStats = {
+            cpuUsage: getCpuUsage(),
+            cpuTemp: getCpuTemperature(),
+            memoryUsage: getMemoryUsage().usage,
+            memoryTotal: getMemoryUsage().total,
+            memoryUsed: getMemoryUsage().used,
+            diskUsage: diskInfo.usage,
+            diskTotal: diskInfo.total,
+            diskUsed: diskInfo.used,
+            uptime: getUptime(),
+            networkStatus: getNetworkStatus(),
+            loadAverage: os.loadavg().map(x => x.toFixed(2)).join(', ')
+        };
+
+        // Broadcast system stats to all connected clients
+        broadcastToOthers(null, {
+            type: 'system_stats',
+            data: systemStats
+        });
+
+    } catch (e) {
+        console.error('[System Monitor] Error updating stats:', e);
+    }
+}
+
+// Update system stats every 5 seconds
+setInterval(updateSystemStats, 5000);
+
+// Initial update
+updateSystemStats();
 
 // Ping clients to keep connections alive
 setInterval(() => {
