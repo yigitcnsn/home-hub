@@ -112,12 +112,17 @@
                 <div class="form-group">
                     <label for="moduleType">Module Type</label>
                     <select id="moduleType">
-                        <option value="temperature">Temperature</option>
-                        <option value="lighting">Lighting</option>
-                        <option value="security">Security</option>
-                        <option value="energy">Energy</option>
-                        <option value="weather">Weather</option>
-                        <option value="custom">Custom</option>
+                        <optgroup label="Sensors">
+                            <option value="temperature">Temperature</option>
+                            <option value="lighting">Lighting</option>
+                            <option value="security">Security</option>
+                            <option value="energy">Energy</option>
+                            <option value="weather">Weather</option>
+                            <option value="custom">Custom</option>
+                        </optgroup>
+                        <optgroup label="Analyzers">
+                            <option value="network">Network Analyzer</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div class="form-group">
@@ -137,6 +142,7 @@
     </div>
 
     <script src="modules/activity/client.js"></script>
+    <script src="modules/network/client.js"></script>
     <script src="script.js"></script>
 </body>
 

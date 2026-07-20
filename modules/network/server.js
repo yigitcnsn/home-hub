@@ -1,15 +1,11 @@
 /**
  * Network Analyzer module (server)
- * Not registered yet — enable from modules/index.js when ready.
- *
- * Hourly download speed checks; see NetworkAnalyzer class below.
+ * Hourly download speed checks + manual run via WebSocket.
  */
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
 
-// Download-based bandwidth check (no API key).
-// Uses Cloudflare speed-test endpoint; size kept modest for Pi networks.
 const DEFAULT_TEST_URL = 'https://speed.cloudflare.com/__down?bytes=2500000';
 const DEFAULT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const HISTORY_LIMIT = 24;
@@ -29,7 +25,6 @@ class NetworkAnalyzer {
     start() {
         this.log('info', `Network analyzer started (every ${Math.round(this.intervalMs / 60000)} min)`);
 
-        // First run shortly after boot so UI is not empty for an hour
         setTimeout(() => {
             this.runTest('startup').catch(() => {});
         }, 5000);
@@ -52,7 +47,7 @@ class NetworkAnalyzer {
             history: this.history.slice(),
             intervalMs: this.intervalMs,
             running: this.running,
-            testUrl: this.testUrl
+            nextRunHint: 'Every 1 hour'
         };
     }
 
@@ -171,11 +166,59 @@ class NetworkAnalyzer {
     }
 }
 
+function register(ctx) {
+    const { app, logger, broadcastToAll, onClientConnected, onClientMessage } = ctx;
+
+    const analyzer = new NetworkAnalyzer({
+        logger,
+        onResult: (result) => {
+            broadcastToAll({
+                type: 'network_stats',
+                data: {
+                    lastResult: result,
+                    history: analyzer.history.slice(),
+                    running: analyzer.running,
+                    intervalMs: analyzer.intervalMs
+                }
+            });
+        }
+    });
+
+    app.get('/api/network', (req, res) => {
+        res.json(analyzer.getState());
+    });
+
+    onClientConnected((ws) => {
+        ws.send(JSON.stringify({
+            type: 'network_state',
+            data: analyzer.getState()
+        }));
+    });
+
+    onClientMessage((ws, data) => {
+        if (data.type !== 'run_network_test') return false;
+
+        broadcastToAll({
+            type: 'network_stats',
+            data: {
+                ...analyzer.getState(),
+                running: true
+            }
+        });
+
+        analyzer.runTest('manual').catch(() => {});
+        return true;
+    });
+
+    analyzer.start();
+    logger.info('NetworkAnalyzer', 'Network Analyzer module registered');
+}
+
 module.exports = {
     id: 'network',
     name: 'Network Analyzer',
+    register,
     NetworkAnalyzer,
     DEFAULT_INTERVAL_MS,
     DEFAULT_TEST_URL
-    // register() will be added when this module is enabled
 };

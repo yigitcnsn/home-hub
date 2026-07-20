@@ -148,6 +148,21 @@ class ModuleManager {
         document.getElementById('moduleType').value = 'temperature';
         document.getElementById('moduleSize').value = 'medium';
         document.getElementById('addBtn').textContent = 'Add Module';
+
+        const typeSelect = document.getElementById('moduleType');
+        if (typeSelect && typeSelect.dataset.networkPrefill !== '1') {
+            typeSelect.dataset.networkPrefill = '1';
+            typeSelect.addEventListener('change', () => {
+                const hubMod = window.HomeHubModules && window.HomeHubModules[typeSelect.value];
+                const nameInput = document.getElementById('moduleName');
+                if (hubMod && hubMod.defaultName && nameInput && !nameInput.value.trim()) {
+                    nameInput.value = hubMod.defaultName;
+                }
+                if (hubMod && hubMod.defaultSize) {
+                    document.getElementById('moduleSize').value = hubMod.defaultSize;
+                }
+            });
+        }
     }
 
     closeAddModuleModal() {

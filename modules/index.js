@@ -3,10 +3,11 @@
  * Add new feature folders under modules/<name>/ with a server.js that exports { id, register }.
  */
 const activity = require('./activity/server');
+const network = require('./network/server');
 
 const modules = [
-    activity
-    // network will be registered here when enabled
+    activity,
+    network
 ];
 
 function registerAll(ctx) {

@@ -35,6 +35,7 @@ let dashboardState = {
 // Connected clients
 const clients = new Set();
 const clientConnectedHandlers = [];
+const clientMessageHandlers = [];
 
 // System monitoring data
 let systemStats = {};
@@ -53,12 +54,17 @@ function onClientConnected(handler) {
     clientConnectedHandlers.push(handler);
 }
 
-// Register feature modules (activity log, future network analyzer, etc.)
+function onClientMessage(handler) {
+    clientMessageHandlers.push(handler);
+}
+
+// Register feature modules (activity log, network analyzer, etc.)
 hubModules.registerAll({
     app,
     logger,
     broadcastToAll,
-    onClientConnected
+    onClientConnected,
+    onClientMessage
 });
 
 // WebSocket connection handling
@@ -146,8 +152,20 @@ function handleMessage(ws, data) {
             // Client responded to ping
             break;
 
-        default:
-            logger.warn('Server', `Unknown message type: ${data.type}`);
+        default: {
+            let handled = false;
+            clientMessageHandlers.forEach((handler) => {
+                try {
+                    if (handler(ws, data)) handled = true;
+                } catch (e) {
+                    logger.error('Server', `Module message hook failed: ${e.message}`);
+                }
+            });
+            if (!handled) {
+                logger.warn('Server', `Unknown message type: ${data.type}`);
+            }
+            break;
+        }
     }
 }
 
