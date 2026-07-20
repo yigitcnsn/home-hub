@@ -53,8 +53,8 @@ class ModuleManager {
                 e.preventDefault();
                 document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
                 item.classList.add('active');
-                const view = item.dataset.view;
-                document.querySelector('.page-title').textContent = this.capitalizeFirst(view);
+                const view = item.dataset.view || 'home';
+                this.setView(view);
             });
         });
 
@@ -1130,6 +1130,31 @@ class ModuleManager {
 
     capitalizeFirst(str) {
         return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    setView(view) {
+        const title = document.querySelector('.page-title');
+        const grid = document.getElementById('modulesGrid');
+        const logsPanel = document.getElementById('sidebarLogs');
+        const timeDisplay = document.getElementById('timeDisplay');
+
+        if (title) {
+            title.textContent = view === 'logs' ? 'Logs' : 'Home';
+        }
+
+        if (logsPanel) {
+            logsPanel.hidden = view !== 'logs';
+        }
+
+        if (grid) {
+            grid.style.display = view === 'logs' ? 'none' : '';
+        }
+
+        if (timeDisplay) {
+            timeDisplay.style.display = view === 'logs' ? 'none' : '';
+        }
+
+        document.body.classList.toggle('view-logs', view === 'logs');
     }
 
     // Draw system graphs using Canvas

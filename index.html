@@ -16,16 +16,16 @@
                 <h1 class="logo">Home Hub</h1>
             </div>
             <nav class="sidebar-nav">
-                <a href="#" class="nav-item active" data-view="home">
+                <button type="button" class="nav-item active" data-view="home">
                     <span class="nav-text">Home</span>
-                </a>
+                </button>
+                <button type="button" class="nav-item" data-view="logs" id="logsNavBtn">
+                    <span class="nav-text">Logs</span>
+                    <span class="sidebar-logs-count" id="sidebarLogsCount">0</span>
+                </button>
             </nav>
 
-            <div class="sidebar-logs" id="sidebarLogs">
-                <div class="sidebar-logs-header">
-                    <span class="sidebar-logs-title">Logs</span>
-                    <span class="sidebar-logs-count" id="sidebarLogsCount">0</span>
-                </div>
+            <div class="sidebar-logs" id="sidebarLogs" hidden>
                 <div class="sidebar-logs-list" id="sidebarLogsList">
                     <div class="sidebar-logs-empty">Waiting for server logs...</div>
                 </div>
