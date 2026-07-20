@@ -396,15 +396,14 @@ setInterval(() => {
     broadcastToOthers(null, { type: 'ping' });
 }, 30000);
 
-// Note: Static files are served by Nginx on port 80
-// Node.js only handles WebSocket connections
+// Serve dashboard UI from the project directory
+app.use(express.static(path.join(__dirname)));
 
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
-    console.log(`[Server] Home Hub WebSocket server running on port ${PORT}`);
+    console.log(`[Server] Home Hub running on http://0.0.0.0:${PORT}`);
     console.log(`[Server] WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
-    console.log(`[Server] Static files served by Nginx on port 80`);
 
     // Log system information
     const piModel = await getRaspberryPiInfo();
