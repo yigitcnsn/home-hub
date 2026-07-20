@@ -1,131 +1,138 @@
 /**
- * Activity Log module (browser)
- * Loaded before script.js; extends ModuleManager via HomeHubModules.
+ * Activity Log (browser) — sidebar panel, not a dashboard widget.
+ * Appends live lines without rebuilding the list (preserves scroll).
  */
 (function () {
-    const INSTANCE_KEY = 'activity_log';
+    const MAX_ENTRIES = 200;
+    let entries = [];
+    let initialized = false;
 
-    function getSampleData() {
-        return {
-            entries: [],
-            lastUpdate: null
-        };
-    }
-
-    function render(data, module) {
-        const entries = Array.isArray(data.entries) ? data.entries : [];
-        const rows = entries.length === 0
-            ? '<div class="no-logs">Waiting for server logs...</div>'
-            : entries.slice().reverse().map((entry) => {
-                const time = new Date(entry.timestamp).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
-                const level = entry.level || 'info';
-                return `
-                    <div class="activity-row activity-${level}">
-                        <span class="activity-time">${time}</span>
-                        <span class="activity-level">${level}</span>
-                        <span class="activity-source">${entry.source || 'App'}</span>
-                        <span class="activity-message">${entry.message || ''}</span>
-                    </div>
-                `;
-            }).join('');
-
+    function rowHtml(entry) {
+        const time = new Date(entry.timestamp).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        const level = entry.level || 'info';
         return `
-            <div class="activity-monitor">
-                <div class="activity-toolbar">
-                    <span class="activity-count">${entries.length} events</span>
-                    <span class="activity-hint">Also written to logs/home-hub.log on the host</span>
+            <div class="sidebar-log-row sidebar-log-${level}" data-log-id="${entry.id || ''}">
+                <div class="sidebar-log-meta">
+                    <span class="sidebar-log-time">${time}</span>
+                    <span class="sidebar-log-level">${level}</span>
                 </div>
-                <div class="activity-list" id="activity-list-${module.id}">
-                    ${rows}
-                </div>
+                <div class="sidebar-log-source">${entry.source || 'App'}</div>
+                <div class="sidebar-log-message">${entry.message || ''}</div>
             </div>
         `;
     }
 
-    function ensure(manager) {
-        const existing = manager.modules.find(m =>
-            (m.instanceKey || manager.getInstanceKey(m.name, m.type)) === INSTANCE_KEY
-        );
-
-        if (!existing) {
-            console.log('[Activity] Creating persistent activity log widget');
-            const activityModule = {
-                id: manager.moduleIdCounter++,
-                name: 'Activity Log',
-                type: 'activity',
-                size: 'large',
-                createdAt: new Date().toISOString(),
-                instanceKey: INSTANCE_KEY
-            };
-
-            if (!manager.moduleInstances[INSTANCE_KEY]) {
-                manager.moduleInstances[INSTANCE_KEY] = getSampleData();
-            }
-
-            manager.modules.push(activityModule);
-            manager.saveModules();
-            manager.saveInstances();
-        } else if (existing.size !== 'large') {
-            existing.size = 'large';
-            manager.saveModules();
-        }
+    function getList() {
+        return document.getElementById('sidebarLogsList');
     }
 
-    function applyLogs(manager, entries, replace) {
-        if (!manager.moduleInstances[INSTANCE_KEY]) {
-            manager.moduleInstances[INSTANCE_KEY] = getSampleData();
-        }
+    function getCount() {
+        return document.getElementById('sidebarLogsCount');
+    }
 
-        const current = manager.moduleInstances[INSTANCE_KEY];
-        if (replace) {
-            current.entries = entries.slice(-200);
-        } else {
-            current.entries = (current.entries || []).concat(entries);
-            if (current.entries.length > 200) {
-                current.entries = current.entries.slice(-200);
-            }
-        }
-        current.lastUpdate = new Date().toISOString();
-        manager.saveInstances();
+    function updateCount() {
+        const el = getCount();
+        if (el) el.textContent = String(entries.length);
+    }
 
-        const lists = document.querySelectorAll('.activity-list');
-        if (replace || lists.length === 0) {
-            manager.renderModules();
+    function renderFull() {
+        const list = getList();
+        if (!list) return;
+
+        if (entries.length === 0) {
+            list.innerHTML = '<div class="sidebar-logs-empty">Waiting for server logs...</div>';
+            updateCount();
             return;
         }
 
-        entries.forEach((entry) => {
-            const time = new Date(entry.timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            const level = entry.level || 'info';
-            const rowHtml = `
-                <div class="activity-row activity-${level}">
-                    <span class="activity-time">${time}</span>
-                    <span class="activity-level">${level}</span>
-                    <span class="activity-source">${entry.source || 'App'}</span>
-                    <span class="activity-message">${entry.message || ''}</span>
-                </div>
-            `;
-            lists.forEach((list) => {
-                const empty = list.querySelector('.no-logs');
-                if (empty) empty.remove();
-                list.insertAdjacentHTML('afterbegin', rowHtml);
-                while (list.children.length > 200) {
-                    list.removeChild(list.lastChild);
-                }
-            });
-        });
+        // Newest first
+        list.innerHTML = entries.slice().reverse().map(rowHtml).join('');
+        updateCount();
+    }
 
-        document.querySelectorAll('.activity-count').forEach((el) => {
-            el.textContent = `${current.entries.length} events`;
-        });
+    function appendEntries(newEntries) {
+        const list = getList();
+        if (!list) {
+            renderFull();
+            return;
+        }
+
+        const empty = list.querySelector('.sidebar-logs-empty');
+        if (empty) empty.remove();
+
+        const prevScrollTop = list.scrollTop;
+        const prevScrollHeight = list.scrollHeight;
+        const wasAtTop = prevScrollTop <= 8;
+
+        // Insert newest at top, in chronological order within the batch
+        const fragment = document.createDocumentFragment();
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = newEntries.slice().reverse().map(rowHtml).join('');
+        while (wrapper.firstChild) {
+            fragment.appendChild(wrapper.firstChild);
+        }
+        list.insertBefore(fragment, list.firstChild);
+
+        while (list.children.length > MAX_ENTRIES) {
+            list.removeChild(list.lastChild);
+        }
+
+        updateCount();
+
+        if (wasAtTop) {
+            list.scrollTop = 0;
+        } else {
+            // Keep the same content under the viewport
+            list.scrollTop = prevScrollTop + (list.scrollHeight - prevScrollHeight);
+        }
+    }
+
+    function applyLogs(manager, incoming, replace) {
+        if (replace) {
+            entries = incoming.slice(-MAX_ENTRIES);
+            renderFull();
+            return;
+        }
+
+        entries = entries.concat(incoming);
+        if (entries.length > MAX_ENTRIES) {
+            entries = entries.slice(-MAX_ENTRIES);
+        }
+        appendEntries(incoming);
+    }
+
+    function removeDashboardWidget(manager) {
+        if (!manager || !Array.isArray(manager.modules)) return;
+
+        const before = manager.modules.length;
+        manager.modules = manager.modules.filter((m) => m.type !== 'activity');
+        if (manager.moduleInstances && manager.moduleInstances.activity_log) {
+            delete manager.moduleInstances.activity_log;
+        }
+
+        if (manager.modules.length !== before) {
+            manager.saveModules();
+            manager.saveInstances();
+            manager.renderModules();
+        }
+    }
+
+    function ensure(manager) {
+        // Logs live in the sidebar — remove any old dashboard Activity Log widgets
+        removeDashboardWidget(manager);
+
+        if (!initialized) {
+            initialized = true;
+            const list = getList();
+            if (list && !list.children.length) {
+                list.innerHTML = '<div class="sidebar-logs-empty">Waiting for server logs...</div>';
+            }
+            updateCount();
+        }
     }
 
     function handleMessage(manager, message) {
@@ -144,10 +151,12 @@
     window.HomeHubModules.activity = {
         id: 'activity',
         type: 'activity',
-        label: 'Activity Log',
+        label: 'Logs',
         persistent: true,
-        getSampleData,
-        render,
+        sidebar: true,
+        // No dashboard widget
+        getSampleData: null,
+        render: null,
         ensure,
         handleMessage
     };

@@ -283,7 +283,7 @@ class ModuleManager {
         const div = document.createElement('div');
         const hubMod = window.HomeHubModules && window.HomeHubModules[module.type];
         const isPersistent = module.type === 'system' || (hubMod && hubMod.persistent);
-        div.className = `module ${module.size}${module.type === 'system' ? ' module-system' : ''}${module.type === 'activity' ? ' module-activity' : ''}`;
+        div.className = `module ${module.size}${module.type === 'system' ? ' module-system' : ''}`;
         div.draggable = true;
         div.dataset.moduleId = module.id;
         div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
