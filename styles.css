@@ -1075,6 +1075,10 @@ body {
     min-height: 60vh;
 }
 
+.module-page[hidden] {
+    display: none !important;
+}
+
 .logs-view[hidden] {
     display: none !important;
 }
@@ -1209,8 +1213,19 @@ body {
 
 /* (old sidebar activity styles removed) */
 
-/* Network Analyzer module */
-.network-analyzer {
+/* Network Analyzer page */
+.network-view {
+    min-height: 60vh;
+}
+
+.network-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.network-analyzer,
+.network-page {
     display: flex;
     flex-direction: column;
     gap: 14px;

@@ -15,9 +15,11 @@ class ModuleManager {
         this.loadDarkMode();
         this.setupEventListeners();
         this.setupDragAndDrop();
+        this.buildModuleNav();
         this.renderModules();
         this.startClock();
         this.initSync();
+        this.setView('home');
         console.log('[ModuleManager] Initialization complete');
     }
 
@@ -48,14 +50,13 @@ class ModuleManager {
         });
 
         // Navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-                item.classList.add('active');
-                const view = item.dataset.view || 'home';
-                this.setView(view);
-            });
+        document.getElementById('sidebarNav').addEventListener('click', (e) => {
+            const item = e.target.closest('.nav-item');
+            if (!item) return;
+            e.preventDefault();
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+            this.setView(item.dataset.view || 'home');
         });
 
         // Top bar actions
@@ -147,22 +148,7 @@ class ModuleManager {
         document.getElementById('moduleName').value = '';
         document.getElementById('moduleType').value = 'temperature';
         document.getElementById('moduleSize').value = 'medium';
-        document.getElementById('addBtn').textContent = 'Add Module';
-
-        const typeSelect = document.getElementById('moduleType');
-        if (typeSelect && typeSelect.dataset.networkPrefill !== '1') {
-            typeSelect.dataset.networkPrefill = '1';
-            typeSelect.addEventListener('change', () => {
-                const hubMod = window.HomeHubModules && window.HomeHubModules[typeSelect.value];
-                const nameInput = document.getElementById('moduleName');
-                if (hubMod && hubMod.defaultName && nameInput && !nameInput.value.trim()) {
-                    nameInput.value = hubMod.defaultName;
-                }
-                if (hubMod && hubMod.defaultSize) {
-                    document.getElementById('moduleSize').value = hubMod.defaultSize;
-                }
-            });
-        }
+        document.getElementById('addBtn').textContent = 'Add Widget';
     }
 
     closeAddModuleModal() {
@@ -179,10 +165,10 @@ class ModuleManager {
             return;
         }
 
-        // Prevent manual addition of persistent modules
+        // Prevent manual addition of sidebar modules / system
         const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === type);
-        if (type === 'system' || (hubMod && hubMod.persistent)) {
-            alert('This module is automatic and cannot be created manually.');
+        if (type === 'system' || (hubMod && (hubMod.persistent || hubMod.nav))) {
+            alert('This is a sidebar module, not a Home widget.');
             return;
         }
 
@@ -630,7 +616,7 @@ class ModuleManager {
                 this.saveInstances();
                 this.renderModules();
                 this.closeAddModuleModal();
-                addBtn.textContent = 'Add Module';
+                addBtn.textContent = 'Add Widget';
                 addBtn.onclick = () => this.addModule();
             };
         }
@@ -1147,30 +1133,61 @@ class ModuleManager {
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
 
+    buildModuleNav() {
+        const nav = document.getElementById('sidebarNav');
+        if (!nav || !window.HomeHubModules) return;
+
+        // Keep Home button; rebuild module page buttons
+        Array.from(nav.querySelectorAll('.nav-item[data-view]:not([data-view="home"])')).forEach((el) => el.remove());
+
+        Object.values(window.HomeHubModules)
+            .filter((mod) => mod.nav && mod.view)
+            .forEach((mod) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'nav-item';
+                btn.dataset.view = mod.view;
+                btn.innerHTML = `<span class="nav-text">${mod.navLabel || mod.label || mod.view}</span>`;
+                if (mod.view === 'logs') {
+                    btn.insertAdjacentHTML(
+                        'beforeend',
+                        '<span class="logs-nav-count" id="logsNavCount">0</span>'
+                    );
+                }
+                nav.appendChild(btn);
+            });
+    }
+
     setView(view) {
-        const title = document.querySelector('.page-title');
-        const grid = document.getElementById('modulesGrid');
-        const logsView = document.getElementById('logsView');
+        const title = document.getElementById('pageTitle') || document.querySelector('.page-title');
         const timeDisplay = document.getElementById('timeDisplay');
+        const panels = document.querySelectorAll('[data-view-panel]');
 
-        if (title) {
-            title.textContent = view === 'logs' ? 'Logs' : 'Home';
-        }
+        const hubMod = window.HomeHubModules &&
+            Object.values(window.HomeHubModules).find((m) => m.view === view);
+        const label = view === 'home'
+            ? 'Home'
+            : (hubMod && (hubMod.navLabel || hubMod.label)) || this.capitalizeFirst(view);
 
-        if (logsView) {
-            logsView.hidden = view !== 'logs';
-        }
+        if (title) title.textContent = label;
 
-        if (grid) {
-            grid.hidden = view === 'logs';
-            grid.style.display = view === 'logs' ? 'none' : '';
-        }
+        panels.forEach((panel) => {
+            const isActive = panel.dataset.viewPanel === view;
+            panel.hidden = !isActive;
+            if (panel.id === 'modulesGrid') {
+                panel.style.display = isActive ? '' : 'none';
+            }
+        });
 
         if (timeDisplay) {
-            timeDisplay.style.display = view === 'logs' ? 'none' : '';
+            timeDisplay.style.display = view === 'home' ? '' : 'none';
         }
 
-        document.body.classList.toggle('view-logs', view === 'logs');
+        document.body.className = document.body.className
+            .split(/\s+/)
+            .filter((c) => c && !c.startsWith('view-'))
+            .concat([`view-${view}`])
+            .join(' ');
     }
 
     // Draw system graphs using Canvas

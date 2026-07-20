@@ -15,14 +15,11 @@
             <div class="sidebar-header">
                 <h1 class="logo">Home Hub</h1>
             </div>
-            <nav class="sidebar-nav">
+            <nav class="sidebar-nav" id="sidebarNav">
                 <button type="button" class="nav-item active" data-view="home">
                     <span class="nav-text">Home</span>
                 </button>
-                <button type="button" class="nav-item" data-view="logs" id="logsNavBtn">
-                    <span class="nav-text">Logs</span>
-                    <span class="logs-nav-count" id="logsNavCount">0</span>
-                </button>
+                <!-- Module pages injected by script.js from HomeHubModules -->
             </nav>
 
             <!-- Developer Section -->
@@ -39,7 +36,7 @@
 
             <div class="sidebar-footer">
                 <button class="add-module-btn" id="addModuleBtn">
-                    <span>+</span> Add Module
+                    <span>+</span> Add Widget
                 </button>
             </div>
         </aside>
@@ -48,7 +45,7 @@
         <main class="main-content">
             <header class="top-bar">
                 <div class="top-bar-left">
-                    <h2 class="page-title">Home</h2>
+                    <h2 class="page-title" id="pageTitle">Home</h2>
                     <div class="time-display" id="timeDisplay">
                         <span class="time-value" id="timeValue"></span>
                         <span class="date-value" id="dateValue"></span>
@@ -70,13 +67,13 @@
                 </div>
             </header>
 
-            <!-- Module Grid -->
-            <div class="modules-grid" id="modulesGrid">
-                <!-- Modules will be dynamically added here -->
+            <!-- Home: widgets -->
+            <div class="modules-grid" id="modulesGrid" data-view-panel="home">
+                <!-- Widgets added here -->
             </div>
 
-            <!-- Logs View (main zone) -->
-            <section class="logs-view" id="logsView" hidden>
+            <!-- Logs module page -->
+            <section class="module-page logs-view" id="logsView" data-view-panel="logs" hidden>
                 <div class="logs-toolbar">
                     <div class="logs-filters" id="logsFilters" role="group" aria-label="Log type filter">
                         <button type="button" class="logs-filter-btn active" data-filter="all">All</button>
@@ -94,35 +91,37 @@
                     <div class="logs-empty">Waiting for server logs...</div>
                 </div>
             </section>
+
+            <!-- Network Analyzer module page -->
+            <section class="module-page network-view" id="networkView" data-view-panel="network" hidden>
+                <div id="networkViewBody">
+                    <div class="network-history-empty">Loading network analyzer...</div>
+                </div>
+            </section>
         </main>
     </div>
 
-    <!-- Add Module Modal -->
+    <!-- Add Widget Modal -->
     <div class="modal" id="addModuleModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Add New Module</h3>
+                <h3>Add Widget</h3>
                 <button class="modal-close" id="closeModal">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="moduleName">Module Name</label>
-                    <input type="text" id="moduleName" placeholder="e.g., Living Room Temperature (unique per type)">
+                    <label for="moduleName">Widget Name</label>
+                    <input type="text" id="moduleName" placeholder="e.g., Living Room Temperature">
                 </div>
                 <div class="form-group">
-                    <label for="moduleType">Module Type</label>
+                    <label for="moduleType">Widget Type</label>
                     <select id="moduleType">
-                        <optgroup label="Sensors">
-                            <option value="temperature">Temperature</option>
-                            <option value="lighting">Lighting</option>
-                            <option value="security">Security</option>
-                            <option value="energy">Energy</option>
-                            <option value="weather">Weather</option>
-                            <option value="custom">Custom</option>
-                        </optgroup>
-                        <optgroup label="Analyzers">
-                            <option value="network">Network Analyzer</option>
-                        </optgroup>
+                        <option value="temperature">Temperature</option>
+                        <option value="lighting">Lighting</option>
+                        <option value="security">Security</option>
+                        <option value="energy">Energy</option>
+                        <option value="weather">Weather</option>
+                        <option value="custom">Custom</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -136,7 +135,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelBtn">Cancel</button>
-                <button class="btn btn-primary" id="addBtn">Add Module</button>
+                <button class="btn btn-primary" id="addBtn">Add Widget</button>
             </div>
         </div>
     </div>
