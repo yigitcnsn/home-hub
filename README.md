@@ -1,137 +1,226 @@
-# Home Hub - Smart Dashboard
+<div align="center">
 
-A modern, modular web dashboard for home automation and monitoring.
+# Home Hub
+
+**Smart home dashboard for Raspberry Pi**
+
+Sidebar modules for tools · Home for widgets · Live sync over WebSocket
+
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![WebSocket](https://img.shields.io/badge/WebSocket-live%20sync-2563eb)](https://github.com/websockets/ws)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](./package.json)
+
+</div>
+
+---
+
+## Overview
+
+Home Hub is a modular dashboard you run on a Raspberry Pi (or any Node host). Use the **sidebar** for full tools (Logs, Network Analyzer) and **Home** for widgets you care about at a glance (System Monitor, Speed Test, sensors).
+
+```text
+┌─────────────┬──────────────────────────────────────┐
+│  Home Hub   │  page title · clock · theme · sync   │
+├─────────────┼──────────────────────────────────────┤
+│  Home       │                                      │
+│  Logs       │   widgets  /  module page content    │
+│  Network    │                                      │
+│             │                                      │
+│  + Add      │                                      │
+│    Widget   │                                      │
+└─────────────┴──────────────────────────────────────┘
+```
+
+| Area | Role |
+|:-----|:-----|
+| **Sidebar** | App modules (pages): Home · Logs · Network |
+| **Home** | Widget grid: System Monitor, Speed Test, sensors, custom |
+
+New features go in `modules/<name>/` (`server.js` + `client.js`).
+
+---
 
 ## Features
 
-- **Modern UI Design**: Beautiful gradient-based interface with smooth animations
-- **Modular System**: Easily add, remove, and customize modules
-- **Drag & Drop**: Reorder modules by dragging them around
-- **Local Storage**: All modules are saved locally in your browser
-- **Responsive**: Works on desktop, tablet, and mobile devices
-- **Multiple Module Types**: Temperature, Lighting, Security, Energy, Weather, and Custom modules
-- **Instance Management**: One instance per widget type ensures consistency
-- **Developer Tools**: Clear all widgets for development and testing
+- **Home widgets** — add, edit, resize, drag to reorder; saved locally and synced
+- **System Monitor** — pinned Pi health (CPU, temp, memory, disk, uptime)
+- **Logs** — live server log stream with All / Info / Warn / Error filters
+- **Network Analyzer** — full diagnostics on the Network page
+- **Speed Test widget** — download / upload only on Home
+- **Dark mode**, fullscreen, multi-device sync
+- **File logging** — `logs/home-hub.log` (+ in-memory ring for the UI)
 
-## Getting Started
+### Network Analyzer
 
-1. Open `index.html` in your web browser
-2. Click the "Add Module" button to create your first module
-3. Choose a name, type, and size for your module
-4. Drag modules around to rearrange them
+| Capability | Details |
+|:-----------|:--------|
+| Interfaces | IP, MAC, gateway, DNS |
+| Latency | Gateway, `1.1.1.1`, `8.8.8.8` |
+| DNS timing | Resolve time for a known host |
+| Speed | Download + upload (Cloudflare) |
+| Wi‑Fi | SSID / signal when available |
+| LAN | Neighbors + active TCP connections |
+| History | Trends + recent test log |
 
-## Module Types
+Snapshot refreshes about every **20s**. Full test runs **hourly**, or on demand with **Run full test**.
 
-- **Temperature**: Monitor room temperatures
-- **Lighting**: Control and monitor lighting levels
-- **Security**: Security system status
-- **Energy**: Energy consumption monitoring
-- **Weather**: Weather information
-- **System Monitor**: Raspberry Pi health with visual graphs (CPU, memory, disk, network, temperature) - **Persistent widget**
-- **Custom**: Custom modules for any purpose
+> Home **Speed Test** widget = download / upload + **Run** only  
+> (`Add Widget` → Speed Test)
 
-## Module Sizes
+---
 
-- **Small (1x1)**: Compact module for simple data
-- **Medium (2x1)**: Standard width module
-- **Large (2x2)**: Large module for detailed information
+## Quick start
 
-## System Monitoring
-
-The dashboard includes a persistent system monitor widget that provides real-time health monitoring of your Raspberry Pi:
-
-### Features
-- **Visual Progress Bars**: CPU, memory, and disk usage with color-coded status
-- **Temperature Gauge**: CPU temperature with color indicators (green/yellow/red)
-- **Real-time Updates**: Refreshes every 5 seconds across all connected devices
-- **Network Status**: Connection monitoring with status indicators
-- **Uptime Tracking**: System runtime display
-
-### Metrics Monitored
-- CPU usage percentage and temperature
-- Memory usage (RAM) with total/used breakdown
-- Disk space utilization with capacity display
-- Network connectivity status
-- System uptime duration
-
-## File Structure
-
+```bash
+git clone https://github.com/yigitcnsn/home-hub.git
+cd home-hub
+npm install
+npm start
 ```
+
+Open **[http://localhost:3000](http://localhost:3000)**  
+On your LAN: `http://<host-ip>:3000`
+
+### Raspberry Pi deploy
+
+```bash
+# on your machine
+git push
+
+# on the Pi
+git pull
+npm start   # or restart node server.js
+```
+
+Then hard-refresh the browser.
+
+> Static UI updates on refresh. **Server / module changes need a Node restart.**
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph clients [Browsers]
+    A[Dashboard UI]
+  end
+
+  subgraph host [Node host / Raspberry Pi]
+    B[Express + WebSocket]
+    C[System Monitor]
+    D[modules/activity]
+    E[modules/network]
+    F[lib/logger]
+  end
+
+  A <-->|JSON over WS| B
+  B --> C
+  B --> D
+  B --> E
+  B --> F
+  F --> G[(logs/home-hub.log)]
+```
+
+---
+
+## Widget types
+
+| Type | Notes |
+|:-----|:------|
+| Temperature · Lighting · Security · Energy · Weather · Custom | Placeholder / custom widgets |
+| **System Monitor** | Persistent — always on Home |
+| **Speed Test** | Compact speed widget (not the full analyzer) |
+
+**Sizes:** Small `1×1` · Medium `2×1` · Large `2×2`
+
+---
+
+## Project layout
+
+```text
 home-hub/
-├── index.html      # Main HTML structure
-├── styles.css      # All styling and animations
-├── script.js       # Module management and interactivity
-└── README.md       # This file
+├── index.html                 # Shell + view panels
+├── styles.css                 # Theme + layout
+├── script.js                  # Dashboard, widgets, sync client
+├── server.js                  # Express + WebSocket + system stats
+├── lib/
+│   └── logger.js              # File + memory logging
+├── modules/
+│   ├── index.js               # Server module registry
+│   ├── activity/              # Logs page
+│   └── network/               # Analyzer page + Speed Test widget
+├── logs/                      # Runtime logs (gitignored)
+├── package.json
+└── README.md
 ```
 
-## Customization
+---
 
-The dashboard is built with CSS custom properties (variables) defined in `styles.css`. You can easily customize colors, spacing, and other design elements by modifying the `:root` variables.
+## API & WebSocket
 
-## Browser Support
+<details>
+<summary><strong>HTTP</strong></summary>
 
-Works in all modern browsers that support:
-- CSS Grid
-- Flexbox
-- Local Storage
-- Drag and Drop API
+| Method | Path | Description |
+|:-------|:-----|:------------|
+| `GET` | `/api/logs` | Recent log entries |
+| `GET` | `/api/network` | Analyzer state + snapshot |
 
-## Cross-Device Synchronization
+</details>
 
-The dashboard supports real-time synchronization across multiple devices using WebSocket technology.
+<details>
+<summary><strong>WebSocket messages</strong></summary>
 
-### Quick Start
+**Server → client**
 
-1. **Install Node.js** (download from nodejs.org)
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-3. **Start the sync server:**
-   ```bash
-   npm start
-   ```
-4. **Open multiple browser tabs** to `http://localhost:3000` or access from different devices on your network
-5. **Test sync**: Add/edit widgets on one device and watch them appear on others instantly
+| Type | Purpose |
+|:-----|:--------|
+| `logs_snapshot` / `log_entry` | Log stream |
+| `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
 
-### Accessing from Other Devices
+**Client → server**
 
-- **Same computer**: Open `http://localhost:3000` in multiple browser tabs
-- **Same network**: Use your computer's IP address (e.g., `http://192.168.1.100:3000`)
-- **Different networks**: Would require port forwarding and a domain name
+| Type | Purpose |
+|:-----|:--------|
+| `run_network_test` | Run full network analysis |
+| `refresh_network_snapshot` | Refresh interfaces / LAN / Wi‑Fi |
 
-### Troubleshooting
+</details>
 
-- **Server won't start**: Make sure port 3000 is available
-- **Can't connect from other devices**: Check firewall settings and network configuration
-- **Sync indicator shows disconnected**: Server may not be running or WebSocket blocked
+---
 
-### How It Works
+## Adding a module
 
-- **Real-time Sync**: Uses WebSocket connections for instant updates
-- **Fallback Support**: Falls back to polling if WebSocket is unavailable
-- **Instance-based**: Only shared widget instances sync between devices
-- **Conflict-free**: Last update wins for simultaneous changes
+1. Create `modules/<name>/server.js` exporting `{ id, register(ctx) }`
+2. Register it in `modules/index.js`
+3. Add `modules/<name>/client.js` and set `window.HomeHubModules.<name>`
+4. **Sidebar page:** `nav: true`, `view: '<id>'`, plus a panel in `index.html` with `data-view-panel="<id>"`
+5. **Home widget:** `render`, `getSampleData`, and an option in the Add Widget dropdown
 
-### Architecture
+---
 
-- **Frontend**: JavaScript client with WebSocket support
-- **Backend**: Node.js server with Express and WebSocket
-- **Protocol**: JSON messages for state synchronization
-- **Storage**: In-memory server state (persists while server runs)
+## Troubleshooting
 
-## Developer Features
+| Issue | Fix |
+|:------|:----|
+| Port `3000` in use | Stop the old process, then `npm start` |
+| Sync disconnected | Confirm the server is running; check firewall |
+| Network page stale | `git pull`, restart Node, hard-refresh |
+| Speed Test stuck on *Testing…* | Restart server after pull so finish broadcasts are current |
 
-The sidebar includes a developer section with tools for development and testing:
+---
 
-- **Clear All Widgets**: Removes all modules and instances, resetting the dashboard to a clean state. Useful for testing and development.
+## Requirements
 
-## Future Enhancements
+- **Node.js** 18+
+- Modern browser with CSS Grid, Flexbox, WebSocket, and `localStorage`
 
-- Real-time data integration
-- Module templates
-- Theme customization
-- Export/import configurations
-- Widget marketplace
-- Cross-device synchronization
+---
 
+<div align="center">
+
+MIT · Built for the home lab
+
+</div>
