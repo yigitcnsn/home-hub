@@ -279,7 +279,7 @@ class ModuleManager {
 
     createModuleElement(module) {
         const div = document.createElement('div');
-        div.className = `module ${module.size}`;
+        div.className = `module ${module.size}${module.type === 'system' ? ' module-system' : ''}`;
         div.draggable = true;
         div.dataset.moduleId = module.id;
         div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
@@ -312,7 +312,7 @@ class ModuleManager {
                 </div>
                 <div class="module-actions">
                     ${module.type === 'system' ?
-                '<span class="module-persistent" title="Persistent widget">🔒</span>' :
+                '<span class="module-persistent" title="Persistent widget">Pinned</span>' :
                 `<button class="module-action-btn" onclick="moduleManager.editModule(${module.id})" title="Edit">Edit</button>
                          <button class="module-action-btn" onclick="moduleManager.removeModule(${module.id})" title="Remove">Delete</button>`
             }
@@ -394,194 +394,145 @@ class ModuleManager {
                 <div class="module-status ${data.status}">Outside</div>
             `;
         } else if (type === 'system') {
-            // Check for loading state (no data yet)
             if (!data || (!data.lastUpdate && !data.error)) {
                 return `
                     <div class="system-monitor loading-state">
-                        <div class="system-header">
-                            <div class="system-title">System Monitor</div>
-                            <div class="system-last-update">
-                                <span class="update-label">Status:</span>
-                                <span class="loading-indicator">Connecting...</span>
-                            </div>
-                        </div>
-                        <div class="system-loading">
-                            <div class="loading-spinner"></div>
-                            <div class="loading-text">Initializing system monitoring</div>
-                            <div class="loading-details">Waiting for Raspberry Pi data</div>
-                        </div>
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Connecting to host…</div>
                     </div>
                 `;
             }
 
-            // Check for error state
             if (data.error) {
                 return `
                     <div class="system-monitor error-state">
-                        <div class="system-header">
-                            <div class="system-title">System Monitor - ERROR</div>
-                            <div class="system-last-update">
-                                <span class="update-label">Error:</span>
-                                <span class="error-message">${data.error}</span>
-                            </div>
-                        </div>
-                        <div class="system-error">
-                            <div class="error-icon">⚠️</div>
-                            <div class="error-text">Unable to read system information</div>
-                            <div class="error-details">Check server logs for details</div>
-                        </div>
+                        <div class="error-text">Unable to read system information</div>
+                        <div class="error-message">${data.error}</div>
                     </div>
                 `;
             }
 
-            // Create visual graphs and status indicators
-            const getStatusIndicator = (status, value) => {
-                const statusClasses = {
-                    online: 'status-online',
-                    offline: 'status-offline',
-                    unknown: 'status-unknown'
-                };
-                return `<span class="status-indicator ${statusClasses[status] || 'status-unknown'}">${value}</span>`;
-            };
-
-            const getTempIndicator = (temp) => {
-                let tempClass = 'temp-normal';
-                if (temp > 70) tempClass = 'temp-high';
-                else if (temp > 50) tempClass = 'temp-warm';
-                return `<span class="temp-indicator ${tempClass}">${temp}°C</span>`;
-            };
-
             const formatLastUpdate = (timestamp) => {
-                const now = new Date();
-                const update = new Date(timestamp);
-                const diff = Math.floor((now - update) / 1000);
-
+                const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
                 if (diff < 60) return `${diff}s ago`;
                 if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
                 if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
                 return `${Math.floor(diff / 86400)}d ago`;
             };
 
-            // Generate logs HTML
-            const generateLogsHTML = (logs) => {
-                if (!logs || logs.length === 0) return '<div class="no-logs">No logs available</div>';
+            const usageClass = (value) => {
+                if (typeof value !== 'number') return 'level-error';
+                if (value >= 85) return 'level-high';
+                if (value >= 65) return 'level-warm';
+                return 'level-ok';
+            };
 
-                return logs.slice(-10).reverse().map(log => {
-                    const time = new Date(log.timestamp).toLocaleTimeString();
-                    const logClass = `log-entry log-${log.type}`;
-                    const icon = log.type === 'error' ? '❌' : log.type === 'warning' ? '⚠️' : log.type === 'success' ? '✅' : 'ℹ️';
-                    return `<div class="${logClass}"><span class="log-time">${time}</span><span class="log-icon">${icon}</span><span class="log-message">${log.message}</span></div>`;
+            const tempClass = (temp) => {
+                if (typeof temp !== 'number') return 'level-error';
+                if (temp >= 70) return 'level-high';
+                if (temp >= 55) return 'level-warm';
+                return 'level-ok';
+            };
+
+            const pct = (value) => (typeof value === 'number' ? `${value}%` : '—');
+            const temp = (value) => (typeof value === 'number' ? `${value}°C` : '—');
+            const barWidth = (value) => (typeof value === 'number' ? Math.max(0, Math.min(100, value)) : 0);
+            const tempBarWidth = (value) => (typeof value === 'number' ? Math.max(0, Math.min(100, (value / 80) * 100)) : 0);
+
+            const networkStatus = (data.networkStatus || 'unknown').toLowerCase();
+            const systemStatus = data.status === 'error' ||
+                data.cpuUsage === 'ERR' ||
+                data.memoryUsage === 'ERR' ? 'error' : 'online';
+
+            const generateLogsHTML = (logs) => {
+                if (!logs || logs.length === 0) {
+                    return '<div class="no-logs">No recent events</div>';
+                }
+
+                return logs.slice(-8).reverse().map(log => {
+                    const time = new Date(log.timestamp).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                    return `
+                        <div class="log-entry log-${log.type || 'info'}">
+                            <span class="log-time">${time}</span>
+                            <span class="log-message">${log.message}</span>
+                        </div>
+                    `;
                 }).join('');
             };
 
-            // Determine system status
-            const systemStatus = data.status === 'error' ? 'error' :
-                (data.cpuUsage === 'ERR' || data.memoryUsage === 'ERR') ? 'error' : 'online';
+            const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
 
             return `
                 <div class="system-monitor">
-                    <div class="system-header">
-                        <div class="system-title">
-                            System Monitor
-                            <span class="system-status ${systemStatus}">${systemStatus === 'online' ? '●' : '●'}</span>
+                    <div class="system-toolbar">
+                        <div class="system-live">
+                            <span class="system-status ${systemStatus}"></span>
+                            <span class="system-status-label">${systemStatus === 'online' ? 'Live' : 'Error'}</span>
                         </div>
-                        <div class="system-last-update">
-                            <span class="update-label">Last update:</span>
-                            <span class="update-time">${formatLastUpdate(data.lastUpdate || new Date().toISOString())}</span>
-                        </div>
+                        <span class="system-updated">Updated ${formatLastUpdate(data.lastUpdate || new Date().toISOString())}</span>
                     </div>
 
                     <div class="system-metrics">
-                        <div class="metric-row cpu">
-                            <div class="metric-info">
+                        <div class="metric-card ${usageClass(data.cpuUsage)}">
+                            <div class="metric-top">
                                 <span class="metric-label">CPU</span>
-                                <span class="metric-value">${data.cpuUsage === 'ERR' ? 'ERR' : data.cpuUsage + '%'}</span>
+                                <span class="metric-value">${pct(data.cpuUsage)}</span>
                             </div>
+                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.cpuUsage)}%"></span></div>
+                            <div class="metric-sub">Host load</div>
+                            <canvas class="system-graph" id="cpu-graph-${module.id}" width="280" height="56"></canvas>
                         </div>
-                        <div class="metric-row memory">
-                            <div class="metric-info">
+
+                        <div class="metric-card ${usageClass(data.memoryUsage)}">
+                            <div class="metric-top">
                                 <span class="metric-label">Memory</span>
-                                <span class="metric-value">${data.memoryUsage === 'ERR' ? 'ERR' : data.memoryUsage + '%'}</span>
+                                <span class="metric-value">${pct(data.memoryUsage)}</span>
                             </div>
-                            <span class="metric-details">${data.memoryUsed === 'ERR' ? 'ERR' : data.memoryUsed} / ${data.memoryTotal === 'ERR' ? 'ERR' : data.memoryTotal}</span>
+                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.memoryUsage)}%"></span></div>
+                            <div class="metric-sub">${data.memoryUsed || '—'} / ${data.memoryTotal || '—'}</div>
+                            <canvas class="system-graph" id="memory-graph-${module.id}" width="280" height="56"></canvas>
                         </div>
-                        <div class="metric-row disk">
-                            <div class="metric-info">
+
+                        <div class="metric-card ${usageClass(data.diskUsage)}">
+                            <div class="metric-top">
                                 <span class="metric-label">Disk</span>
-                                <span class="metric-value">${data.diskUsage === 'ERR' ? 'ERR' : data.diskUsage + '%'}</span>
+                                <span class="metric-value">${pct(data.diskUsage)}</span>
                             </div>
-                            <span class="metric-details">${data.diskUsed === 'ERR' ? 'ERR' : data.diskUsed} / ${data.diskTotal === 'ERR' ? 'ERR' : data.diskTotal}</span>
+                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.diskUsage)}%"></span></div>
+                            <div class="metric-sub">${data.diskUsed || '—'} / ${data.diskTotal || '—'}</div>
+                            <canvas class="system-graph" id="disk-graph-${module.id}" width="280" height="56"></canvas>
                         </div>
-                        <div class="metric-row temperature">
-                            <div class="metric-info">
+
+                        <div class="metric-card ${tempClass(data.cpuTemp)}">
+                            <div class="metric-top">
                                 <span class="metric-label">Temperature</span>
-                                <span class="metric-value temp-indicator ${data.cpuTemp === 'ERR' ? 'temp-error' : getTempIndicator(data.cpuTemp)}">${data.cpuTemp === 'ERR' ? 'ERR' : data.cpuTemp + '°C'}</span>
+                                <span class="metric-value">${temp(data.cpuTemp)}</span>
                             </div>
+                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${tempBarWidth(data.cpuTemp)}%"></span></div>
+                            <div class="metric-sub">Safe under 70°C</div>
+                            <canvas class="system-graph" id="temp-graph-${module.id}" width="280" height="56"></canvas>
                         </div>
                     </div>
 
-                    <div class="system-graphs">
-                        <div class="graph-row">
-                            <div class="graph-container">
-                                <div class="graph-header">
-                                    <span class="graph-title">CPU Usage</span>
-                                    <span class="graph-value">${data.cpuUsage}%</span>
-                                </div>
-                                <canvas class="system-graph" id="cpu-graph-${module.id}" width="300" height="80"></canvas>
-                            </div>
-                            <div class="graph-container">
-                                <div class="graph-header">
-                                    <span class="graph-title">Memory</span>
-                                    <span class="graph-value">${data.memoryUsage}%</span>
-                                </div>
-                                <canvas class="system-graph" id="memory-graph-${module.id}" width="300" height="80"></canvas>
-                            </div>
+                    <div class="system-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Uptime</span>
+                            <span class="meta-value">${data.uptime || '—'}</span>
                         </div>
-                        <div class="graph-row">
-                            <div class="graph-container">
-                                <div class="graph-header">
-                                    <span class="graph-title">Disk Usage</span>
-                                    <span class="graph-value">${data.diskUsage}%</span>
-                                </div>
-                                <canvas class="system-graph" id="disk-graph-${module.id}" width="300" height="80"></canvas>
-                            </div>
-                            <div class="graph-container temp-graph">
-                                <div class="graph-header">
-                                    <span class="graph-title">CPU Temperature</span>
-                                    <span class="graph-value temp-indicator ${getTempIndicator(data.cpuTemp)}">${data.cpuTemp}°C<span class="temp-status-indicator"></span></span>
-                                </div>
-                                <canvas class="system-graph" id="temp-graph-${module.id}" width="300" height="80"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="system-details">
-                        <div class="detail-row">
-                            <div class="detail-item">
-                                <span class="detail-label">Memory Details</span>
-                                <span class="detail-value">${data.memoryUsed} / ${data.memoryTotal}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Disk Details</span>
-                                <span class="detail-value">${data.diskUsed} / ${data.diskTotal}</span>
-                            </div>
-                        </div>
-                        <div class="detail-row">
-                            <div class="detail-item">
-                                <span class="detail-label">Uptime</span>
-                                <span class="detail-value">${data.uptime}</span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Network</span>
-                                <span class="detail-value">${getStatusIndicator(data.networkStatus, data.networkStatus)}</span>
-                            </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Network</span>
+                            <span class="meta-value network-${networkStatus}">${networkStatus}</span>
                         </div>
                     </div>
 
                     <div class="system-logs">
                         <div class="logs-header">
-                            <span class="logs-title">System Logs</span>
-                            <button class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${module.instanceKey || this.getInstanceKey(module.name, module.type)}')">Clear</button>
+                            <span class="logs-title">Recent events</span>
+                            <button type="button" class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${instanceKey}')">Clear</button>
                         </div>
                         <div class="logs-container" id="logs-container-${module.id}">
                             ${generateLogsHTML(data.logs)}
@@ -746,12 +697,12 @@ class ModuleManager {
             console.log('[WebSocket] Connecting to:', wsUrl);
             this.ws = new WebSocket(wsUrl);
 
-            this.updateSyncStatus('connecting', '⏳');
+            this.updateSyncStatus('connecting', '...');
 
             this.ws.onopen = () => {
                 console.log('[WebSocket] Connected to sync server');
                 this.syncEnabled = true;
-                this.updateSyncStatus('connected', '✓');
+                this.updateSyncStatus('connected', 'On');
                 // Send current state to server
                 this.sendFullState();
                 console.log('[WebSocket] Full state sent, ready for sync');
@@ -769,19 +720,19 @@ class ModuleManager {
             this.ws.onclose = () => {
                 console.log('[WebSocket] Disconnected, retrying in 5 seconds...');
                 this.syncEnabled = false;
-                this.updateSyncStatus('disconnected', '✗');
+                this.updateSyncStatus('disconnected', 'Off');
                 setTimeout(() => this.initWebSocketSync(), 5000);
             };
 
             this.ws.onerror = (error) => {
                 console.error('[WebSocket] Error:', error);
                 this.syncEnabled = false;
-                this.updateSyncStatus('disconnected', '✗');
+                this.updateSyncStatus('disconnected', 'Off');
             };
 
         } catch (e) {
             console.error('[WebSocket] Failed to initialize:', e);
-            this.updateSyncStatus('disconnected', '✗');
+            this.updateSyncStatus('disconnected', 'Off');
             this.initPollingSync();
         }
     }
@@ -790,7 +741,7 @@ class ModuleManager {
     initPollingSync() {
         console.log('[Polling] Initializing polling sync every 30 seconds');
         this.syncEnabled = true;
-        this.updateSyncStatus('connecting', '⟲');
+        this.updateSyncStatus('connecting', '...');
 
         this.pollingInterval = setInterval(() => {
             this.checkForUpdates();
@@ -1011,7 +962,7 @@ class ModuleManager {
                 id: this.moduleIdCounter++,
                 name: 'System Monitor',
                 type: 'system',
-                size: 'medium',
+                size: 'large',
                 createdAt: new Date().toISOString(),
                 instanceKey: systemInstanceKey
             };
@@ -1024,6 +975,9 @@ class ModuleManager {
             this.modules.push(systemModule);
             this.saveModules();
             this.saveInstances();
+        } else if (existingSystemMonitor.size !== 'large') {
+            existingSystemMonitor.size = 'large';
+            this.saveModules();
         }
     }
 
@@ -1080,8 +1034,7 @@ class ModuleManager {
         const btn = document.getElementById('darkModeBtn');
         console.log('[updateDarkModeIcon] Button found:', btn);
         if (btn) {
-            const icon = isDark ? '◑' : '◐';
-            btn.textContent = icon;
+            btn.textContent = 'Theme';
             console.log('[updateDarkModeIcon] Icon updated to:', icon);
         } else {
             console.warn('[updateDarkModeIcon] Button not found!');
@@ -1155,7 +1108,8 @@ class ModuleManager {
         // Temperature Graph - show error if no data
         if (data.history?.temperature && data.history.temperature.length > 0 && typeof data.cpuTemp === 'number') {
             const tempHistory = data.history.temperature.map(temp => Math.min((temp / 80) * 100, 100));
-            this.drawGraph(`temp-graph-${moduleId}`, tempHistory, '#ef4444', (data.cpuTemp / 80) * 100);
+            const tempColor = data.cpuTemp >= 70 ? '#ef4444' : data.cpuTemp >= 55 ? '#f59e0b' : '#10b981';
+            this.drawGraph(`temp-graph-${moduleId}`, tempHistory, tempColor, (data.cpuTemp / 80) * 100);
         } else {
             this.showGraphError(`temp-graph-${moduleId}`, 'Temperature data unavailable');
         }
@@ -1185,7 +1139,7 @@ class ModuleManager {
         ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
         ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('⚠', width / 2, height / 2 - 8);
+        ctx.fillText('!', width / 2, height / 2 - 8);
 
         ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.fillText(message, width / 2, height / 2 + 8);
@@ -1200,65 +1154,68 @@ class ModuleManager {
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
+        const points = Array.isArray(data) ? data.filter(v => typeof v === 'number') : [];
 
-        // Clear canvas
         ctx.clearRect(0, 0, width, height);
 
-        // Set up gradient
-        const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, color + '40'); // Semi-transparent
-        gradient.addColorStop(1, color + '10');
-
-        // Draw area fill
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.moveTo(0, height);
-
-        const points = data.length;
-        const stepX = width / (points - 1);
-
-        for (let i = 0; i < points; i++) {
-            const x = i * stepX;
-            const y = height - (data[i] / 100) * height;
-            ctx.lineTo(x, y);
+        if (points.length === 0) {
+            ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Waiting for history…', width / 2, height / 2 + 4);
+            return;
         }
 
-        ctx.lineTo(width, height);
+        const values = points.length === 1 ? [points[0], points[0]] : points;
+        const stepX = width / Math.max(values.length - 1, 1);
+        const yFor = (value) => {
+            const clamped = Math.max(0, Math.min(100, value));
+            return height - 4 - (clamped / 100) * (height - 8);
+        };
+
+        // Baseline
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, height - 4);
+        ctx.lineTo(width, height - 4);
+        ctx.stroke();
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, color + '33');
+        gradient.addColorStop(1, color + '00');
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.moveTo(0, height - 4);
+        values.forEach((value, i) => {
+            ctx.lineTo(i * stepX, yFor(value));
+        });
+        ctx.lineTo((values.length - 1) * stepX, height - 4);
         ctx.closePath();
         ctx.fill();
 
-        // Draw line
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
         ctx.beginPath();
-
-        for (let i = 0; i < points; i++) {
+        values.forEach((value, i) => {
             const x = i * stepX;
-            const y = height - (data[i] / 100) * height;
-
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        }
-
+            const y = yFor(value);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
         ctx.stroke();
 
-        // Draw current value indicator
-        const currentX = (points - 1) * stepX;
-        const currentY = height - (currentValue / 100) * height;
+        const lastValue = typeof currentValue === 'number' ? currentValue : values[values.length - 1];
+        const lastX = (values.length - 1) * stepX;
+        const lastY = yFor(lastValue);
 
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(currentX, currentY, 4, 0, 2 * Math.PI);
+        ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
         ctx.fill();
-
-        // Add glow effect
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 8;
-        ctx.fill();
-        ctx.shadowBlur = 0;
     }
 
     // Update system monitor with new data
