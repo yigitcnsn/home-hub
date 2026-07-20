@@ -895,10 +895,11 @@ class ModuleManager {
             localStorage.removeItem('homeHubModuleInstances');
             localStorage.removeItem('homeHubModuleIdCounter');
 
-            // Re-render empty grid
+            // Always keep the system monitor
+            this.ensureSystemMonitor();
             this.renderModules();
 
-            console.log('[clearAllWidgets] All widgets and instances cleared');
+            console.log('[clearAllWidgets] Widgets cleared; system monitor restored');
         }
     }
 
@@ -1035,7 +1036,7 @@ class ModuleManager {
         console.log('[updateDarkModeIcon] Button found:', btn);
         if (btn) {
             btn.textContent = 'Theme';
-            console.log('[updateDarkModeIcon] Icon updated to:', icon);
+            console.log('[updateDarkModeIcon] Label set to Theme');
         } else {
             console.warn('[updateDarkModeIcon] Button not found!');
         }
