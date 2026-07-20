@@ -94,16 +94,27 @@
     }
 
     function applyState(manager, state) {
-        if (!manager.moduleInstances[INSTANCE_KEY]) {
-            manager.moduleInstances[INSTANCE_KEY] = getSampleData();
-        }
-
-        Object.assign(manager.moduleInstances[INSTANCE_KEY], {
+        const patch = {
             lastResult: state.lastResult || null,
             history: Array.isArray(state.history) ? state.history : [],
             running: !!state.running,
             intervalMs: state.intervalMs || 60 * 60 * 1000,
             lastUpdate: new Date().toISOString()
+        };
+
+        // Update every Network Analyzer widget instance (keys vary by module name)
+        const keys = new Set();
+        (manager.modules || []).forEach((m) => {
+            if (m.type !== TYPE) return;
+            keys.add(m.instanceKey || manager.getInstanceKey(m.name, m.type));
+        });
+        keys.add(INSTANCE_KEY);
+
+        keys.forEach((key) => {
+            if (!manager.moduleInstances[key]) {
+                manager.moduleInstances[key] = getSampleData();
+            }
+            Object.assign(manager.moduleInstances[key], patch);
         });
 
         manager.saveInstances();
