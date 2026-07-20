@@ -165,10 +165,10 @@ class ModuleManager {
             return;
         }
 
-        // Prevent manual addition of sidebar modules / system
+        // Prevent adding system / sidebar-only modules as Home widgets
         const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === type);
-        if (type === 'system' || (hubMod && (hubMod.persistent || hubMod.nav))) {
-            alert('This is a sidebar module, not a Home widget.');
+        if (type === 'system' || type === 'network' || (hubMod && hubMod.nav && typeof hubMod.render !== 'function')) {
+            alert('This is a sidebar module, not a Home widget. Use Speed Test for a widget.');
             return;
         }
 
