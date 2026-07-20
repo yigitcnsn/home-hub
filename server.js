@@ -5,6 +5,8 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const { exec } = require('child_process');
+const logger = require('./lib/logger');
+const hubModules = require('./modules');
 
 const app = express();
 const server = http.createServer(app);
@@ -32,14 +34,37 @@ let dashboardState = {
 
 // Connected clients
 const clients = new Set();
+const clientConnectedHandlers = [];
 
 // System monitoring data
 let systemStats = {};
 let lastCpuUsage = process.cpuUsage();
 
+function broadcastToAll(message) {
+    const payload = JSON.stringify(message);
+    clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(payload);
+        }
+    });
+}
+
+function onClientConnected(handler) {
+    clientConnectedHandlers.push(handler);
+}
+
+// Register feature modules (activity log, future network analyzer, etc.)
+hubModules.registerAll({
+    app,
+    logger,
+    broadcastToAll,
+    onClientConnected
+});
+
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
-    console.log(`[Server] New client connected from ${req.socket.remoteAddress}`);
+    const remote = req.socket.remoteAddress;
+    logger.info('Server', `Client connected from ${remote}`);
 
     clients.add(ws);
 
@@ -49,22 +74,30 @@ wss.on('connection', (ws, req) => {
         state: dashboardState
     }));
 
+    clientConnectedHandlers.forEach((handler) => {
+        try {
+            handler(ws, req);
+        } catch (e) {
+            logger.error('Server', `Module connect hook failed: ${e.message}`);
+        }
+    });
+
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message.toString());
             handleMessage(ws, data);
         } catch (e) {
-            console.error('[Server] Error parsing message:', e);
+            logger.error('Server', `Error parsing message: ${e.message}`);
         }
     });
 
     ws.on('close', () => {
-        console.log('[Server] Client disconnected');
+        logger.info('Server', 'Client disconnected');
         clients.delete(ws);
     });
 
     ws.on('error', (error) => {
-        console.error('[Server] WebSocket error:', error);
+        logger.error('Server', `WebSocket error: ${error.message}`);
         clients.delete(ws);
     });
 });
@@ -73,7 +106,7 @@ wss.on('connection', (ws, req) => {
 function handleMessage(ws, data) {
     switch (data.type) {
         case 'instance_update':
-            console.log(`[Server] Instance update: ${data.instanceKey}`);
+            logger.info('Sync', `Instance update: ${data.instanceKey}`);
 
             // Update server state
             if (!dashboardState.instances[data.instanceKey]) {
@@ -94,12 +127,12 @@ function handleMessage(ws, data) {
             break;
 
         case 'full_state_sync':
-            console.log('[Server] Full state sync received');
+            logger.info('Sync', 'Full state sync received');
 
             // Update server state with client's full state
             if (data.state) {
                 dashboardState = data.state;
-                console.log(`[Server] Updated state with ${data.state.modules?.length || 0} modules`);
+                logger.info('Sync', `Updated state with ${data.state.modules?.length || 0} modules`);
 
                 // Broadcast full state to all other clients
                 broadcastToOthers(ws, {
@@ -114,7 +147,7 @@ function handleMessage(ws, data) {
             break;
 
         default:
-            console.log('[Server] Unknown message type:', data.type);
+            logger.warn('Server', `Unknown message type: ${data.type}`);
     }
 }
 
@@ -370,7 +403,7 @@ async function updateSystemStats() {
         });
 
     } catch (e) {
-        console.error('[System Monitor] Error updating stats:', e.message);
+        logger.error('SystemMonitor', `Error updating stats: ${e.message}`);
         // Don't broadcast if we can't get valid data
         systemStats = {
             error: e.message,
@@ -402,12 +435,11 @@ app.use(express.static(path.join(__dirname)));
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
-    console.log(`[Server] Home Hub running on http://0.0.0.0:${PORT}`);
-    console.log(`[Server] WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
+    logger.info('Server', `Home Hub running on http://0.0.0.0:${PORT}`);
+    logger.info('Server', `WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
+    logger.info('Server', `Log file: ${logger.LOG_FILE}`);
 
-    // Log system information
     const piModel = await getRaspberryPiInfo();
-    console.log(`[Server] Detected Raspberry Pi model: ${piModel}`);
-    console.log(`[Server] Total memory: ${(os.totalmem() / (1024 * 1024 * 1024)).toFixed(1)}GB`);
-    console.log(`[Server] CPU cores: ${os.cpus().length}`);
+    logger.info('Server', `Detected host: ${piModel}`);
+    logger.info('Server', `Memory: ${(os.totalmem() / (1024 * 1024 * 1024)).toFixed(1)}GB, CPU cores: ${os.cpus().length}`);
 });

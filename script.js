@@ -164,9 +164,10 @@ class ModuleManager {
             return;
         }
 
-        // Prevent manual addition of system monitor
-        if (type === 'system') {
-            alert('System monitor is automatically added and cannot be created manually.');
+        // Prevent manual addition of persistent modules
+        const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === type);
+        if (type === 'system' || (hubMod && hubMod.persistent)) {
+            alert('This module is automatic and cannot be created manually.');
             return;
         }
 
@@ -228,9 +229,10 @@ class ModuleManager {
         const moduleToRemove = this.modules.find(m => m.id === id);
         if (!moduleToRemove) return;
 
-        // Prevent removal of system monitor
-        if (moduleToRemove.type === 'system') {
-            alert('System monitor cannot be removed. It is a persistent widget.');
+        // Prevent removal of persistent modules
+        const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === moduleToRemove.type);
+        if (moduleToRemove.type === 'system' || (hubMod && hubMod.persistent)) {
+            alert('This module cannot be removed. It is a persistent widget.');
             return;
         }
 
@@ -279,7 +281,9 @@ class ModuleManager {
 
     createModuleElement(module) {
         const div = document.createElement('div');
-        div.className = `module ${module.size}${module.type === 'system' ? ' module-system' : ''}`;
+        const hubMod = window.HomeHubModules && window.HomeHubModules[module.type];
+        const isPersistent = module.type === 'system' || (hubMod && hubMod.persistent);
+        div.className = `module ${module.size}${module.type === 'system' ? ' module-system' : ''}${module.type === 'activity' ? ' module-activity' : ''}`;
         div.draggable = true;
         div.dataset.moduleId = module.id;
         div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
@@ -293,6 +297,11 @@ class ModuleManager {
             system: 'System Monitor',
             custom: 'Custom'
         };
+        if (window.HomeHubModules) {
+            Object.values(window.HomeHubModules).forEach((m) => {
+                if (m.type && m.label) typeLabels[m.type] = m.label;
+            });
+        }
 
         // Get instance data (shared across all modules with same name+type)
         const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
@@ -308,10 +317,10 @@ class ModuleManager {
             <div class="module-header">
                 <div>
                     <div class="module-title">${module.name}</div>
-                    <div class="module-type">${typeLabels[module.type]}</div>
+                    <div class="module-type">${typeLabels[module.type] || module.type}</div>
                 </div>
                 <div class="module-actions">
-                    ${module.type === 'system' ?
+                    ${isPersistent ?
                 '<span class="module-persistent" title="Persistent widget">Pinned</span>' :
                 `<button class="module-action-btn" onclick="moduleManager.editModule(${module.id})" title="Edit">Edit</button>
                          <button class="module-action-btn" onclick="moduleManager.removeModule(${module.id})" title="Remove">Delete</button>`
@@ -364,6 +373,15 @@ class ModuleManager {
             },
             custom: { value: 'Ready', status: 'active' }
         };
+
+        if (window.HomeHubModules) {
+            Object.values(window.HomeHubModules).forEach((mod) => {
+                if (mod.type && typeof mod.getSampleData === 'function') {
+                    data[mod.type] = mod.getSampleData();
+                }
+            });
+        }
+
         return data[type] || data.custom;
     }
 
@@ -540,12 +558,17 @@ class ModuleManager {
                     </div>
                 </div>
             `;
-        } else {
-            return `
+        }
+
+        const hubMod = window.HomeHubModules && window.HomeHubModules[type];
+        if (hubMod && typeof hubMod.render === 'function') {
+            return hubMod.render(data, module);
+        }
+
+        return `
                 <div class="module-value">${data.value}</div>
                 <div class="module-status ${data.status}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
             `;
-        }
     }
 
     editModule(id) {
@@ -776,6 +799,21 @@ class ModuleManager {
                 // Respond to server ping to maintain connection
                 this.ws.send(JSON.stringify({ type: 'pong' }));
                 break;
+
+            default: {
+                let handled = false;
+                if (window.HomeHubModules) {
+                    Object.values(window.HomeHubModules).forEach((mod) => {
+                        if (typeof mod.handleMessage === 'function' && mod.handleMessage(this, message)) {
+                            handled = true;
+                        }
+                    });
+                }
+                if (!handled) {
+                    console.log('[Sync] Unhandled message type:', message.type);
+                }
+                break;
+            }
         }
     }
 
@@ -895,11 +933,12 @@ class ModuleManager {
             localStorage.removeItem('homeHubModuleInstances');
             localStorage.removeItem('homeHubModuleIdCounter');
 
-            // Always keep the system monitor
+            // Always keep persistent modules
             this.ensureSystemMonitor();
+            this.ensureHubModules();
             this.renderModules();
 
-            console.log('[clearAllWidgets] Widgets cleared; system monitor restored');
+            console.log('[clearAllWidgets] Widgets cleared; persistent modules restored');
         }
     }
 
@@ -943,6 +982,7 @@ class ModuleManager {
 
         // Always ensure system monitor widget exists
         this.ensureSystemMonitor();
+        this.ensureHubModules();
 
         if (savedCounter) {
             this.moduleIdCounter = parseInt(savedCounter);
@@ -980,6 +1020,15 @@ class ModuleManager {
             existingSystemMonitor.size = 'large';
             this.saveModules();
         }
+    }
+
+    ensureHubModules() {
+        if (!window.HomeHubModules) return;
+        Object.values(window.HomeHubModules).forEach((mod) => {
+            if (typeof mod.ensure === 'function') {
+                mod.ensure(this);
+            }
+        });
     }
 
     loadInstances() {

@@ -1041,3 +1041,107 @@ body {
         align-items: flex-start;
     }
 }
+
+/* Activity Log module */
+.module-activity {
+    grid-column: 1 / -1;
+}
+
+.activity-monitor {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.activity-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.activity-count {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.activity-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.activity-list {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.activity-row {
+    display: grid;
+    grid-template-columns: 72px 56px 110px 1fr;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    align-items: start;
+}
+
+.activity-row:last-child {
+    border-bottom: none;
+}
+
+.activity-time {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.activity-level {
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.activity-source {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.activity-message {
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.activity-warn .activity-level,
+.activity-warn .activity-message {
+    color: var(--warning);
+}
+
+.activity-error .activity-level,
+.activity-error .activity-message {
+    color: var(--danger);
+}
+
+@media (max-width: 768px) {
+    .module-activity {
+        grid-column: span 1;
+    }
+
+    .activity-row {
+        grid-template-columns: 64px 1fr;
+        grid-template-areas:
+            "time level"
+            "source source"
+            "message message";
+    }
+
+    .activity-time { grid-area: time; }
+    .activity-level { grid-area: level; }
+    .activity-source { grid-area: source; }
+    .activity-message { grid-area: message; }
+}
