@@ -21,15 +21,9 @@
                 </button>
                 <button type="button" class="nav-item" data-view="logs" id="logsNavBtn">
                     <span class="nav-text">Logs</span>
-                    <span class="sidebar-logs-count" id="sidebarLogsCount">0</span>
+                    <span class="logs-nav-count" id="logsNavCount">0</span>
                 </button>
             </nav>
-
-            <div class="sidebar-logs" id="sidebarLogs" hidden>
-                <div class="sidebar-logs-list" id="sidebarLogsList">
-                    <div class="sidebar-logs-empty">Waiting for server logs...</div>
-                </div>
-            </div>
 
             <!-- Developer Section -->
             <div class="developer-section">
@@ -80,6 +74,26 @@
             <div class="modules-grid" id="modulesGrid">
                 <!-- Modules will be dynamically added here -->
             </div>
+
+            <!-- Logs View (main zone) -->
+            <section class="logs-view" id="logsView" hidden>
+                <div class="logs-toolbar">
+                    <div class="logs-filters" id="logsFilters" role="group" aria-label="Log type filter">
+                        <button type="button" class="logs-filter-btn active" data-filter="all">All</button>
+                        <button type="button" class="logs-filter-btn" data-filter="info">Info</button>
+                        <button type="button" class="logs-filter-btn" data-filter="warn">Warn</button>
+                        <button type="button" class="logs-filter-btn" data-filter="error">Error</button>
+                    </div>
+                    <div class="logs-toolbar-meta">
+                        <span id="logsVisibleCount">0 shown</span>
+                        <span class="logs-toolbar-sep">/</span>
+                        <span id="logsTotalCount">0 total</span>
+                    </div>
+                </div>
+                <div class="logs-list" id="logsList">
+                    <div class="logs-empty">Waiting for server logs...</div>
+                </div>
+            </section>
         </main>
     </div>
 

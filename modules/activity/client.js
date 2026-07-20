@@ -1,97 +1,114 @@
 /**
- * Activity Log (browser) — sidebar panel, not a dashboard widget.
- * Appends live lines without rebuilding the list (preserves scroll).
+ * Activity Log (browser) — main content view with history + type filters.
+ * Live lines append without rebuilding the full list (preserves scroll).
  */
 (function () {
-    const MAX_ENTRIES = 200;
+    const MAX_ENTRIES = 500;
     let entries = [];
+    let filter = 'all';
     let initialized = false;
 
+    function matchesFilter(entry) {
+        if (filter === 'all') return true;
+        return (entry.level || 'info') === filter;
+    }
+
+    function filteredEntries() {
+        return entries.filter(matchesFilter);
+    }
+
     function rowHtml(entry) {
-        const time = new Date(entry.timestamp).toLocaleTimeString([], {
+        const time = new Date(entry.timestamp).toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit'
         });
         const level = entry.level || 'info';
         return `
-            <div class="sidebar-log-row sidebar-log-${level}" data-log-id="${entry.id || ''}">
-                <div class="sidebar-log-meta">
-                    <span class="sidebar-log-time">${time}</span>
-                    <span class="sidebar-log-level">${level}</span>
-                </div>
-                <div class="sidebar-log-source">${entry.source || 'App'}</div>
-                <div class="sidebar-log-message">${entry.message || ''}</div>
+            <div class="log-row log-${level}" data-log-level="${level}" data-log-id="${entry.id || ''}">
+                <span class="log-time">${time}</span>
+                <span class="log-level">${level}</span>
+                <span class="log-source">${entry.source || 'App'}</span>
+                <span class="log-message">${entry.message || ''}</span>
             </div>
         `;
     }
 
     function getList() {
-        return document.getElementById('sidebarLogsList');
+        return document.getElementById('logsList');
     }
 
-    function getCount() {
-        return document.getElementById('sidebarLogsCount');
-    }
+    function updateCounts() {
+        const totalEl = document.getElementById('logsTotalCount');
+        const visibleEl = document.getElementById('logsVisibleCount');
+        const navCount = document.getElementById('logsNavCount');
+        const visible = filteredEntries().length;
 
-    function updateCount() {
-        const el = getCount();
-        if (el) el.textContent = String(entries.length);
+        if (totalEl) totalEl.textContent = `${entries.length} total`;
+        if (visibleEl) visibleEl.textContent = `${visible} shown`;
+        if (navCount) navCount.textContent = String(entries.length);
     }
 
     function renderFull() {
         const list = getList();
         if (!list) return;
 
-        if (entries.length === 0) {
-            list.innerHTML = '<div class="sidebar-logs-empty">Waiting for server logs...</div>';
-            updateCount();
+        const visible = filteredEntries();
+        if (visible.length === 0) {
+            list.innerHTML = entries.length === 0
+                ? '<div class="logs-empty">Waiting for server logs...</div>'
+                : `<div class="logs-empty">No ${filter} logs</div>`;
+            updateCounts();
             return;
         }
 
         // Newest first
-        list.innerHTML = entries.slice().reverse().map(rowHtml).join('');
-        updateCount();
+        list.innerHTML = visible.slice().reverse().map(rowHtml).join('');
+        updateCounts();
     }
 
     function appendEntries(newEntries) {
         const list = getList();
-        if (!list) {
-            renderFull();
+        const visibleNew = newEntries.filter(matchesFilter);
+
+        if (!list || visibleNew.length === 0) {
+            updateCounts();
             return;
         }
 
-        const empty = list.querySelector('.sidebar-logs-empty');
+        const empty = list.querySelector('.logs-empty');
         if (empty) empty.remove();
 
         const prevScrollTop = list.scrollTop;
         const prevScrollHeight = list.scrollHeight;
         const wasAtTop = prevScrollTop <= 8;
 
-        // Insert newest at top, in chronological order within the batch
-        const fragment = document.createDocumentFragment();
         const wrapper = document.createElement('div');
-        wrapper.innerHTML = newEntries.slice().reverse().map(rowHtml).join('');
+        wrapper.innerHTML = visibleNew.slice().reverse().map(rowHtml).join('');
+        const fragment = document.createDocumentFragment();
         while (wrapper.firstChild) {
             fragment.appendChild(wrapper.firstChild);
         }
         list.insertBefore(fragment, list.firstChild);
 
-        while (list.children.length > MAX_ENTRIES) {
+        // Trim DOM rows to filtered max
+        const maxDom = MAX_ENTRIES;
+        while (list.querySelectorAll('.log-row').length > maxDom) {
             list.removeChild(list.lastChild);
         }
 
-        updateCount();
+        updateCounts();
 
         if (wasAtTop) {
             list.scrollTop = 0;
         } else {
-            // Keep the same content under the viewport
             list.scrollTop = prevScrollTop + (list.scrollHeight - prevScrollHeight);
         }
     }
 
-    function applyLogs(manager, incoming, replace) {
+    function applyLogs(incoming, replace) {
         if (replace) {
             entries = incoming.slice(-MAX_ENTRIES);
             renderFull();
@@ -103,6 +120,47 @@
             entries = entries.slice(-MAX_ENTRIES);
         }
         appendEntries(incoming);
+    }
+
+    function setFilter(next) {
+        filter = next || 'all';
+        document.querySelectorAll('.logs-filter-btn').forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        renderFull();
+    }
+
+    function bindFilters() {
+        const group = document.getElementById('logsFilters');
+        if (!group || group.dataset.bound === '1') return;
+        group.dataset.bound = '1';
+        group.addEventListener('click', (e) => {
+            const btn = e.target.closest('.logs-filter-btn');
+            if (!btn) return;
+            setFilter(btn.dataset.filter);
+        });
+    }
+
+    async function loadPreviousLogs() {
+        try {
+            const res = await fetch('/api/logs?limit=' + MAX_ENTRIES);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (Array.isArray(data.entries) && data.entries.length) {
+                // Merge with anything already received over WS
+                const byId = new Map();
+                entries.concat(data.entries).forEach((entry) => {
+                    const key = entry.id || `${entry.timestamp}|${entry.message}`;
+                    byId.set(key, entry);
+                });
+                entries = Array.from(byId.values())
+                    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                    .slice(-MAX_ENTRIES);
+                renderFull();
+            }
+        } catch (e) {
+            console.warn('[Logs] Failed to load previous logs:', e.message);
+        }
     }
 
     function removeDashboardWidget(manager) {
@@ -122,26 +180,23 @@
     }
 
     function ensure(manager) {
-        // Logs live in the sidebar — remove any old dashboard Activity Log widgets
         removeDashboardWidget(manager);
 
         if (!initialized) {
             initialized = true;
-            const list = getList();
-            if (list && !list.children.length) {
-                list.innerHTML = '<div class="sidebar-logs-empty">Waiting for server logs...</div>';
-            }
-            updateCount();
+            bindFilters();
+            updateCounts();
+            loadPreviousLogs();
         }
     }
 
     function handleMessage(manager, message) {
         if (message.type === 'logs_snapshot' && Array.isArray(message.entries)) {
-            applyLogs(manager, message.entries, true);
+            applyLogs(message.entries, true);
             return true;
         }
         if (message.type === 'log_entry' && message.entry) {
-            applyLogs(manager, [message.entry], false);
+            applyLogs([message.entry], false);
             return true;
         }
         return false;
@@ -153,8 +208,6 @@
         type: 'activity',
         label: 'Logs',
         persistent: true,
-        sidebar: true,
-        // No dashboard widget
         getSampleData: null,
         render: null,
         ensure,

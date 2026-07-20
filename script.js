@@ -1135,18 +1135,19 @@ class ModuleManager {
     setView(view) {
         const title = document.querySelector('.page-title');
         const grid = document.getElementById('modulesGrid');
-        const logsPanel = document.getElementById('sidebarLogs');
+        const logsView = document.getElementById('logsView');
         const timeDisplay = document.getElementById('timeDisplay');
 
         if (title) {
             title.textContent = view === 'logs' ? 'Logs' : 'Home';
         }
 
-        if (logsPanel) {
-            logsPanel.hidden = view !== 'logs';
+        if (logsView) {
+            logsView.hidden = view !== 'logs';
         }
 
         if (grid) {
+            grid.hidden = view === 'logs';
             grid.style.display = view === 'logs' ? 'none' : '';
         }
 

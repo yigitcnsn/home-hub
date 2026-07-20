@@ -16,7 +16,7 @@ function register(ctx) {
     });
 
     app.get('/api/logs', (req, res) => {
-        const limit = parseInt(req.query.limit, 10) || 100;
+        const limit = parseInt(req.query.limit, 10) || 200;
         res.json({
             entries: logger.getRecent(limit),
             file: logger.LOG_FILE
@@ -26,7 +26,7 @@ function register(ctx) {
     onClientConnected((ws) => {
         ws.send(JSON.stringify({
             type: 'logs_snapshot',
-            entries: logger.getRecent(100)
+            entries: logger.getRecent(200)
         }));
     });
 
