@@ -81,6 +81,7 @@ class NetworkAnalyzer {
                 this.history.shift();
             }
 
+            this.running = false;
             this.log('info', `Speed test finished: ${mbps} Mbps (${bytes} bytes in ${elapsedMs}ms)`);
             this.onResult(result);
             return result;
@@ -99,6 +100,7 @@ class NetworkAnalyzer {
             if (this.history.length > HISTORY_LIMIT) {
                 this.history.shift();
             }
+            this.running = false;
             this.log('error', `Speed test failed: ${result.error}`);
             this.onResult(result);
             return result;
@@ -172,14 +174,20 @@ function register(ctx) {
     const analyzer = new NetworkAnalyzer({
         logger,
         onResult: (result) => {
+            const payload = {
+                lastResult: result,
+                history: analyzer.history.slice(),
+                running: false,
+                intervalMs: analyzer.intervalMs
+            };
+            logger.info(
+                'NetworkAnalyzer',
+                `Broadcasting result to clients: ${result.status}` +
+                (result.status === 'ok' ? ` ${result.downloadMbps} Mbps` : ` (${result.error || 'error'})`)
+            );
             broadcastToAll({
                 type: 'network_stats',
-                data: {
-                    lastResult: result,
-                    history: analyzer.history.slice(),
-                    running: analyzer.running,
-                    intervalMs: analyzer.intervalMs
-                }
+                data: payload
             });
         }
     });
@@ -198,6 +206,7 @@ function register(ctx) {
     onClientMessage((ws, data) => {
         if (data.type !== 'run_network_test') return false;
 
+        logger.info('NetworkAnalyzer', 'Manual Run now requested by client');
         broadcastToAll({
             type: 'network_stats',
             data: {
@@ -206,7 +215,16 @@ function register(ctx) {
             }
         });
 
-        analyzer.runTest('manual').catch(() => {});
+        analyzer.runTest('manual').catch((err) => {
+            logger.error('NetworkAnalyzer', `Manual run failed: ${err.message || err}`);
+            broadcastToAll({
+                type: 'network_stats',
+                data: {
+                    ...analyzer.getState(),
+                    running: false
+                }
+            });
+        });
         return true;
     });
 

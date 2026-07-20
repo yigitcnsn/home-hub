@@ -95,12 +95,18 @@
 
     function applyState(manager, state) {
         const patch = {
-            lastResult: state.lastResult || null,
+            lastResult: state.lastResult !== undefined ? state.lastResult : null,
             history: Array.isArray(state.history) ? state.history : [],
-            running: !!state.running,
+            running: state.running === true,
             intervalMs: state.intervalMs || 60 * 60 * 1000,
             lastUpdate: new Date().toISOString()
         };
+
+        // Keep previous lastResult/history if this packet is only a "running" flag
+        if (state.running === true && !state.lastResult) {
+            delete patch.lastResult;
+            delete patch.history;
+        }
 
         // Update every Network Analyzer widget instance (keys vary by module name)
         const keys = new Set();
@@ -116,6 +122,13 @@
             }
             Object.assign(manager.moduleInstances[key], patch);
         });
+
+        console.log(
+            '[NetworkAnalyzer] UI state updated — running:',
+            patch.running,
+            'mbps:',
+            patch.lastResult && patch.lastResult.downloadMbps
+        );
 
         manager.saveInstances();
         manager.renderModules();
