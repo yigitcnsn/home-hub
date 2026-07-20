@@ -4,6 +4,7 @@
 (function () {
     const TYPE = 'network';
     const INSTANCE_KEY = 'network_analyzer';
+    let lastSeenResultTs = null;
 
     function getSampleData() {
         return {
@@ -48,9 +49,22 @@
         }).join('');
     }
 
+    function resolveRunning(state) {
+        if (state.phase === 'started') return true;
+        if (state.phase === 'finished') return false;
+
+        const incomingTs = state.lastResult && state.lastResult.timestamp;
+        // Old buggy servers sent finished results with running:true.
+        // A new lastResult timestamp while "running" means the test completed.
+        if (state.running === true && incomingTs && lastSeenResultTs && incomingTs !== lastSeenResultTs) {
+            return false;
+        }
+        return state.running === true;
+    }
+
     function render(data, module) {
         const last = data.lastResult;
-        const running = !!data.running;
+        const running = data.running === true;
         const mbps = last && last.status === 'ok' ? formatMbps(last.downloadMbps) : '—';
         const statusText = running
             ? 'Running test...'
@@ -93,50 +107,80 @@
         `;
     }
 
-    function applyState(manager, state) {
-        const patch = {
-            lastResult: state.lastResult !== undefined ? state.lastResult : null,
-            history: Array.isArray(state.history) ? state.history : [],
-            running: state.running === true,
-            intervalMs: state.intervalMs || 60 * 60 * 1000,
-            lastUpdate: new Date().toISOString()
-        };
-
-        // Keep previous lastResult/history if this packet is only a "running" flag
-        if (state.running === true && !state.lastResult) {
-            delete patch.lastResult;
-            delete patch.history;
-        }
-
-        // Update every Network Analyzer widget instance (keys vary by module name)
+    function networkKeys(manager) {
         const keys = new Set();
         (manager.modules || []).forEach((m) => {
             if (m.type !== TYPE) return;
             keys.add(m.instanceKey || manager.getInstanceKey(m.name, m.type));
         });
         keys.add(INSTANCE_KEY);
+        return keys;
+    }
 
-        keys.forEach((key) => {
+    function applyState(manager, state) {
+        const running = resolveRunning(state);
+        const incomingTs = state.lastResult && state.lastResult.timestamp;
+        if (incomingTs) {
+            lastSeenResultTs = incomingTs;
+        }
+
+        const patch = {
+            running,
+            intervalMs: state.intervalMs || 60 * 60 * 1000,
+            lastUpdate: new Date().toISOString()
+        };
+
+        // Don't wipe previous result on a "started" packet
+        if (state.phase === 'started') {
+            // keep existing lastResult/history
+        } else {
+            if (state.lastResult !== undefined) patch.lastResult = state.lastResult;
+            if (Array.isArray(state.history)) patch.history = state.history;
+        }
+
+        // Legacy start packets include old lastResult + running:true
+        if (!state.phase && state.running === true && running === true) {
+            delete patch.lastResult;
+            delete patch.history;
+        }
+
+        networkKeys(manager).forEach((key) => {
             if (!manager.moduleInstances[key]) {
                 manager.moduleInstances[key] = getSampleData();
             }
             Object.assign(manager.moduleInstances[key], patch);
         });
 
-        console.log(
-            '[NetworkAnalyzer] UI state updated — running:',
-            patch.running,
-            'mbps:',
-            patch.lastResult && patch.lastResult.downloadMbps
-        );
+        // Persist without sticky running flag (old bug left Testing... in localStorage)
+        const snapshot = JSON.parse(JSON.stringify(manager.moduleInstances));
+        Object.keys(snapshot).forEach((key) => {
+            if (snapshot[key] && Object.prototype.hasOwnProperty.call(snapshot[key], 'running')) {
+                snapshot[key].running = false;
+            }
+        });
+        localStorage.setItem('homeHubModuleInstances', JSON.stringify(snapshot));
 
-        manager.saveInstances();
+        console.log('[NetworkAnalyzer] UI update', {
+            phase: state.phase || null,
+            running,
+            mbps: (patch.lastResult && patch.lastResult.downloadMbps) ||
+                (manager.moduleInstances[INSTANCE_KEY] &&
+                    manager.moduleInstances[INSTANCE_KEY].lastResult &&
+                    manager.moduleInstances[INSTANCE_KEY].lastResult.downloadMbps) ||
+                null
+        });
+
         manager.renderModules();
     }
 
     function ensure(manager) {
-        // Optional module — user adds from Add Module. Nothing auto-created.
-        // Bind run button once via event delegation on the grid.
+        // Clear any sticky Testing... state from older buggy saves
+        networkKeys(manager).forEach((key) => {
+            if (manager.moduleInstances[key]) {
+                manager.moduleInstances[key].running = false;
+            }
+        });
+
         const grid = document.getElementById('modulesGrid');
         if (grid && grid.dataset.networkBound !== '1') {
             grid.dataset.networkBound = '1';
@@ -147,6 +191,7 @@
                     alert('Not connected to server');
                     return;
                 }
+                console.log('[NetworkAnalyzer] Run now clicked');
                 manager.ws.send(JSON.stringify({ type: 'run_network_test' }));
             });
         }

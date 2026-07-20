@@ -175,6 +175,7 @@ function register(ctx) {
         logger,
         onResult: (result) => {
             const payload = {
+                phase: 'finished',
                 lastResult: result,
                 history: analyzer.history.slice(),
                 running: false,
@@ -182,7 +183,7 @@ function register(ctx) {
             };
             logger.info(
                 'NetworkAnalyzer',
-                `Broadcasting result to clients: ${result.status}` +
+                `Broadcasting finished result: ${result.status}` +
                 (result.status === 'ok' ? ` ${result.downloadMbps} Mbps` : ` (${result.error || 'error'})`)
             );
             broadcastToAll({
@@ -199,7 +200,11 @@ function register(ctx) {
     onClientConnected((ws) => {
         ws.send(JSON.stringify({
             type: 'network_state',
-            data: analyzer.getState()
+            data: {
+                phase: 'finished',
+                ...analyzer.getState(),
+                running: false
+            }
         }));
     });
 
@@ -210,8 +215,11 @@ function register(ctx) {
         broadcastToAll({
             type: 'network_stats',
             data: {
-                ...analyzer.getState(),
-                running: true
+                phase: 'started',
+                lastResult: analyzer.lastResult,
+                history: analyzer.history.slice(),
+                running: true,
+                intervalMs: analyzer.intervalMs
             }
         });
 
@@ -220,6 +228,7 @@ function register(ctx) {
             broadcastToAll({
                 type: 'network_stats',
                 data: {
+                    phase: 'finished',
                     ...analyzer.getState(),
                     running: false
                 }
