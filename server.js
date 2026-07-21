@@ -80,6 +80,17 @@ wss.on('connection', (ws, req) => {
         state: dashboardState
     }));
 
+    // Send latest system stats + metrics-file history for graphs
+    if (systemStats && Object.keys(systemStats).length) {
+        ws.send(JSON.stringify({
+            type: 'system_stats',
+            data: {
+                ...systemStats,
+                history: logger.getSystemMetricsHistory(60)
+            }
+        }));
+    }
+
     clientConnectedHandlers.forEach((handler) => {
         try {
             handler(ws, req);
@@ -414,8 +425,9 @@ async function updateSystemStats() {
 
         console.log(`[System Monitor] Updated stats - CPU: ${systemStats.cpuUsage}%, Temp: ${systemStats.cpuTemp}°C, Memory: ${systemStats.memoryUsage}%`);
 
-        // Persist history for later review
+        // Persist history for later review + graph source
         logger.logSystemMetrics(systemStats);
+        systemStats.history = logger.getSystemMetricsHistory(60);
 
         // Broadcast system stats to all connected clients
         broadcastToOthers(null, {

@@ -1331,55 +1331,49 @@ class ModuleManager {
         const instanceData = this.moduleInstances[instanceKey];
         if (!instanceData || !data) return;
 
-        // Update current values
+        // Update current values (history handled separately)
+        const incomingHistory = data.history;
         Object.assign(instanceData, data);
-        instanceData.lastUpdate = new Date().toISOString();
+        instanceData.lastUpdate = data.lastUpdate || new Date().toISOString();
 
-        // Update historical data
-        if (!instanceData.history) {
+        // Prefer history from logs/system-metrics.log (server)
+        if (incomingHistory && Array.isArray(incomingHistory.timestamps)) {
             instanceData.history = {
-                cpu: [],
-                memory: [],
-                disk: [],
-                temperature: [],
-                timestamps: []
+                cpu: Array.isArray(incomingHistory.cpu) ? incomingHistory.cpu.slice() : [],
+                memory: Array.isArray(incomingHistory.memory) ? incomingHistory.memory.slice() : [],
+                disk: Array.isArray(incomingHistory.disk) ? incomingHistory.disk.slice() : [],
+                temperature: Array.isArray(incomingHistory.temperature) ? incomingHistory.temperature.slice() : [],
+                timestamps: incomingHistory.timestamps.slice()
             };
-        }
-
-        // Add new values only if data is available (no fallbacks)
-        if (typeof data.cpuUsage === 'number' && !isNaN(data.cpuUsage)) {
-            instanceData.history.cpu.push(data.cpuUsage);
-            if (instanceData.history.cpu.length > 20) {
-                instanceData.history.cpu.shift();
+        } else {
+            if (!instanceData.history) {
+                instanceData.history = {
+                    cpu: [],
+                    memory: [],
+                    disk: [],
+                    temperature: [],
+                    timestamps: []
+                };
             }
-        }
 
-        if (typeof data.memoryUsage === 'number' && !isNaN(data.memoryUsage)) {
-            instanceData.history.memory.push(data.memoryUsage);
-            if (instanceData.history.memory.length > 20) {
-                instanceData.history.memory.shift();
+            if (typeof data.cpuUsage === 'number' && !isNaN(data.cpuUsage)) {
+                instanceData.history.cpu.push(data.cpuUsage);
+                if (instanceData.history.cpu.length > 60) instanceData.history.cpu.shift();
             }
-        }
-
-        if (typeof data.diskUsage === 'number' && !isNaN(data.diskUsage)) {
-            instanceData.history.disk.push(data.diskUsage);
-            if (instanceData.history.disk.length > 20) {
-                instanceData.history.disk.shift();
+            if (typeof data.memoryUsage === 'number' && !isNaN(data.memoryUsage)) {
+                instanceData.history.memory.push(data.memoryUsage);
+                if (instanceData.history.memory.length > 60) instanceData.history.memory.shift();
             }
-        }
-
-        // Only add temperature data if we have a valid reading
-        if (typeof data.cpuTemp === 'number' && !isNaN(data.cpuTemp) && data.cpuTemp > 0) {
-            instanceData.history.temperature.push(data.cpuTemp);
-            if (instanceData.history.temperature.length > 20) {
-                instanceData.history.temperature.shift();
+            if (typeof data.diskUsage === 'number' && !isNaN(data.diskUsage)) {
+                instanceData.history.disk.push(data.diskUsage);
+                if (instanceData.history.disk.length > 60) instanceData.history.disk.shift();
             }
-        }
-
-        // Always add timestamp for this data point
-        instanceData.history.timestamps.push(new Date().toISOString());
-        if (instanceData.history.timestamps.length > 20) {
-            instanceData.history.timestamps.shift();
+            if (typeof data.cpuTemp === 'number' && !isNaN(data.cpuTemp) && data.cpuTemp > 0) {
+                instanceData.history.temperature.push(data.cpuTemp);
+                if (instanceData.history.temperature.length > 60) instanceData.history.temperature.shift();
+            }
+            instanceData.history.timestamps.push(new Date().toISOString());
+            if (instanceData.history.timestamps.length > 60) instanceData.history.timestamps.shift();
         }
 
         // Add log entry for significant changes
@@ -1392,33 +1386,33 @@ class ModuleManager {
                 type: type
             });
 
-            // Keep only last 50 logs
             if (instanceData.logs.length > 50) {
                 instanceData.logs.shift();
             }
         };
 
-        // Check for significant changes and log them
-        const oldCpu = instanceData.history.cpu[instanceData.history.cpu.length - 2] || 0;
-        const oldMemory = instanceData.history.memory[instanceData.history.memory.length - 2] || 0;
-        const oldDisk = instanceData.history.disk[instanceData.history.disk.length - 2] || 0;
+        const cpuSeries = instanceData.history.cpu || [];
+        const memSeries = instanceData.history.memory || [];
+        const diskSeries = instanceData.history.disk || [];
+        const oldCpu = cpuSeries[cpuSeries.length - 2] || 0;
+        const oldMemory = memSeries[memSeries.length - 2] || 0;
+        const oldDisk = diskSeries[diskSeries.length - 2] || 0;
 
-        if (Math.abs(data.cpuUsage - oldCpu) > 20) {
+        if (typeof data.cpuUsage === 'number' && Math.abs(data.cpuUsage - oldCpu) > 20) {
             const direction = data.cpuUsage > oldCpu ? 'increased' : 'decreased';
             addLogEntry(`CPU usage ${direction} to ${data.cpuUsage}%`, data.cpuUsage > 80 ? 'warning' : 'info');
         }
 
-        if (Math.abs(data.memoryUsage - oldMemory) > 15) {
+        if (typeof data.memoryUsage === 'number' && Math.abs(data.memoryUsage - oldMemory) > 15) {
             const direction = data.memoryUsage > oldMemory ? 'increased' : 'decreased';
             addLogEntry(`Memory usage ${direction} to ${data.memoryUsage}%`, data.memoryUsage > 85 ? 'warning' : 'info');
         }
 
-        if (Math.abs(data.diskUsage - oldDisk) > 10) {
+        if (typeof data.diskUsage === 'number' && Math.abs(data.diskUsage - oldDisk) > 10) {
             const direction = data.diskUsage > oldDisk ? 'increased' : 'decreased';
             addLogEntry(`Disk usage ${direction} to ${data.diskUsage}%`, data.diskUsage > 90 ? 'error' : 'info');
         }
 
-        // Update all modules that use this instance
         this.renderModules();
     }
 
