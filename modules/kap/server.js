@@ -163,15 +163,28 @@ function register(ctx) {
         }
     }
 
-    async function scrapeNow({ autoClassify = AUTO_CLASSIFY } = {}) {
-        logger.info('KAP', `Scrape started (watchlist: ${scrape.getWatchlist().join(', ') || 'empty'})`);
-        const result = await scrape.fetchRecentDisclosures(7);
+    async function scrapeNow({ mode = 'watchlist', autoClassify = AUTO_CLASSIFY } = {}) {
+        const watchlist = scrape.getWatchlist();
+        // Empty watchlist → general scan so the UI still does something useful
+        const effectiveMode = (mode === 'watchlist' && !watchlist.length) ? 'general' : mode;
+
+        logger.info(
+            'KAP',
+            `Scrape started mode=${effectiveMode} (watchlist: ${watchlist.join(', ') || 'empty'})`
+        );
+
+        const result = await scrape.fetchRecentDisclosures({ mode: effectiveMode });
         lastScrapeAt = new Date().toISOString();
         const beforeIds = new Set(store.getDisclosures().map((d) => String(d.id)));
         const { added, list } = store.upsertDisclosures(result.items);
-        logger.info('KAP', `Scrape finished: ${result.scraped || 0} raw, ${result.items.length} watchlist matches, ${added} new`);
+        logger.info(
+            'KAP',
+            `Scrape finished (${result.mode}): ${result.scraped || 0} raw, ${result.items.length} kept, ${added} new` +
+            (result.note ? ` — ${result.note}` : '')
+        );
 
-        if (autoClassify) {
+        // Auto-classify only watchlist hits (never flood Ollama on a general scan)
+        if (autoClassify && result.mode === 'watchlist' && watchlist.length) {
             result.items.forEach((d) => {
                 const isNew = !beforeIds.has(String(d.id));
                 const already = store.getClassificationById(d.id);
@@ -210,7 +223,11 @@ function register(ctx) {
 
     app.post('/api/kap/scrape', async (req, res) => {
         try {
-            const out = await scrapeNow({ autoClassify: true });
+            const mode = (req.body && req.body.mode) === 'general' ? 'general' : 'watchlist';
+            const out = await scrapeNow({
+                mode,
+                autoClassify: mode === 'watchlist'
+            });
             res.json({ ok: true, ...out, state: getState() });
         } catch (err) {
             lastError = err.message || String(err);
@@ -261,7 +278,11 @@ function register(ctx) {
 
     onClientMessage((ws, data) => {
         if (data.type === 'kap_scrape') {
-            scrapeNow({ autoClassify: true }).catch((err) => {
+            const mode = data.mode === 'general' ? 'general' : 'watchlist';
+            scrapeNow({
+                mode,
+                autoClassify: mode === 'watchlist'
+            }).catch((err) => {
                 lastError = err.message || String(err);
                 logger.error('KAP', `WS scrape failed: ${lastError}`);
                 broadcastState();
@@ -291,22 +312,19 @@ function register(ctx) {
         return false;
     });
 
-    // Need JSON body parser for POST routes — ensure express.json is available
-    // (server.js should already use it; if not, routes still work via WS)
-
     if (scrape.getWatchlist().length && POLL_MS > 0) {
         setTimeout(() => {
-            scrapeNow({ autoClassify: true }).catch((err) => {
+            scrapeNow({ mode: 'watchlist', autoClassify: true }).catch((err) => {
                 logger.warn('KAP', `Initial scrape skipped: ${err.message || err}`);
             });
         }, 8000);
         setInterval(() => {
-            scrapeNow({ autoClassify: true }).catch((err) => {
+            scrapeNow({ mode: 'watchlist', autoClassify: true }).catch((err) => {
                 logger.warn('KAP', `Scheduled scrape failed: ${err.message || err}`);
             });
         }, POLL_MS);
     } else {
-        logger.info('KAP', 'No KAP_WATCHLIST set — scrape idle until configured');
+        logger.info('KAP', 'No KAP_WATCHLIST set — use General scan in the UI, or set watchlist in .env');
     }
 
     logger.info('KAP', `KAP module registered (model=${ollama.DEFAULT_MODEL}, prompt=${ollama.resolvePromptPath()})`);

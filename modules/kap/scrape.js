@@ -1,9 +1,11 @@
 /**
  * KAP public disclosure scrape (Turkish site APIs).
- * Filters to watchlist stock codes.
+ * Modes: watchlist (filter codes) | general (recent market feed)
  */
 const LANGUAGE = process.env.KAP_LANGUAGE || 'tr';
 const BASE = `https://www.kap.org.tr/${LANGUAGE}`;
+const GENERAL_DAYS = Number(process.env.KAP_GENERAL_DAYS || 1);
+const GENERAL_LIMIT = Number(process.env.KAP_GENERAL_LIMIT || 150);
 
 function getWatchlist() {
     return String(process.env.KAP_WATCHLIST || '')
@@ -14,7 +16,6 @@ function getWatchlist() {
 
 function parseKapDate(value) {
     if (!value) return new Date().toISOString();
-    // "26.05.2026 09:10:35" or ISO
     const m = String(value).match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
     if (m) {
         const iso = `${m[3]}-${m[2]}-${m[1]}T${m[4] || '00'}:${m[5] || '00'}:${m[6] || '00'}`;
@@ -97,26 +98,68 @@ async function fetchByCriteria(fromDate, toDate) {
     return Array.isArray(data) ? data : [];
 }
 
-async function fetchRecentDisclosures(days = 7) {
+/**
+ * @param {{ mode?: 'watchlist'|'general', days?: number }} opts
+ */
+async function fetchRecentDisclosures(opts = {}) {
     const watchlist = getWatchlist();
-    if (!watchlist.length) {
-        return { watchlist, items: [], note: 'KAP_WATCHLIST is empty' };
-    }
+    const mode = opts.mode === 'general' || (!opts.mode && !watchlist.length)
+        ? 'general'
+        : (opts.mode || 'watchlist');
 
+    const days = Number(opts.days) || (mode === 'general' ? GENERAL_DAYS : 7);
     const to = new Date();
     const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const raw = await fetchByCriteria(ymd(from), ymd(to));
+
+    if (mode === 'general') {
+        const items = raw
+            .map((row) => normalizeItem(row, watchlist))
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, GENERAL_LIMIT);
+
+        return {
+            mode: 'general',
+            watchlist,
+            items,
+            scraped: raw.length,
+            days,
+            note: `General scan: last ${days} day(s), capped at ${GENERAL_LIMIT}`
+        };
+    }
+
+    if (!watchlist.length) {
+        return {
+            mode: 'watchlist',
+            watchlist,
+            items: [],
+            scraped: raw.length,
+            days,
+            note: 'KAP_WATCHLIST is empty — use general scan or set watchlist'
+        };
+    }
+
     const filtered = raw
         .filter((row) => matchesWatchlist(row, watchlist))
         .map((row) => normalizeItem(row, watchlist))
         .filter(Boolean);
 
-    return { watchlist, items: filtered, scraped: raw.length };
+    return {
+        mode: 'watchlist',
+        watchlist,
+        items: filtered,
+        scraped: raw.length,
+        days
+    };
 }
 
 module.exports = {
     getWatchlist,
     fetchRecentDisclosures,
+    matchesWatchlist,
     LANGUAGE,
-    BASE
+    BASE,
+    GENERAL_DAYS,
+    GENERAL_LIMIT
 };

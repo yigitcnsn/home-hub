@@ -1776,9 +1776,10 @@ body {
     color: var(--text-primary);
 }
 
-.kap-disclaimer {
-    font-size: 12px;
-    color: var(--text-muted);
+.kap-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .kap-banner {

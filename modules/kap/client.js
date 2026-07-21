@@ -107,7 +107,8 @@
                         <div class="kap-title">KAP</div>
                     </div>
                     <div class="kap-actions">
-                        <button type="button" class="network-run-btn" id="kapScrapeBtn">Scrape now</button>
+                        <button type="button" class="network-secondary-btn" id="kapScrapeWatchlistBtn">Scrape watchlist</button>
+                        <button type="button" class="network-run-btn" id="kapScrapeGeneralBtn">General scan</button>
                     </div>
                 </div>
 
@@ -152,9 +153,23 @@
         pageBound = true;
 
         view.addEventListener('click', (e) => {
-            if (e.target.closest('#kapScrapeBtn')) {
-                if (!send(manager, { type: 'kap_scrape' })) {
-                    fetch('/api/kap/scrape', { method: 'POST' }).catch(() => {});
+            if (e.target.closest('#kapScrapeGeneralBtn')) {
+                if (!send(manager, { type: 'kap_scrape', mode: 'general' })) {
+                    fetch('/api/kap/scrape', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode: 'general' })
+                    }).catch(() => {});
+                }
+                return;
+            }
+            if (e.target.closest('#kapScrapeWatchlistBtn')) {
+                if (!send(manager, { type: 'kap_scrape', mode: 'watchlist' })) {
+                    fetch('/api/kap/scrape', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode: 'watchlist' })
+                    }).catch(() => {});
                 }
                 return;
             }
