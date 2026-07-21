@@ -141,6 +141,25 @@
         });
     }
 
+    function bindClearInfo(manager) {
+        const btn = document.getElementById('logsClearInfoBtn');
+        if (!btn || btn.dataset.bound === '1') return;
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+            if (!confirm('Clear all info-level logs from the UI and log file? Warn/Error stay.')) {
+                return;
+            }
+            if (manager.ws && manager.ws.readyState === WebSocket.OPEN) {
+                manager.ws.send(JSON.stringify({ type: 'clear_info_logs' }));
+                return;
+            }
+            fetch('/api/logs/clear-info', { method: 'POST' })
+                .then((res) => res.json())
+                .then(() => loadPreviousLogs())
+                .catch((err) => alert('Failed to clear info logs: ' + err.message));
+        });
+    }
+
     async function loadPreviousLogs() {
         try {
             const res = await fetch('/api/logs?limit=' + MAX_ENTRIES);
@@ -185,6 +204,7 @@
         if (!initialized) {
             initialized = true;
             bindFilters();
+            bindClearInfo(manager);
             updateCounts();
             loadPreviousLogs();
         }
