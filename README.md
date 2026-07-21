@@ -94,11 +94,18 @@ Snapshot refreshes about every **20s**. Full test runs **hourly**, or on demand 
 git clone https://github.com/yigitcnsn/home-hub.git
 cd home-hub
 npm install
-npm start
+./start.sh
+```
+
+Or with background mode (survives closing the terminal):
+
+```bash
+cp .env.example .env   # edit KAP_WATCHLIST etc.
+./start.sh --bg
 ```
 
 Open **[http://localhost:3000](http://localhost:3000)**  
-On your LAN: `http://<host-ip>:3000`
+On your LAN: `http://<host-ip>:3000` or `http://ev.local`
 
 ### Raspberry Pi deploy
 
