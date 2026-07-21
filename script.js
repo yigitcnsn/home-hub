@@ -528,7 +528,7 @@ class ModuleManager {
 
                         <div class="metric-card ${tempClass(data.cpuTemp)}">
                             <div class="metric-top">
-                                <span class="metric-label">Temperature</span>
+                                <span class="metric-label">Temp</span>
                                 <span class="metric-value">${temp(data.cpuTemp)}</span>
                             </div>
                             <div class="metric-bar"><span class="metric-bar-fill" style="width:${tempBarWidth(data.cpuTemp)}%"></span></div>
@@ -793,6 +793,15 @@ class ModuleManager {
                 if (message.data) {
                     console.log('[System] Received system stats update');
                     this.updateSystemMonitor('system_monitoring', message.data);
+                    if (window.HomeHubModules) {
+                        Object.values(window.HomeHubModules).forEach((mod) => {
+                            if (typeof mod.onStats === 'function') {
+                                mod.onStats(message.data);
+                            } else if (typeof mod.handleMessage === 'function') {
+                                mod.handleMessage(this, message);
+                            }
+                        });
+                    }
                 }
                 break;
 

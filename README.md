@@ -25,6 +25,7 @@ Home Hub is a modular dashboard you run on a Raspberry Pi (or any Node host). Us
 ├─────────────┼──────────────────────────────────────┤
 │  Home       │                                      │
 │  Logs       │   widgets  /  module page content    │
+│  Monitor    │                                      │
 │  Network    │                                      │
 │             │                                      │
 │  + Add      │                                      │
@@ -34,7 +35,7 @@ Home Hub is a modular dashboard you run on a Raspberry Pi (or any Node host). Us
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Logs · Network |
+| **Sidebar** | App modules (pages): Home · Logs · Monitor · Network |
 | **Home** | Widget grid: System Monitor, Speed Test, sensors, custom |
 
 New features go in `modules/<name>/` (`server.js` + `client.js`).
@@ -45,6 +46,7 @@ New features go in `modules/<name>/` (`server.js` + `client.js`).
 
 - **Home widgets** — add, edit, resize, drag to reorder; saved locally and synced
 - **System Monitor** — pinned Pi health (CPU, temp, memory, disk, uptime)
+- **Activity Monitor** — sidebar page with large history charts + metrics table; Home keeps the compact System Monitor widget
 - **Logs** — live server log stream with All / Info / Warn / Error filters
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload only on Home
@@ -150,6 +152,7 @@ home-hub/
 ├── modules/
 │   ├── index.js               # Server module registry
 │   ├── activity/              # Logs page
+│   ├── system/                # Activity Monitor page
 │   └── network/               # Analyzer page + Speed Test widget
 ├── logs/                      # Runtime logs (gitignored)
 ├── package.json
