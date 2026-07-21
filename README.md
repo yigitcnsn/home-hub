@@ -42,6 +42,20 @@ New features go in `modules/<name>/` (`server.js` + `client.js`).
 
 KAP / Ollama integration contract: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-llm](https://github.com/yigitcnsn/pi-llm)).
 
+### KAP module (v1)
+
+On the Pi:
+
+```bash
+export OLLAMA_BASE_URL=http://127.0.0.1:11434
+export OLLAMA_MODEL=qwen2.5:3b
+export KAP_WATCHLIST=THYAO,ASELS
+export KAP_LANGUAGE=tr
+cd ~/home-hub && npm start
+```
+
+Sidebar **KAP**: watchlist badges, latest disclosures, scrape/classify, paste-text tool. Data stored under `data/kap/`.
+
 ---
 
 ## Features

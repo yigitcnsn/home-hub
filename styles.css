@@ -1740,3 +1740,231 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* KAP page */
+.kap-view {
+    min-height: 60vh;
+}
+
+.kap-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 24px;
+}
+
+.kap-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.kap-kicker {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.kap-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.kap-disclaimer {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.kap-banner {
+    border: 1px solid var(--border-color);
+    background: var(--bg-hover);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.kap-banner-error {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.kap-section {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-card);
+    padding: 12px 14px;
+}
+
+.kap-watchlist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.kap-chip,
+.kap-chip-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-hover);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.kap-chip-code {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.kap-badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.kap-badge-good { background: rgba(5, 150, 105, 0.15); color: var(--success); }
+.kap-badge-bad { background: rgba(220, 38, 38, 0.15); color: var(--danger); }
+.kap-badge-neutral { background: rgba(100, 116, 139, 0.15); color: var(--text-secondary); }
+.kap-badge-pending { background: rgba(217, 119, 6, 0.15); color: var(--warning); }
+
+.kap-meta-line {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.kap-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.kap-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.kap-row:last-child {
+    border-bottom: none;
+}
+
+.kap-row-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.kap-row-time {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.kap-row-subject {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.kap-row-summary {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.kap-reason {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.kap-reason p {
+    margin-top: 6px;
+    color: var(--text-secondary);
+}
+
+.kap-row-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+}
+
+.kap-link,
+.kap-mini-btn {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--primary-color);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.kap-paste {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kap-input,
+.kap-textarea {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.kap-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 8px 0;
+}
+
+.kap-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.kap-widget-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.kap-widget-footer {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+@media (max-width: 700px) {
+    .kap-row {
+        flex-direction: column;
+    }
+
+    .kap-row-actions {
+        flex-direction: row;
+        align-items: center;
+    }
+}

@@ -95,6 +95,13 @@
                 </div>
             </section>
 
+            <!-- KAP module page -->
+            <section class="module-page kap-view" id="kapView" data-view-panel="kap" hidden>
+                <div id="kapViewBody">
+                    <div class="kap-empty">Loading KAP…</div>
+                </div>
+            </section>
+
             <!-- Activity Monitor module page -->
             <section class="module-page monitor-view" id="monitorView" data-view-panel="monitor" hidden>
                 <div id="monitorViewBody">
@@ -132,6 +139,7 @@
                         <option value="energy">Energy</option>
                         <option value="weather">Weather</option>
                         <option value="speed_test">Speed Test</option>
+                        <option value="kap">KAP</option>
                         <option value="custom">Custom</option>
                     </select>
                 </div>
@@ -154,6 +162,7 @@
     <script src="modules/activity/client.js"></script>
     <script src="modules/system/client.js"></script>
     <script src="modules/network/client.js"></script>
+    <script src="modules/kap/client.js"></script>
     <script src="script.js"></script>
 </body>
 

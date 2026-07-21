@@ -17,6 +17,20 @@
         return entries.filter(matchesFilter);
     }
 
+    function esc(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function safeLevel(value) {
+        const level = String(value || 'info').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        return level || 'info';
+    }
+
     function rowHtml(entry) {
         const time = new Date(entry.timestamp).toLocaleString([], {
             month: 'short',
@@ -25,13 +39,13 @@
             minute: '2-digit',
             second: '2-digit'
         });
-        const level = entry.level || 'info';
+        const level = safeLevel(entry.level);
         return `
-            <div class="log-row log-${level}" data-log-level="${level}" data-log-id="${entry.id || ''}">
-                <span class="log-time">${time}</span>
-                <span class="log-level">${level}</span>
-                <span class="log-source">${entry.source || 'App'}</span>
-                <span class="log-message">${entry.message || ''}</span>
+            <div class="log-row log-${level}" data-log-level="${level}" data-log-id="${esc(entry.id || '')}">
+                <span class="log-time">${esc(time)}</span>
+                <span class="log-level">${esc(level)}</span>
+                <span class="log-source">${esc(entry.source || 'App')}</span>
+                <span class="log-message">${esc(entry.message || '')}</span>
             </div>
         `;
     }
@@ -59,7 +73,7 @@
         if (visible.length === 0) {
             list.innerHTML = entries.length === 0
                 ? '<div class="logs-empty">Waiting for server logs...</div>'
-                : `<div class="logs-empty">No ${filter} logs</div>`;
+                : `<div class="logs-empty">No ${esc(filter)} logs</div>`;
             updateCounts();
             return;
         }

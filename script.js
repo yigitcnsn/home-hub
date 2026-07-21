@@ -1,3 +1,18 @@
+// Escape text before inserting into HTML (XSS hygiene)
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function safeCssToken(value, fallback = 'info') {
+    const token = String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    return token || fallback;
+}
+
 // Module Management System
 class ModuleManager {
     constructor() {
@@ -317,14 +332,14 @@ class ModuleManager {
         div.innerHTML = `
             <div class="module-header">
                 <div>
-                    <div class="module-title">${module.name}</div>
-                    <div class="module-type">${typeLabels[module.type] || module.type}</div>
+                    <div class="module-title">${escapeHtml(module.name)}</div>
+                    <div class="module-type">${escapeHtml(typeLabels[module.type] || module.type)}</div>
                 </div>
                 <div class="module-actions">
                     ${isPersistent ?
                 '<span class="module-persistent" title="Persistent widget">Pinned</span>' :
-                `<button class="module-action-btn" onclick="moduleManager.editModule(${module.id})" title="Edit">Edit</button>
-                         <button class="module-action-btn" onclick="moduleManager.removeModule(${module.id})" title="Remove">Delete</button>`
+                `<button class="module-action-btn" onclick="moduleManager.editModule(${Number(module.id) || 0})" title="Edit">Edit</button>
+                         <button class="module-action-btn" onclick="moduleManager.removeModule(${Number(module.id) || 0})" title="Remove">Delete</button>`
             }
                 </div>
             </div>
@@ -389,28 +404,28 @@ class ModuleManager {
     getModuleContent(type, data, module) {
         if (type === 'temperature') {
             return `
-                <div class="module-value">${data.value}</div>
-                <div class="module-status ${data.status}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
+                <div class="module-value">${escapeHtml(data.value)}</div>
+                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
             `;
         } else if (type === 'lighting') {
             return `
-                <div class="module-value">${data.value}</div>
-                <div class="module-status ${data.status}">${data.status === 'active' ? 'On' : 'Off'}</div>
+                <div class="module-value">${escapeHtml(data.value)}</div>
+                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'On' : 'Off'}</div>
             `;
         } else if (type === 'security') {
             return `
-                <div class="module-value">${data.value}</div>
-                <div class="module-status ${data.status}">${data.status === 'active' ? 'Secure' : 'Unsecure'}</div>
+                <div class="module-value">${escapeHtml(data.value)}</div>
+                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'Secure' : 'Unsecure'}</div>
             `;
         } else if (type === 'energy') {
             return `
-                <div class="module-value">${data.value}</div>
-                <div class="module-status ${data.status}">Current Usage</div>
+                <div class="module-value">${escapeHtml(data.value)}</div>
+                <div class="module-status ${safeCssToken(data.status, 'inactive')}">Current Usage</div>
             `;
         } else if (type === 'weather') {
             return `
-                <div class="module-value">${data.value}</div>
-                <div class="module-status ${data.status}">Outside</div>
+                <div class="module-value">${escapeHtml(data.value)}</div>
+                <div class="module-status ${safeCssToken(data.status, 'inactive')}">Outside</div>
             `;
         } else if (type === 'system') {
             if (!data || (!data.lastUpdate && !data.error)) {
@@ -426,7 +441,7 @@ class ModuleManager {
                 return `
                     <div class="system-monitor error-state">
                         <div class="error-text">Unable to read system information</div>
-                        <div class="error-message">${data.error}</div>
+                        <div class="error-message">${escapeHtml(data.error)}</div>
                     </div>
                 `;
             }
@@ -458,7 +473,7 @@ class ModuleManager {
             const barWidth = (value) => (typeof value === 'number' ? Math.max(0, Math.min(100, value)) : 0);
             const tempBarWidth = (value) => (typeof value === 'number' ? Math.max(0, Math.min(100, (value / 80) * 100)) : 0);
 
-            const networkStatus = (data.networkStatus || 'unknown').toLowerCase();
+            const networkStatus = safeCssToken(data.networkStatus || 'unknown', 'unknown');
             const systemStatus = data.status === 'error' ||
                 data.cpuUsage === 'ERR' ||
                 data.memoryUsage === 'ERR' ? 'error' : 'online';
@@ -475,9 +490,9 @@ class ModuleManager {
                         second: '2-digit'
                     });
                     return `
-                        <div class="log-entry log-${log.type || 'info'}">
-                            <span class="log-time">${time}</span>
-                            <span class="log-message">${log.message}</span>
+                        <div class="log-entry log-${safeCssToken(log.type, 'info')}">
+                            <span class="log-time">${escapeHtml(time)}</span>
+                            <span class="log-message">${escapeHtml(log.message)}</span>
                         </div>
                     `;
                 }).join('');
@@ -492,14 +507,14 @@ class ModuleManager {
                             <span class="system-status ${systemStatus}"></span>
                             <span class="system-status-label">${systemStatus === 'online' ? 'Live' : 'Error'}</span>
                         </div>
-                        <span class="system-updated">Updated ${formatLastUpdate(data.lastUpdate || new Date().toISOString())}</span>
+                        <span class="system-updated">Updated ${escapeHtml(formatLastUpdate(data.lastUpdate || new Date().toISOString()))}</span>
                     </div>
 
                     <div class="system-metrics">
                         <div class="metric-card ${usageClass(data.cpuUsage)}">
                             <div class="metric-top">
                                 <span class="metric-label">CPU</span>
-                                <span class="metric-value">${pct(data.cpuUsage)}</span>
+                                <span class="metric-value">${escapeHtml(pct(data.cpuUsage))}</span>
                             </div>
                             <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.cpuUsage)}%"></span></div>
                             <div class="metric-sub">Host load</div>
@@ -509,27 +524,27 @@ class ModuleManager {
                         <div class="metric-card ${usageClass(data.memoryUsage)}">
                             <div class="metric-top">
                                 <span class="metric-label">Memory</span>
-                                <span class="metric-value">${pct(data.memoryUsage)}</span>
+                                <span class="metric-value">${escapeHtml(pct(data.memoryUsage))}</span>
                             </div>
                             <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.memoryUsage)}%"></span></div>
-                            <div class="metric-sub">${data.memoryUsed || '—'} / ${data.memoryTotal || '—'}</div>
+                            <div class="metric-sub">${escapeHtml(data.memoryUsed || '—')} / ${escapeHtml(data.memoryTotal || '—')}</div>
                             <canvas class="system-graph" id="memory-graph-${module.id}" width="280" height="56"></canvas>
                         </div>
 
                         <div class="metric-card ${usageClass(data.diskUsage)}">
                             <div class="metric-top">
                                 <span class="metric-label">Disk</span>
-                                <span class="metric-value">${pct(data.diskUsage)}</span>
+                                <span class="metric-value">${escapeHtml(pct(data.diskUsage))}</span>
                             </div>
                             <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.diskUsage)}%"></span></div>
-                            <div class="metric-sub">${data.diskUsed || '—'} / ${data.diskTotal || '—'}</div>
+                            <div class="metric-sub">${escapeHtml(data.diskUsed || '—')} / ${escapeHtml(data.diskTotal || '—')}</div>
                             <canvas class="system-graph" id="disk-graph-${module.id}" width="280" height="56"></canvas>
                         </div>
 
                         <div class="metric-card ${tempClass(data.cpuTemp)}">
                             <div class="metric-top">
                                 <span class="metric-label">Temp</span>
-                                <span class="metric-value">${temp(data.cpuTemp)}</span>
+                                <span class="metric-value">${escapeHtml(temp(data.cpuTemp))}</span>
                             </div>
                             <div class="metric-bar"><span class="metric-bar-fill" style="width:${tempBarWidth(data.cpuTemp)}%"></span></div>
                             <div class="metric-sub">Safe under 70°C</div>
@@ -540,18 +555,18 @@ class ModuleManager {
                     <div class="system-meta">
                         <div class="meta-item">
                             <span class="meta-label">Uptime</span>
-                            <span class="meta-value">${data.uptime || '—'}</span>
+                            <span class="meta-value">${escapeHtml(data.uptime || '—')}</span>
                         </div>
                         <div class="meta-item">
                             <span class="meta-label">Network</span>
-                            <span class="meta-value network-${networkStatus}">${networkStatus}</span>
+                            <span class="meta-value network-${networkStatus}">${escapeHtml(networkStatus)}</span>
                         </div>
                     </div>
 
                     <div class="system-logs">
                         <div class="logs-header">
                             <span class="logs-title">Recent events</span>
-                            <button type="button" class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${instanceKey}')">Clear</button>
+                            <button type="button" class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${escapeHtml(instanceKey)}')">Clear</button>
                         </div>
                         <div class="logs-container" id="logs-container-${module.id}">
                             ${generateLogsHTML(data.logs)}
@@ -567,8 +582,8 @@ class ModuleManager {
         }
 
         return `
-                <div class="module-value">${data.value}</div>
-                <div class="module-status ${data.status}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
+                <div class="module-value">${escapeHtml(data.value)}</div>
+                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
             `;
     }
 
@@ -1156,7 +1171,7 @@ class ModuleManager {
                 btn.type = 'button';
                 btn.className = 'nav-item';
                 btn.dataset.view = mod.view;
-                btn.innerHTML = `<span class="nav-text">${mod.navLabel || mod.label || mod.view}</span>`;
+                btn.innerHTML = `<span class="nav-text">${escapeHtml(mod.navLabel || mod.label || mod.view)}</span>`;
                 if (mod.view === 'logs') {
                     btn.insertAdjacentHTML(
                         'beforeend',

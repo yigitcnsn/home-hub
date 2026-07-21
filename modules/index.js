@@ -4,10 +4,12 @@
  */
 const activity = require('./activity/server');
 const network = require('./network/server');
+const kap = require('./kap/server');
 
 const modules = [
     activity,
-    network
+    network,
+    kap
 ];
 
 function registerAll(ctx) {

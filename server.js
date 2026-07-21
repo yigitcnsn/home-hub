@@ -10,6 +10,7 @@ const hubModules = require('./modules');
 
 const app = express();
 const server = http.createServer(app);
+app.use(express.json({ limit: '1mb' }));
 
 // WebSocket server for /dashboard path
 const wss = new WebSocket.Server({ noServer: true });
