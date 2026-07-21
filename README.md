@@ -97,12 +97,16 @@ npm install
 ./start.sh
 ```
 
-Or with background mode (survives closing the terminal):
+Or with auto-update on the Pi (no local edits on the device):
 
 ```bash
 cp .env.example .env   # edit KAP_WATCHLIST etc.
-./start.sh --bg
+./start.sh --watch        # foreground supervisor
+# or
+./start.sh --watch --bg   # background (logs/watch.out)
 ```
+
+Every ~60s it `git fetch`es; if `origin` is ahead it `git pull --ff-only`, restarts Node, and open browsers reload when `/api/version` changes.
 
 Open **[http://localhost:3000](http://localhost:3000)**  
 On your LAN: `http://<host-ip>:3000` or `http://ev.local`

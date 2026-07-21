@@ -7,10 +7,18 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const logger = require('./lib/logger');
 const hubModules = require('./modules');
+const { getBuildInfo } = require('./lib/build-id');
 
 const app = express();
 const server = http.createServer(app);
 app.use(express.json({ limit: '1mb' }));
+
+const buildInfo = getBuildInfo();
+buildInfo.startedAt = new Date().toISOString();
+
+app.get('/api/version', (req, res) => {
+    res.json(buildInfo);
+});
 
 // WebSocket server for /dashboard path
 const wss = new WebSocket.Server({ noServer: true });
@@ -79,6 +87,11 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({
         type: 'full_state',
         state: dashboardState
+    }));
+
+    ws.send(JSON.stringify({
+        type: 'build_info',
+        data: buildInfo
     }));
 
     // Send latest system stats + metrics-file history for graphs
@@ -471,8 +484,15 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
     logger.info('Server', `Home Hub running on http://0.0.0.0:${PORT}`);
     logger.info('Server', `WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
+    logger.info('Server', `Build: ${buildInfo.buildId} (${buildInfo.branch})`);
     logger.info('Server', `Log file: ${logger.LOG_FILE}`);
     logger.info('Server', `Metrics history: ${logger.METRICS_LOG_FILE}`);
+
+    // Tell open browsers a new build is up (watch-mode restart)
+    broadcastToAll({
+        type: 'build_info',
+        data: buildInfo
+    });
 
     const piModel = await getRaspberryPiInfo();
     logger.info('Server', `Detected host: ${piModel}`);

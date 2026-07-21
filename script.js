@@ -34,8 +34,33 @@ class ModuleManager {
         this.renderModules();
         this.startClock();
         this.initSync();
+        this.initAutoReload();
         this.setView('home');
         console.log('[ModuleManager] Initialization complete');
+    }
+
+    initAutoReload() {
+        this.knownBuildId = null;
+        const applyBuild = (buildId) => {
+            if (!buildId) return;
+            if (this.knownBuildId && this.knownBuildId !== buildId) {
+                console.log(`[AutoReload] New build ${buildId} (was ${this.knownBuildId}) — reloading`);
+                window.location.reload();
+                return;
+            }
+            this.knownBuildId = buildId;
+        };
+
+        const poll = () => {
+            fetch('/api/version')
+                .then((r) => r.json())
+                .then((data) => applyBuild(data && data.buildId))
+                .catch(() => {});
+        };
+
+        poll();
+        setInterval(poll, 15000);
+        this._applyBuildInfo = applyBuild;
     }
 
     setupEventListeners() {
@@ -823,6 +848,16 @@ class ModuleManager {
             case 'ping':
                 // Respond to server ping to maintain connection
                 this.ws.send(JSON.stringify({ type: 'pong' }));
+                break;
+
+            case 'build_info':
+                if (message.data && typeof this._applyBuildInfo === 'function') {
+                    this._applyBuildInfo(message.data.buildId);
+                }
+                break;
+
+            case 'reload':
+                window.location.reload();
                 break;
 
             default: {
