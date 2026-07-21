@@ -1237,11 +1237,16 @@ class ModuleManager {
             this.showGraphError(`disk-graph-${moduleId}`, 'Disk data unavailable');
         }
 
-        // Temperature Graph - show error if no data
+        // Temperature: fixed 20–90°C scale (not auto-zoomed)
         if (data.history?.temperature && data.history.temperature.length > 0 && typeof data.cpuTemp === 'number') {
-            const tempHistory = data.history.temperature.map(temp => Math.min((temp / 80) * 100, 100));
             const tempColor = data.cpuTemp >= 70 ? '#ef4444' : data.cpuTemp >= 55 ? '#f59e0b' : '#10b981';
-            this.drawGraph(`temp-graph-${moduleId}`, tempHistory, tempColor, (data.cpuTemp / 80) * 100);
+            this.drawGraph(
+                `temp-graph-${moduleId}`,
+                data.history.temperature,
+                tempColor,
+                data.cpuTemp,
+                { min: 20, max: 90 }
+            );
         } else {
             this.showGraphError(`temp-graph-${moduleId}`, 'Temperature data unavailable');
         }
@@ -1279,7 +1284,7 @@ class ModuleManager {
         console.error(`[System Monitor] ${message} for ${canvasId}`);
     }
 
-    drawGraph(canvasId, data, color, currentValue) {
+    drawGraph(canvasId, data, color, currentValue, range = { min: 0, max: 100 }) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
 
@@ -1287,6 +1292,9 @@ class ModuleManager {
         const width = canvas.width;
         const height = canvas.height;
         const points = Array.isArray(data) ? data.filter(v => typeof v === 'number') : [];
+        const min = typeof range.min === 'number' ? range.min : 0;
+        const max = typeof range.max === 'number' ? range.max : 100;
+        const span = max - min || 1;
 
         ctx.clearRect(0, 0, width, height);
 
@@ -1301,13 +1309,23 @@ class ModuleManager {
         const values = points.length === 1 ? [points[0], points[0]] : points;
         const stepX = width / Math.max(values.length - 1, 1);
         const yFor = (value) => {
-            const clamped = Math.max(0, Math.min(100, value));
-            return height - 4 - (clamped / 100) * (height - 8);
+            const clamped = Math.max(min, Math.min(max, value));
+            return height - 4 - ((clamped - min) / span) * (height - 8);
         };
+
+        // Mid guide (50% of fixed range)
+        const midY = yFor(min + span / 2);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, midY);
+        ctx.lineTo(width, midY);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
         // Baseline
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
-        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(0, height - 4);
         ctx.lineTo(width, height - 4);

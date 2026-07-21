@@ -65,27 +65,37 @@
         return `${Math.floor(diff / 86400)}d ago`;
     }
 
-    function sparkline(values, color) {
+    function sparkline(values, color, opts = {}) {
         const nums = (values || []).filter((v) => typeof v === 'number');
         if (nums.length < 2) {
             return '<div class="monitor-chart-empty">Waiting for history…</div>';
         }
         const w = 640;
         const h = 120;
-        const min = Math.min(...nums);
-        const max = Math.max(...nums);
+        const min = typeof opts.min === 'number' ? opts.min : 0;
+        const max = typeof opts.max === 'number' ? opts.max : 100;
         const span = max - min || 1;
+        const unit = opts.unit || '';
         const points = nums.map((v, i) => {
+            const clamped = Math.max(min, Math.min(max, v));
             const x = (i / (nums.length - 1)) * w;
-            const y = h - ((v - min) / span) * (h - 8) - 4;
+            const y = h - ((clamped - min) / span) * (h - 8) - 4;
             return `${x.toFixed(1)},${y.toFixed(1)}`;
         }).join(' ');
 
+        // Guide lines at mid / high
+        const midY = h - (( (min + max) / 2 - min) / span) * (h - 8) - 4;
+        const highY = h - ((max * 0.85 - min) / span) * (h - 8) - 4;
+
         return `
             <svg viewBox="0 0 ${w} ${h}" class="monitor-chart-svg" preserveAspectRatio="none">
+                <line x1="0" y1="${midY.toFixed(1)}" x2="${w}" y2="${midY.toFixed(1)}"
+                    stroke="var(--border-color)" stroke-width="1" stroke-dasharray="4 4" />
+                <line x1="0" y1="${highY.toFixed(1)}" x2="${w}" y2="${highY.toFixed(1)}"
+                    stroke="var(--border-color)" stroke-width="1" opacity="0.5" />
                 <polyline fill="none" stroke="${color}" stroke-width="2.5" points="${points}" />
             </svg>
-            <div class="monitor-chart-range">${esc(String(min))} – ${esc(String(max))}</div>
+            <div class="monitor-chart-range">${esc(String(min))}${esc(unit)} – ${esc(String(max))}${esc(unit)} (fixed)</div>
         `;
     }
 
@@ -194,22 +204,22 @@
                     <section class="monitor-chart-card">
                         <h3 class="network-section-title">CPU history</h3>
                         <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(state.cpuUsage)}%"></span></div>
-                        ${sparkline(history.cpu, 'var(--primary-color)')}
+                        ${sparkline(history.cpu, 'var(--primary-color)', { min: 0, max: 100, unit: '%' })}
                     </section>
                     <section class="monitor-chart-card">
                         <h3 class="network-section-title">Temperature history</h3>
                         <div class="metric-bar"><span class="metric-bar-fill" style="width:${tempBarWidth(state.cpuTemp)}%"></span></div>
-                        ${sparkline(history.temperature, 'var(--warning)')}
+                        ${sparkline(history.temperature, 'var(--warning)', { min: 20, max: 90, unit: '°C' })}
                     </section>
                     <section class="monitor-chart-card">
                         <h3 class="network-section-title">Memory history</h3>
                         <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(state.memoryUsage)}%"></span></div>
-                        ${sparkline(history.memory, 'var(--success)')}
+                        ${sparkline(history.memory, 'var(--success)', { min: 0, max: 100, unit: '%' })}
                     </section>
                     <section class="monitor-chart-card">
                         <h3 class="network-section-title">Disk history</h3>
                         <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(state.diskUsage)}%"></span></div>
-                        ${sparkline(history.disk, '#f59e0b')}
+                        ${sparkline(history.disk, '#f59e0b', { min: 0, max: 100, unit: '%' })}
                     </section>
                 </div>
 
