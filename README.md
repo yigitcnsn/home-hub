@@ -40,6 +40,8 @@ Home Hub is a modular dashboard you run on a Raspberry Pi (or any Node host). Us
 
 New features go in `modules/<name>/` (`server.js` + `client.js`).
 
+KAP / Ollama integration contract: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-llm](https://github.com/yigitcnsn/pi-llm)).
+
 ---
 
 ## Features
