@@ -49,7 +49,7 @@ New features go in `modules/<name>/` (`server.js` + `client.js`).
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload only on Home
 - **Dark mode**, fullscreen, multi-device sync
-- **File logging** — `logs/home-hub.log` (+ in-memory ring for the UI)
+- **File logging** — `logs/home-hub.log` (events) + `logs/system-metrics.log` (CPU / temp / mem / disk / load history every 5s)
 
 ### Network Analyzer
 

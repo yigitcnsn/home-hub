@@ -414,6 +414,9 @@ async function updateSystemStats() {
 
         console.log(`[System Monitor] Updated stats - CPU: ${systemStats.cpuUsage}%, Temp: ${systemStats.cpuTemp}°C, Memory: ${systemStats.memoryUsage}%`);
 
+        // Persist history for later review
+        logger.logSystemMetrics(systemStats);
+
         // Broadcast system stats to all connected clients
         broadcastToOthers(null, {
             type: 'system_stats',
@@ -456,6 +459,7 @@ server.listen(PORT, async () => {
     logger.info('Server', `Home Hub running on http://0.0.0.0:${PORT}`);
     logger.info('Server', `WebSocket endpoint: ws://localhost:${PORT}/dashboard`);
     logger.info('Server', `Log file: ${logger.LOG_FILE}`);
+    logger.info('Server', `Metrics history: ${logger.METRICS_LOG_FILE}`);
 
     const piModel = await getRaspberryPiInfo();
     logger.info('Server', `Detected host: ${piModel}`);
