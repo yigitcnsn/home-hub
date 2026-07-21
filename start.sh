@@ -27,6 +27,7 @@ done
 WATCH_SECONDS="${HOMEHUB_WATCH_SECONDS:-60}"
 NODE_PID=""
 LOG_FILE="$ROOT/logs/server.out"
+PULL_FLAG="$ROOT/data/pull-now.flag"
 
 load_env() {
   if [[ -f "$ROOT/.env" ]]; then
@@ -124,6 +125,54 @@ pull_update() {
   return 0
 }
 
+wait_for_tick() {
+  # Sleep up to WATCH_SECONDS, but wake early if UI requested an update
+  local remaining="$WATCH_SECONDS"
+  while [[ "$remaining" -gt 0 ]]; do
+    if [[ -f "$PULL_FLAG" ]]; then
+      echo "[watch] Update requested from UI"
+      return 0
+    fi
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+  return 0
+}
+
+consume_pull_flag() {
+  if [[ -f "$PULL_FLAG" ]]; then
+    rm -f "$PULL_FLAG"
+    return 0
+  fi
+  return 1
+}
+
+run_update_cycle() {
+  local forced=0
+  if consume_pull_flag; then
+    forced=1
+  fi
+
+  if remote_ahead; then
+    stop_node
+    if pull_update; then
+      load_env
+      start_node
+      echo "[watch] Restarted on $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    else
+      start_node
+    fi
+  else
+    if [[ "$forced" -eq 1 ]]; then
+      echo "[watch] Already up to date — no pull needed"
+    fi
+    if [[ -n "${NODE_PID}" ]] && ! kill -0 "${NODE_PID}" 2>/dev/null; then
+      echo "[watch] Node died — restarting"
+      start_node
+    fi
+  fi
+}
+
 cleanup() {
   echo "[start] Shutting down..."
   stop_node
@@ -137,7 +186,7 @@ ensure_deps
 if [[ "$WATCH" -eq 1 ]]; then
   trap cleanup INT TERM
 
-  echo "[watch] Auto-update enabled (every ${WATCH_SECONDS}s)"
+  echo "[watch] Auto-update enabled (every ${WATCH_SECONDS}s, or via Update button)"
   echo "[watch] Pi should stay clean — no local commits/edits"
 
   if [[ "$BG" -eq 1 ]]; then
@@ -150,23 +199,8 @@ if [[ "$WATCH" -eq 1 ]]; then
   start_node
 
   while true; do
-    sleep "$WATCH_SECONDS"
-    if remote_ahead; then
-      stop_node
-      if pull_update; then
-        load_env
-        start_node
-        echo "[watch] Restarted on $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-      else
-        start_node
-      fi
-    else
-      # Keep process alive if it crashed
-      if [[ -n "${NODE_PID}" ]] && ! kill -0 "${NODE_PID}" 2>/dev/null; then
-        echo "[watch] Node died — restarting"
-        start_node
-      fi
-    fi
+    wait_for_tick
+    run_update_cycle
   done
 fi
 

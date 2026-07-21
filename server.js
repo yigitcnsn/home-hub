@@ -20,6 +20,23 @@ app.get('/api/version', (req, res) => {
     res.json(buildInfo);
 });
 
+app.post('/api/update/now', (req, res) => {
+    try {
+        const flagPath = path.join(__dirname, 'data', 'pull-now.flag');
+        fs.mkdirSync(path.dirname(flagPath), { recursive: true });
+        fs.writeFileSync(flagPath, new Date().toISOString() + '\n', 'utf8');
+        logger.info('Update', 'Pull-now requested from UI (watch mode will wake within ~1s)');
+        res.json({
+            ok: true,
+            message: 'Update requested. If ./start.sh --watch is running, it will fetch/pull shortly.',
+            buildId: buildInfo.buildId
+        });
+    } catch (err) {
+        logger.error('Update', `Failed to request update: ${err.message}`);
+        res.status(500).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
 // WebSocket server for /dashboard path
 const wss = new WebSocket.Server({ noServer: true });
 

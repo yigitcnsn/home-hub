@@ -108,6 +108,8 @@ cp .env.example .env   # edit KAP_WATCHLIST etc.
 
 Every ~60s it `git fetch`es; if `origin` is ahead it `git pull --ff-only`, restarts Node, and open browsers reload when `/api/version` changes.
 
+Sidebar **Developer → Update** requests an immediate check (does not wait for the 60s timer). Requires `--watch`.
+
 Open **[http://localhost:3000](http://localhost:3000)**  
 On your LAN: `http://<host-ip>:3000` or `http://ev.local`
 

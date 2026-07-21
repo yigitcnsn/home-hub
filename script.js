@@ -123,6 +123,33 @@ class ModuleManager {
         });
 
         // Developer actions
+        const updateNowBtn = document.getElementById('updateNowBtn');
+        if (updateNowBtn) {
+            updateNowBtn.addEventListener('click', () => {
+                updateNowBtn.disabled = true;
+                updateNowBtn.querySelector('.btn-text').textContent = 'Updating…';
+                fetch('/api/update/now', { method: 'POST' })
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (!data.ok) {
+                            alert(data.error || 'Update request failed');
+                            return;
+                        }
+                        // Watch mode should pull + restart; page reloads via build id
+                        updateNowBtn.querySelector('.btn-text').textContent = 'Requested';
+                        setTimeout(() => {
+                            updateNowBtn.disabled = false;
+                            updateNowBtn.querySelector('.btn-text').textContent = 'Update';
+                        }, 4000);
+                    })
+                    .catch((err) => {
+                        alert('Update request failed: ' + err.message);
+                        updateNowBtn.disabled = false;
+                        updateNowBtn.querySelector('.btn-text').textContent = 'Update';
+                    });
+            });
+        }
+
         document.getElementById('clearWidgetsBtn').addEventListener('click', () => {
             this.clearAllWidgets();
         });
