@@ -1237,7 +1237,11 @@ class ModuleManager {
                 if (mod.view === 'logs') {
                     btn.insertAdjacentHTML(
                         'beforeend',
-                        '<span class="logs-nav-count" id="logsNavCount">0</span>'
+                        `<span class="logs-nav-badges" id="logsNavBadges">
+                            <span class="logs-nav-count" id="logsNavCount" title="Total">0</span>
+                            <span class="logs-nav-count logs-nav-warn" id="logsNavWarn" title="Warn" hidden>0</span>
+                            <span class="logs-nav-count logs-nav-error" id="logsNavError" title="Error" hidden>0</span>
+                        </span>`
                     );
                 }
                 nav.appendChild(btn);

@@ -58,11 +58,24 @@
         const totalEl = document.getElementById('logsTotalCount');
         const visibleEl = document.getElementById('logsVisibleCount');
         const navCount = document.getElementById('logsNavCount');
+        const navWarn = document.getElementById('logsNavWarn');
+        const navError = document.getElementById('logsNavError');
         const visible = filteredEntries().length;
+        const warnCount = entries.filter((e) => (e.level || 'info') === 'warn').length;
+        const errorCount = entries.filter((e) => (e.level || 'info') === 'error').length;
 
         if (totalEl) totalEl.textContent = `${entries.length} total`;
         if (visibleEl) visibleEl.textContent = `${visible} shown`;
         if (navCount) navCount.textContent = String(entries.length);
+
+        if (navWarn) {
+            navWarn.textContent = String(warnCount);
+            navWarn.hidden = warnCount === 0;
+        }
+        if (navError) {
+            navError.textContent = String(errorCount);
+            navError.hidden = errorCount === 0;
+        }
     }
 
     function renderFull() {
