@@ -500,21 +500,26 @@
         };
     }
 
+    function formatMbpsParts(value) {
+        if (typeof value !== 'number') return { num: '—', unit: '' };
+        return { num: value.toFixed(2), unit: 'Mbps' };
+    }
+
     function renderSpeedWidget(data) {
         const running = data && data.running === true;
-        const down = formatMbps(data && data.downloadMbps);
-        const up = formatMbps(data && data.uploadMbps);
+        const down = formatMbpsParts(data && data.downloadMbps);
+        const up = formatMbpsParts(data && data.uploadMbps);
         const when = formatWhen(data && data.lastRun);
         return `
             <div class="speed-test-widget">
                 <div class="speed-test-metrics">
                     <div class="speed-test-metric">
                         <span class="network-speed-label">Down</span>
-                        <span class="speed-test-value">${esc(down)}</span>
+                        <span class="speed-test-value">${esc(down.num)}<span class="speed-test-unit">${esc(down.unit)}</span></span>
                     </div>
                     <div class="speed-test-metric">
                         <span class="network-speed-label">Up</span>
-                        <span class="speed-test-value">${esc(up)}</span>
+                        <span class="speed-test-value">${esc(up.num)}<span class="speed-test-unit">${esc(up.unit)}</span></span>
                     </div>
                 </div>
                 <div class="speed-test-footer">

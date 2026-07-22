@@ -467,7 +467,7 @@ class ModuleManager {
             }
 
             const formatLastUpdate = (timestamp) => {
-                const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
+                const diff = Math.max(0, Math.floor((Date.now() - new Date(timestamp)) / 1000));
                 if (diff < 60) return `${diff}s ago`;
                 if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
                 if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -520,19 +520,16 @@ class ModuleManager {
                                 <span class="fitness-dot cpu"></span>
                                 <span class="fitness-legend-label">CPU</span>
                                 <span class="fitness-legend-value">${escapeHtml(pct(data.cpuUsage))}</span>
-                                <span class="fitness-legend-sub">Host load</span>
                             </div>
                             <div class="fitness-legend-row">
                                 <span class="fitness-dot mem"></span>
                                 <span class="fitness-legend-label">Mem</span>
                                 <span class="fitness-legend-value">${escapeHtml(pct(data.memoryUsage))}</span>
-                                <span class="fitness-legend-sub">${escapeHtml(data.memoryUsed || '—')} / ${escapeHtml(data.memoryTotal || '—')}</span>
                             </div>
                             <div class="fitness-legend-row">
                                 <span class="fitness-dot disk"></span>
                                 <span class="fitness-legend-label">Disk</span>
                                 <span class="fitness-legend-value">${escapeHtml(pct(data.diskUsage))}</span>
-                                <span class="fitness-legend-sub">${escapeHtml(data.diskUsed || '—')} / ${escapeHtml(data.diskTotal || '—')}</span>
                             </div>
                         </div>
                     </div>
