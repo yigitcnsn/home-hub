@@ -261,7 +261,7 @@
             <div class="kap-widget">
                 <div class="kap-widget-chips">${chips}</div>
                 <div class="kap-widget-footer">
-                    ${(data && data.running) || (data && data.queueLength) ? 'Classifying…' : 'KAP watchlist'}
+                    ${(data && data.running) || (data && data.queueLength) ? 'Classifying…' : 'Watchlist'}
                 </div>
             </div>
         `;

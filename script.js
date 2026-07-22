@@ -333,18 +333,7 @@ class ModuleManager {
             grid.appendChild(moduleElement);
         });
 
-        // Draw graphs for system monitor modules
-        setTimeout(() => {
-            this.modules.forEach(module => {
-                if (module.type === 'system') {
-                    const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
-                    const instanceData = this.moduleInstances[instanceKey];
-                    if (instanceData) {
-                        this.drawSystemGraphs(module.id, instanceData);
-                    }
-                }
-            });
-        }, 100); // Small delay to ensure DOM is ready
+        // System Monitor uses Fitness rings (no Home sparklines)
     }
 
     createModuleElement(module) {
@@ -355,21 +344,6 @@ class ModuleManager {
         div.draggable = true;
         div.dataset.moduleId = module.id;
         div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
-
-        const typeLabels = {
-            temperature: 'Temperature',
-            lighting: 'Lighting',
-            security: 'Security',
-            energy: 'Energy',
-            weather: 'Weather',
-            system: 'System Monitor',
-            custom: 'Custom'
-        };
-        if (window.HomeHubModules) {
-            Object.values(window.HomeHubModules).forEach((m) => {
-                if (m.type && m.label) typeLabels[m.type] = m.label;
-            });
-        }
 
         // Get instance data (shared across all modules with same name+type)
         const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
@@ -383,10 +357,7 @@ class ModuleManager {
 
         div.innerHTML = `
             <div class="module-header">
-                <div>
-                    <div class="module-title">${escapeHtml(module.name)}</div>
-                    <div class="module-type">${escapeHtml(typeLabels[module.type] || module.type)}</div>
-                </div>
+                <div class="module-title">${escapeHtml(module.name)}</div>
                 <div class="module-actions">
                     ${isPersistent ?
                 '<span class="module-persistent" title="Persistent widget">Pinned</span>' :
@@ -454,31 +425,28 @@ class ModuleManager {
     }
 
     getModuleContent(type, data, module) {
+        const statusLabel = (status, activeText, inactiveText) => {
+            const isActive = status === 'active';
+            return `<div class="comp-sub ${isActive ? 'is-active' : 'is-inactive'}">${isActive ? activeText : inactiveText}</div>`;
+        };
+
+        const complicationFace = (value, subHtml) => `
+                <div class="comp-face">
+                    <div class="comp-value">${escapeHtml(value)}</div>
+                    ${subHtml}
+                </div>
+            `;
+
         if (type === 'temperature') {
-            return `
-                <div class="module-value">${escapeHtml(data.value)}</div>
-                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
-            `;
+            return complicationFace(data.value, statusLabel(data.status, 'Active', 'Inactive'));
         } else if (type === 'lighting') {
-            return `
-                <div class="module-value">${escapeHtml(data.value)}</div>
-                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'On' : 'Off'}</div>
-            `;
+            return complicationFace(data.value, statusLabel(data.status, 'On', 'Off'));
         } else if (type === 'security') {
-            return `
-                <div class="module-value">${escapeHtml(data.value)}</div>
-                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'Secure' : 'Unsecure'}</div>
-            `;
+            return complicationFace(data.value, statusLabel(data.status, 'Secure', 'Unsecure'));
         } else if (type === 'energy') {
-            return `
-                <div class="module-value">${escapeHtml(data.value)}</div>
-                <div class="module-status ${safeCssToken(data.status, 'inactive')}">Current Usage</div>
-            `;
+            return complicationFace(data.value, `<div class="comp-sub">Current usage</div>`);
         } else if (type === 'weather') {
-            return `
-                <div class="module-value">${escapeHtml(data.value)}</div>
-                <div class="module-status ${safeCssToken(data.status, 'inactive')}">Outside</div>
-            `;
+            return complicationFace(data.value, `<div class="comp-sub">Outside</div>`);
         } else if (type === 'system') {
             if (!data || (!data.lastUpdate && !data.error)) {
                 return `
@@ -506,123 +474,76 @@ class ModuleManager {
                 return `${Math.floor(diff / 86400)}d ago`;
             };
 
-            const usageClass = (value) => {
-                if (typeof value !== 'number') return 'level-error';
-                if (value >= 85) return 'level-high';
-                if (value >= 65) return 'level-warm';
-                return 'level-ok';
+            const clampPct = (value) => {
+                if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+                return Math.max(0, Math.min(100, value));
             };
 
-            const tempClass = (temp) => {
-                if (typeof temp !== 'number') return 'level-error';
-                if (temp >= 70) return 'level-high';
-                if (temp >= 55) return 'level-warm';
-                return 'level-ok';
-            };
-
-            const pct = (value) => (typeof value === 'number' ? `${value}%` : '—');
-            const temp = (value) => (typeof value === 'number' ? `${value}°C` : '—');
-            const barWidth = (value) => (typeof value === 'number' ? Math.max(0, Math.min(100, value)) : 0);
-            const tempBarWidth = (value) => (typeof value === 'number' ? Math.max(0, Math.min(100, (value / 80) * 100)) : 0);
+            const pct = (value) => (typeof value === 'number' ? `${Math.round(value)}%` : '—');
+            const tempNum = typeof data.cpuTemp === 'number' ? Math.round(data.cpuTemp) : null;
+            const tempDisplay = tempNum !== null ? String(tempNum) : '—';
 
             const networkStatus = safeCssToken(data.networkStatus || 'unknown', 'unknown');
             const systemStatus = data.status === 'error' ||
                 data.cpuUsage === 'ERR' ||
                 data.memoryUsage === 'ERR' ? 'error' : 'online';
 
-            const generateLogsHTML = (logs) => {
-                if (!logs || logs.length === 0) {
-                    return '<div class="no-logs">No recent events</div>';
-                }
+            // Fitness rings: outer CPU, middle Memory, inner Disk
+            const rings = [
+                { key: 'cpu', r: 42, stroke: 7, pct: clampPct(data.cpuUsage) },
+                { key: 'mem', r: 32, stroke: 7, pct: clampPct(data.memoryUsage) },
+                { key: 'disk', r: 22, stroke: 7, pct: clampPct(data.diskUsage) }
+            ];
 
-                return logs.slice(-8).reverse().map(log => {
-                    const time = new Date(log.timestamp).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit'
-                    });
-                    return `
-                        <div class="log-entry log-${safeCssToken(log.type, 'info')}">
-                            <span class="log-time">${escapeHtml(time)}</span>
-                            <span class="log-message">${escapeHtml(log.message)}</span>
-                        </div>
-                    `;
-                }).join('');
-            };
-
-            const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+            const ringsSvg = rings.map((ring) => {
+                const c = 2 * Math.PI * ring.r;
+                const dash = (ring.pct / 100) * c;
+                return `
+                    <circle class="fitness-ring-track" cx="50" cy="50" r="${ring.r}" stroke-width="${ring.stroke}"></circle>
+                    <circle class="fitness-ring-arc ${ring.key}" cx="50" cy="50" r="${ring.r}" stroke-width="${ring.stroke}"
+                        stroke-dasharray="${dash.toFixed(2)} ${c.toFixed(2)}"></circle>
+                `;
+            }).join('');
 
             return `
                 <div class="system-monitor">
-                    <div class="system-toolbar">
-                        <div class="system-live">
+                    <div class="system-fitness">
+                        <div class="fitness-rings" aria-hidden="true">
+                            <svg viewBox="0 0 100 100">${ringsSvg}</svg>
+                            <div class="fitness-center">
+                                <span class="fitness-center-value">${escapeHtml(tempDisplay)}</span>
+                                <span class="fitness-center-unit">${tempNum !== null ? '°C' : 'Temp'}</span>
+                            </div>
+                        </div>
+                        <div class="fitness-legend">
+                            <div class="fitness-legend-row">
+                                <span class="fitness-dot cpu"></span>
+                                <span class="fitness-legend-label">CPU</span>
+                                <span class="fitness-legend-value">${escapeHtml(pct(data.cpuUsage))}</span>
+                                <span class="fitness-legend-sub">Host load</span>
+                            </div>
+                            <div class="fitness-legend-row">
+                                <span class="fitness-dot mem"></span>
+                                <span class="fitness-legend-label">Mem</span>
+                                <span class="fitness-legend-value">${escapeHtml(pct(data.memoryUsage))}</span>
+                                <span class="fitness-legend-sub">${escapeHtml(data.memoryUsed || '—')} / ${escapeHtml(data.memoryTotal || '—')}</span>
+                            </div>
+                            <div class="fitness-legend-row">
+                                <span class="fitness-dot disk"></span>
+                                <span class="fitness-legend-label">Disk</span>
+                                <span class="fitness-legend-value">${escapeHtml(pct(data.diskUsage))}</span>
+                                <span class="fitness-legend-sub">${escapeHtml(data.diskUsed || '—')} / ${escapeHtml(data.diskTotal || '—')}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="system-fitness-footer">
+                        <span class="fitness-chip">
                             <span class="system-status ${systemStatus}"></span>
-                            <span class="system-status-label">${systemStatus === 'online' ? 'Live' : 'Error'}</span>
-                        </div>
-                        <span class="system-updated">Updated ${escapeHtml(formatLastUpdate(data.lastUpdate || new Date().toISOString()))}</span>
-                    </div>
-
-                    <div class="system-metrics">
-                        <div class="metric-card ${usageClass(data.cpuUsage)}">
-                            <div class="metric-top">
-                                <span class="metric-label">CPU</span>
-                                <span class="metric-value">${escapeHtml(pct(data.cpuUsage))}</span>
-                            </div>
-                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.cpuUsage)}%"></span></div>
-                            <div class="metric-sub">Host load</div>
-                            <canvas class="system-graph" id="cpu-graph-${module.id}" width="280" height="56"></canvas>
-                        </div>
-
-                        <div class="metric-card ${usageClass(data.memoryUsage)}">
-                            <div class="metric-top">
-                                <span class="metric-label">Memory</span>
-                                <span class="metric-value">${escapeHtml(pct(data.memoryUsage))}</span>
-                            </div>
-                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.memoryUsage)}%"></span></div>
-                            <div class="metric-sub">${escapeHtml(data.memoryUsed || '—')} / ${escapeHtml(data.memoryTotal || '—')}</div>
-                            <canvas class="system-graph" id="memory-graph-${module.id}" width="280" height="56"></canvas>
-                        </div>
-
-                        <div class="metric-card ${usageClass(data.diskUsage)}">
-                            <div class="metric-top">
-                                <span class="metric-label">Disk</span>
-                                <span class="metric-value">${escapeHtml(pct(data.diskUsage))}</span>
-                            </div>
-                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${barWidth(data.diskUsage)}%"></span></div>
-                            <div class="metric-sub">${escapeHtml(data.diskUsed || '—')} / ${escapeHtml(data.diskTotal || '—')}</div>
-                            <canvas class="system-graph" id="disk-graph-${module.id}" width="280" height="56"></canvas>
-                        </div>
-
-                        <div class="metric-card ${tempClass(data.cpuTemp)}">
-                            <div class="metric-top">
-                                <span class="metric-label">Temp</span>
-                                <span class="metric-value">${escapeHtml(temp(data.cpuTemp))}</span>
-                            </div>
-                            <div class="metric-bar"><span class="metric-bar-fill" style="width:${tempBarWidth(data.cpuTemp)}%"></span></div>
-                            <div class="metric-sub">Safe under 70°C</div>
-                            <canvas class="system-graph" id="temp-graph-${module.id}" width="280" height="56"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="system-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Uptime</span>
-                            <span class="meta-value">${escapeHtml(data.uptime || '—')}</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Network</span>
-                            <span class="meta-value network-${networkStatus}">${escapeHtml(networkStatus)}</span>
-                        </div>
-                    </div>
-
-                    <div class="system-logs">
-                        <div class="logs-header">
-                            <span class="logs-title">Recent events</span>
-                            <button type="button" class="logs-clear-btn" onclick="moduleManager.clearSystemLogs('${escapeHtml(instanceKey)}')">Clear</button>
-                        </div>
-                        <div class="logs-container" id="logs-container-${module.id}">
-                            ${generateLogsHTML(data.logs)}
-                        </div>
+                            ${systemStatus === 'online' ? 'Live' : 'Error'}
+                        </span>
+                        <span class="fitness-chip">Updated ${escapeHtml(formatLastUpdate(data.lastUpdate || new Date().toISOString()))}</span>
+                        <span class="fitness-chip">Up ${escapeHtml(data.uptime || '—')}</span>
+                        <span class="fitness-chip network-${networkStatus}">Net ${escapeHtml(networkStatus)}</span>
                     </div>
                 </div>
             `;
@@ -633,10 +554,7 @@ class ModuleManager {
             return hubMod.render(data, module);
         }
 
-        return `
-                <div class="module-value">${escapeHtml(data.value)}</div>
-                <div class="module-status ${safeCssToken(data.status, 'inactive')}">${data.status === 'active' ? 'Active' : 'Inactive'}</div>
-            `;
+        return complicationFace(data.value || 'Ready', statusLabel(data.status, 'Active', 'Inactive'));
     }
 
     editModule(id) {
@@ -1280,159 +1198,8 @@ class ModuleManager {
             .join(' ');
     }
 
-    // Draw system graphs using Canvas
-    drawSystemGraphs(moduleId, data) {
-        // CPU Graph - show error if no data
-        if (data.history?.cpu && data.history.cpu.length > 0 && typeof data.cpuUsage === 'number') {
-            this.drawGraph(`cpu-graph-${moduleId}`, data.history.cpu, '#3b82f6', data.cpuUsage);
-        } else {
-            this.showGraphError(`cpu-graph-${moduleId}`, 'CPU data unavailable');
-        }
-
-        // Memory Graph - show error if no data
-        if (data.history?.memory && data.history.memory.length > 0 && typeof data.memoryUsage === 'number') {
-            this.drawGraph(`memory-graph-${moduleId}`, data.history.memory, '#10b981', data.memoryUsage);
-        } else {
-            this.showGraphError(`memory-graph-${moduleId}`, 'Memory data unavailable');
-        }
-
-        // Disk Graph - show error if no data
-        if (data.history?.disk && data.history.disk.length > 0 && typeof data.diskUsage === 'number') {
-            this.drawGraph(`disk-graph-${moduleId}`, data.history.disk, '#f59e0b', data.diskUsage);
-        } else {
-            this.showGraphError(`disk-graph-${moduleId}`, 'Disk data unavailable');
-        }
-
-        // Temperature: fixed 20–90°C scale (not auto-zoomed)
-        if (data.history?.temperature && data.history.temperature.length > 0 && typeof data.cpuTemp === 'number') {
-            const tempColor = data.cpuTemp >= 70 ? '#ef4444' : data.cpuTemp >= 55 ? '#f59e0b' : '#10b981';
-            this.drawGraph(
-                `temp-graph-${moduleId}`,
-                data.history.temperature,
-                tempColor,
-                data.cpuTemp,
-                { min: 20, max: 90 }
-            );
-        } else {
-            this.showGraphError(`temp-graph-${moduleId}`, 'Temperature data unavailable');
-        }
-    }
-
-    showGraphError(canvasId, message) {
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width;
-        const height = canvas.height;
-
-        // Clear canvas
-        ctx.clearRect(0, 0, width, height);
-
-        // Draw error background
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
-        ctx.fillRect(0, 0, width, height);
-
-        // Draw error border
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(2, 2, width - 4, height - 4);
-
-        // Draw error icon and text
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
-        ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('!', width / 2, height / 2 - 8);
-
-        ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.fillText(message, width / 2, height / 2 + 8);
-
-        console.error(`[System Monitor] ${message} for ${canvasId}`);
-    }
-
-    drawGraph(canvasId, data, color, currentValue, range = { min: 0, max: 100 }) {
-        const canvas = document.getElementById(canvasId);
-        if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        const width = canvas.width;
-        const height = canvas.height;
-        const points = Array.isArray(data) ? data.filter(v => typeof v === 'number') : [];
-        const min = typeof range.min === 'number' ? range.min : 0;
-        const max = typeof range.max === 'number' ? range.max : 100;
-        const span = max - min || 1;
-
-        ctx.clearRect(0, 0, width, height);
-
-        if (points.length === 0) {
-            ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
-            ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('Waiting for history…', width / 2, height / 2 + 4);
-            return;
-        }
-
-        const values = points.length === 1 ? [points[0], points[0]] : points;
-        const stepX = width / Math.max(values.length - 1, 1);
-        const yFor = (value) => {
-            const clamped = Math.max(min, Math.min(max, value));
-            return height - 4 - ((clamped - min) / span) * (height - 8);
-        };
-
-        // Mid guide (50% of fixed range)
-        const midY = yFor(min + span / 2);
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(0, midY);
-        ctx.lineTo(width, midY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Baseline
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
-        ctx.beginPath();
-        ctx.moveTo(0, height - 4);
-        ctx.lineTo(width, height - 4);
-        ctx.stroke();
-
-        const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, color + '33');
-        gradient.addColorStop(1, color + '00');
-
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.moveTo(0, height - 4);
-        values.forEach((value, i) => {
-            ctx.lineTo(i * stepX, yFor(value));
-        });
-        ctx.lineTo((values.length - 1) * stepX, height - 4);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        values.forEach((value, i) => {
-            const x = i * stepX;
-            const y = yFor(value);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-
-        const lastValue = typeof currentValue === 'number' ? currentValue : values[values.length - 1];
-        const lastX = (values.length - 1) * stepX;
-        const lastY = yFor(lastValue);
-
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
-        ctx.fill();
-    }
+    // Home System Monitor uses SVG Fitness rings; history charts live on Activity Monitor.
+    // updateSystemMonitor → renderModules redraws ring arcs from live metrics.
 
     // Update system monitor with new data
     updateSystemMonitor(instanceKey, data) {

@@ -509,18 +509,18 @@
             <div class="speed-test-widget">
                 <div class="speed-test-metrics">
                     <div class="speed-test-metric">
-                        <span class="network-speed-label">Download</span>
+                        <span class="network-speed-label">Down</span>
                         <span class="speed-test-value">${esc(down)}</span>
                     </div>
                     <div class="speed-test-metric">
-                        <span class="network-speed-label">Upload</span>
+                        <span class="network-speed-label">Up</span>
                         <span class="speed-test-value">${esc(up)}</span>
                     </div>
                 </div>
                 <div class="speed-test-footer">
-                    <span class="speed-test-when">${running ? 'Testing...' : esc(when)}</span>
+                    <span class="speed-test-when">${running ? 'Testing…' : esc(when)}</span>
                     <button type="button" class="network-run-btn speed-test-run-btn" ${running ? 'disabled' : ''}>
-                        ${running ? 'Testing...' : 'Run'}
+                        ${running ? '…' : 'Run'}
                     </button>
                 </div>
             </div>
