@@ -115,8 +115,30 @@
     }
 
     Object.assign(ModuleManager.prototype, {
-        getInstanceKey(name, type) {
-            return `${type}_${String(name || '').toLowerCase().replace(/\s+/g, '_')}`;
+        getInstanceKey(typeOrName, maybeType) {
+            // Back-compat: older callers used getInstanceKey(name, type)
+            const type = maybeType != null ? maybeType : typeOrName;
+            if (type === 'system') return 'system_monitoring';
+            return String(type || 'custom');
+        },
+
+        getWidgetLabel(type) {
+            const defaults = {
+                temperature: 'Temperature',
+                lighting: 'Lighting',
+                security: 'Security',
+                energy: 'Energy',
+                weather: 'Weather',
+                system: 'System Monitor',
+                speed_test: 'Speed Test',
+                kap: 'KAP',
+                custom: 'Custom'
+            };
+            const hubMod = window.HomeHubModules && window.HomeHubModules[type];
+            if (hubMod && (hubMod.label || hubMod.navLabel)) {
+                return hubMod.label || hubMod.navLabel;
+            }
+            return defaults[type] || capitalizeFirst(type);
         },
 
         renderModules() {
@@ -133,17 +155,16 @@
                 try {
                     grid.appendChild(this.createModuleElement(module));
                 } catch (err) {
-                    this.logError(
-                        'Widgets',
-                        `Failed to create widget "${module && module.name}" (${module && module.type}): ${err.message}`,
-                        {
-                            moduleId: module && module.id,
-                            name: module && module.name,
-                            type: module && module.type,
-                            size: module && module.size,
-                            stack: err.stack
-                        }
-                    );
+                this.logError(
+                    'Widgets',
+                    `Failed to create widget "${module && module.type}": ${err.message}`,
+                    {
+                        moduleId: module && module.id,
+                        type: module && module.type,
+                        size: module && module.size,
+                        stack: err.stack
+                    }
+                );
                     failures.push({ module, error: err });
                 }
             });
@@ -165,9 +186,9 @@
             div.className = `module ${size}${module.type === 'system' ? ' module-system' : ''}`;
             div.draggable = true;
             div.dataset.moduleId = module.id;
-            div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+            div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.type);
 
-            const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+            const instanceKey = module.instanceKey || this.getInstanceKey(module.type);
             let instanceData;
             try {
                 instanceData = this.moduleInstances[instanceKey] || this.getSampleData(module.type);
@@ -190,15 +211,17 @@
             } catch (err) {
                 this.logError(
                     'Widgets',
-                    `Render failed for "${module.name}" (${module.type}): ${err.message}`,
+                    `Render failed for "${module.type}": ${err.message}`,
                     { moduleId: module.id, type: module.type, stack: err.stack }
                 );
                 throw new Error(`Render failed: ${err.message}`);
             }
 
+            const title = this.getWidgetLabel(module.type);
+
             div.innerHTML = `
                 <div class="module-header">
-                    <div class="module-title">${escapeHtml(module.name)}</div>
+                    <div class="module-title">${escapeHtml(title)}</div>
                     <div class="module-actions">
                         ${isPersistent
         ? '<span class="module-persistent" title="Persistent widget">Pinned</span>'

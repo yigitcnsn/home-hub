@@ -441,9 +441,9 @@
         manager.modules.forEach((m) => {
             if (m.type !== 'network') return;
             m.type = 'speed_test';
-            m.name = m.name === 'Network Analyzer' ? 'Speed Test' : m.name;
+            delete m.name;
             const oldKey = m.instanceKey;
-            m.instanceKey = manager.getInstanceKey(m.name, 'speed_test');
+            m.instanceKey = manager.getInstanceKey('speed_test');
             if (oldKey && manager.moduleInstances[oldKey] && !manager.moduleInstances[m.instanceKey]) {
                 manager.moduleInstances[m.instanceKey] = manager.moduleInstances[oldKey];
                 delete manager.moduleInstances[oldKey];

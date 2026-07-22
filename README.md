@@ -48,7 +48,7 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 
 ## Features
 
-- **Home widgets** — Apple Watch–style complications (circular small / modular medium & large); add, edit, resize, drag to reorder
+- **Home widgets** — Apple Watch–style complications (circular small / modular medium & large); add, edit, resize, drag to reorder (type + size only — no custom names)
 - **System Monitor** — pinned Fitness rings (CPU · Mem · Disk) with temperature at the center; live stats every 5s
 - **Activity Monitor** — sidebar page with large history charts + metrics table (deep view; Home keeps the compact rings)
 - **Logs** — live server + client log stream with All / Info / Warn / Error filters and Clear info

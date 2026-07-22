@@ -19,18 +19,14 @@ Object.assign(ModuleManager.prototype, {
         if (saved) {
             try {
                 this.modules = JSON.parse(saved);
-                this.modules.forEach((module) => {
-                    if (!module.instanceKey) {
-                        module.instanceKey = this.getInstanceKey(module.name, module.type);
-                    }
-                });
+                this.normalizeWidgetKeys();
             } catch (err) {
                 this.logError('Widgets', `Failed to parse saved modules: ${err.message}`, {
                     stack: err.stack
                 });
                 this.modules = [];
                 this.showWidgetFailureDialog([{
-                    module: { name: 'Saved layout', type: 'storage' },
+                    module: { type: 'storage' },
                     error: err
                 }]);
             }
@@ -41,6 +37,50 @@ Object.assign(ModuleManager.prototype, {
 
         if (savedCounter) {
             this.moduleIdCounter = parseInt(savedCounter, 10) || 0;
+        }
+    },
+
+    /** Migrate legacy name-based instance keys → one key per type. */
+    normalizeWidgetKeys() {
+        let changed = false;
+        const byType = new Map();
+
+        this.modules.forEach((module) => {
+            if (!module || !module.type) return;
+            const key = this.getInstanceKey(module.type);
+            const oldKey = module.instanceKey;
+
+            if (oldKey && oldKey !== key && this.moduleInstances[oldKey] && !this.moduleInstances[key]) {
+                this.moduleInstances[key] = this.moduleInstances[oldKey];
+                delete this.moduleInstances[oldKey];
+                changed = true;
+            }
+
+            if (module.instanceKey !== key) {
+                module.instanceKey = key;
+                changed = true;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(module, 'name')) {
+                delete module.name;
+                changed = true;
+            }
+
+            // Keep a single widget per type (prefer first)
+            if (byType.has(module.type)) {
+                module._dedupe = true;
+            } else {
+                byType.set(module.type, module);
+            }
+        });
+
+        const before = this.modules.length;
+        this.modules = this.modules.filter((m) => !m._dedupe);
+        if (this.modules.length !== before) changed = true;
+
+        if (changed) {
+            this.saveModules();
+            this.saveInstances();
         }
     },
 
@@ -59,7 +99,7 @@ Object.assign(ModuleManager.prototype, {
         }
 
         this.modules.forEach((module) => {
-            const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+            const instanceKey = module.instanceKey || this.getInstanceKey(module.type);
             if (!this.moduleInstances[instanceKey]) {
                 this.moduleInstances[instanceKey] = this.getSampleData(module.type);
             }
@@ -70,13 +110,13 @@ Object.assign(ModuleManager.prototype, {
     ensureSystemMonitor() {
         const systemInstanceKey = 'system_monitoring';
         const existing = this.modules.find((m) =>
-            (m.instanceKey || this.getInstanceKey(m.name, m.type)) === systemInstanceKey
+            m.type === 'system' ||
+            (m.instanceKey || this.getInstanceKey(m.type)) === systemInstanceKey
         );
 
         if (!existing) {
             const systemModule = {
                 id: this.moduleIdCounter++,
-                name: 'System Monitor',
                 type: 'system',
                 size: 'large',
                 createdAt: new Date().toISOString(),
@@ -93,10 +133,18 @@ Object.assign(ModuleManager.prototype, {
             return;
         }
 
+        existing.type = 'system';
+        existing.instanceKey = systemInstanceKey;
+        let touched = false;
         if (existing.size !== 'large') {
             existing.size = 'large';
-            this.saveModules();
+            touched = true;
         }
+        if (Object.prototype.hasOwnProperty.call(existing, 'name')) {
+            delete existing.name;
+            touched = true;
+        }
+        if (touched) this.saveModules();
     },
 
     ensureHubModules() {

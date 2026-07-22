@@ -173,10 +173,10 @@ class ModuleManager {
 
     openAddModuleModal() {
         document.getElementById('addModuleModal').classList.add('active');
-        document.getElementById('moduleName').value = '';
         document.getElementById('moduleType').value = 'temperature';
         document.getElementById('moduleSize').value = 'medium';
         document.getElementById('addBtn').textContent = 'Add Widget';
+        document.getElementById('addBtn').onclick = () => this.addModule();
     }
 
     closeAddModuleModal() {
@@ -185,14 +185,8 @@ class ModuleManager {
 
     addModule() {
         try {
-            const name = document.getElementById('moduleName').value.trim();
             const type = document.getElementById('moduleType').value;
             const size = document.getElementById('moduleSize').value;
-
-            if (!name) {
-                this.showAlert('Please enter a module name', 'Missing name');
-                return;
-            }
 
             const hubMod = window.HomeHubModules &&
                 Object.values(window.HomeHubModules).find((m) => m.type === type);
@@ -205,15 +199,13 @@ class ModuleManager {
                 return;
             }
 
-            const instanceKey = this.getInstanceKey(name, type);
-            const existingModuleIndex = this.modules.findIndex((m) =>
-                (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
-            );
+            const instanceKey = this.getInstanceKey(type);
+            const existing = this.modules.find((m) => m.type === type);
 
-            if (existingModuleIndex !== -1) {
-                const existingModule = this.modules[existingModuleIndex];
-                existingModule.size = size;
-                existingModule.createdAt = new Date().toISOString();
+            if (existing) {
+                existing.size = size;
+                existing.instanceKey = instanceKey;
+                existing.createdAt = new Date().toISOString();
                 if (!this.moduleInstances[instanceKey]) {
                     this.moduleInstances[instanceKey] = this.getSampleData(type);
                 }
@@ -227,7 +219,6 @@ class ModuleManager {
 
             const module = {
                 id: this.moduleIdCounter++,
-                name,
                 type,
                 size,
                 createdAt: new Date().toISOString(),
@@ -264,13 +255,12 @@ class ModuleManager {
             return;
         }
 
-        const instanceKey = moduleToRemove.instanceKey ||
-            this.getInstanceKey(moduleToRemove.name, moduleToRemove.type);
+        const instanceKey = moduleToRemove.instanceKey || this.getInstanceKey(moduleToRemove.type);
 
         this.modules = this.modules.filter((m) => m.id !== id);
 
         const stillUsed = this.modules.some((m) =>
-            (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
+            (m.instanceKey || this.getInstanceKey(m.type)) === instanceKey
         );
         if (!stillUsed && this.moduleInstances[instanceKey]) {
             delete this.moduleInstances[instanceKey];
@@ -286,43 +276,48 @@ class ModuleManager {
         const module = this.modules.find((m) => m.id === id);
         if (!module) return;
 
-        document.getElementById('moduleName').value = module.name;
         document.getElementById('moduleType').value = module.type;
         document.getElementById('moduleSize').value = module.size;
-        this.openAddModuleModal();
+        document.getElementById('addModuleModal').classList.add('active');
 
         const addBtn = document.getElementById('addBtn');
-        addBtn.textContent = 'Update Module';
-        const oldInstanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
+        addBtn.textContent = 'Update Widget';
 
         addBtn.onclick = () => {
-            const newName = document.getElementById('moduleName').value.trim();
             const newType = document.getElementById('moduleType').value;
             const newSize = document.getElementById('moduleSize').value;
-            const newInstanceKey = this.getInstanceKey(newName, newType);
+            const newInstanceKey = this.getInstanceKey(newType);
+            const oldInstanceKey = module.instanceKey || this.getInstanceKey(module.type);
+
+            if (newType !== module.type) {
+                const clash = this.modules.find((m) => m.id !== module.id && m.type === newType);
+                if (clash) {
+                    this.showAlert('A widget of that type already exists.', 'Duplicate widget');
+                    return;
+                }
+            }
 
             if (oldInstanceKey !== newInstanceKey && this.moduleInstances[oldInstanceKey]) {
                 if (!this.moduleInstances[newInstanceKey]) {
                     this.moduleInstances[newInstanceKey] = this.moduleInstances[oldInstanceKey];
                 }
-                this.modules.forEach((m) => {
-                    if (m.instanceKey === oldInstanceKey) m.instanceKey = newInstanceKey;
-                });
+                delete this.moduleInstances[oldInstanceKey];
             }
 
-            module.name = newName;
             module.type = newType;
             module.size = newSize;
             module.instanceKey = newInstanceKey;
+            delete module.name;
 
-            this.updateInstanceModules(newInstanceKey);
+            if (!this.moduleInstances[newInstanceKey]) {
+                this.moduleInstances[newInstanceKey] = this.getSampleData(newType);
+            }
+
             this.saveModules();
             this.saveInstances();
             this.renderModules();
             this.sendFullState();
             this.closeAddModuleModal();
-            addBtn.textContent = 'Add Widget';
-            addBtn.onclick = () => this.addModule();
         };
     }
 
@@ -333,12 +328,12 @@ class ModuleManager {
     refreshModules() {
         const uniqueInstances = new Set();
         this.modules.forEach((module) => {
-            uniqueInstances.add(module.instanceKey || this.getInstanceKey(module.name, module.type));
+            uniqueInstances.add(module.instanceKey || this.getInstanceKey(module.type));
         });
 
         uniqueInstances.forEach((instanceKey) => {
             const module = this.modules.find((m) =>
-                (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
+                (m.instanceKey || this.getInstanceKey(m.type)) === instanceKey
             );
             if (module) {
                 this.moduleInstances[instanceKey] = this.getSampleData(module.type);
@@ -369,7 +364,7 @@ class ModuleManager {
             key,
             data: this.moduleInstances[key],
             modules: this.modules.filter((m) =>
-                (m.instanceKey || this.getInstanceKey(m.name, m.type)) === key
+                (m.instanceKey || this.getInstanceKey(m.type)) === key
             ).length
         }));
     }

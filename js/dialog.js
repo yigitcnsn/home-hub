@@ -80,10 +80,12 @@ Object.assign(ModuleManager.prototype, {
         if (!failures || !failures.length) return;
 
         const items = failures.map((f) => {
-            const name = f.module && f.module.name ? f.module.name : 'Unknown';
             const type = f.module && f.module.type ? f.module.type : '?';
+            const label = (typeof this.getWidgetLabel === 'function')
+                ? this.getWidgetLabel(type)
+                : type;
             const errMsg = f.error && f.error.message ? f.error.message : String(f.error || 'Unknown error');
-            return `<li><strong>${escapeHtml(name)}</strong> (${escapeHtml(type)}) — <code>${escapeHtml(errMsg)}</code></li>`;
+            return `<li><strong>${escapeHtml(label)}</strong> — <code>${escapeHtml(errMsg)}</code></li>`;
         }).join('');
 
         this.showDialog({
