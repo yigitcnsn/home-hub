@@ -51,12 +51,61 @@ server.on('upgrade', (request, socket, head) => {
     }
 });
 
-// Store the current dashboard state
-let dashboardState = {
-    modules: [],
-    instances: {},
-    lastUpdated: Date.now()
-};
+// Persist Home widgets across restarts (Update / --watch kill Node otherwise wipes RAM)
+const DASHBOARD_STATE_PATH = path.join(__dirname, 'data', 'dashboard-state.json');
+let dashboardStateSaveTimer = null;
+
+function loadDashboardState() {
+    try {
+        if (!fs.existsSync(DASHBOARD_STATE_PATH)) {
+            return { modules: [], instances: {}, lastUpdated: Date.now() };
+        }
+        const raw = JSON.parse(fs.readFileSync(DASHBOARD_STATE_PATH, 'utf8'));
+        if (!raw || !Array.isArray(raw.modules)) {
+            return { modules: [], instances: {}, lastUpdated: Date.now() };
+        }
+        return {
+            modules: raw.modules,
+            instances: raw.instances && typeof raw.instances === 'object' ? raw.instances : {},
+            lastUpdated: typeof raw.lastUpdated === 'number' ? raw.lastUpdated : Date.now()
+        };
+    } catch (err) {
+        logger.warn('Sync', `Failed to load dashboard state: ${err.message}`);
+        return { modules: [], instances: {}, lastUpdated: Date.now() };
+    }
+}
+
+function saveDashboardState(immediate = false) {
+    const write = () => {
+        dashboardStateSaveTimer = null;
+        try {
+            fs.mkdirSync(path.dirname(DASHBOARD_STATE_PATH), { recursive: true });
+            const payload = {
+                modules: dashboardState.modules || [],
+                instances: dashboardState.instances || {},
+                lastUpdated: dashboardState.lastUpdated || Date.now()
+            };
+            fs.writeFileSync(DASHBOARD_STATE_PATH, JSON.stringify(payload, null, 2), 'utf8');
+        } catch (err) {
+            logger.error('Sync', `Failed to save dashboard state: ${err.message}`);
+        }
+    };
+
+    if (immediate) {
+        if (dashboardStateSaveTimer) {
+            clearTimeout(dashboardStateSaveTimer);
+            dashboardStateSaveTimer = null;
+        }
+        write();
+        return;
+    }
+
+    if (dashboardStateSaveTimer) return;
+    dashboardStateSaveTimer = setTimeout(write, 500);
+}
+
+let dashboardState = loadDashboardState();
+logger.info('Sync', `Loaded dashboard state with ${dashboardState.modules.length} module(s)`);
 
 // Connected clients
 const clients = new Set();
@@ -100,11 +149,9 @@ wss.on('connection', (ws, req) => {
 
     clients.add(ws);
 
-    // Send current state to new client
-    ws.send(JSON.stringify({
-        type: 'full_state',
-        state: dashboardState
-    }));
+    // Do not push full_state on connect. An empty in-memory state after restart
+    // used to wipe browser localStorage. Client sends full_state_sync first;
+    // server replies with persisted layout only if the client is empty.
 
     ws.send(JSON.stringify({
         type: 'build_info',
@@ -126,7 +173,9 @@ wss.on('connection', (ws, req) => {
         try {
             handler(ws, req);
         } catch (e) {
-            logger.error('Server', `Module connect hook failed: ${e.message}`);
+            logger.error('Server', `Module connect hook failed: ${e.message}`, {
+                stack: e.stack
+            });
         }
     });
 
@@ -135,7 +184,9 @@ wss.on('connection', (ws, req) => {
             const data = JSON.parse(message.toString());
             handleMessage(ws, data);
         } catch (e) {
-            logger.error('Server', `Error parsing message: ${e.message}`);
+            logger.error('Server', `Error parsing message: ${e.message}`, {
+                stack: e.stack
+            });
         }
     });
 
@@ -157,6 +208,9 @@ function handleMessage(ws, data) {
             logger.info('Sync', `Instance update: ${data.instanceKey}`);
 
             // Update server state
+            if (!dashboardState.instances) {
+                dashboardState.instances = {};
+            }
             if (!dashboardState.instances[data.instanceKey]) {
                 dashboardState.instances[data.instanceKey] = {};
             }
@@ -164,6 +218,7 @@ function handleMessage(ws, data) {
             // Merge the update data
             Object.assign(dashboardState.instances[data.instanceKey], data.data);
             dashboardState.lastUpdated = Date.now();
+            saveDashboardState();
 
             // Broadcast to all other clients
             broadcastToOthers(ws, {
@@ -179,8 +234,46 @@ function handleMessage(ws, data) {
 
             // Update server state with client's full state
             if (data.state) {
-                dashboardState = data.state;
-                logger.info('Sync', `Updated state with ${data.state.modules?.length || 0} modules`);
+                const incomingModules = Array.isArray(data.state.modules) ? data.state.modules : [];
+                const localCount = Array.isArray(dashboardState.modules) ? dashboardState.modules.length : 0;
+                const incomingTs = typeof data.state.lastUpdated === 'number'
+                    ? data.state.lastUpdated
+                    : (typeof data.state.timestamp === 'number' ? data.state.timestamp : Date.now());
+                const localTs = typeof dashboardState.lastUpdated === 'number' ? dashboardState.lastUpdated : 0;
+
+                // Empty client: restore from disk/RAM if we have a layout
+                if (incomingModules.length === 0 && localCount > 0) {
+                    logger.info('Sync', 'Client empty; sending persisted modules back');
+                    ws.send(JSON.stringify({
+                        type: 'full_state',
+                        state: dashboardState
+                    }));
+                    break;
+                }
+
+                // Both sides have layouts: keep the newer one
+                if (incomingModules.length > 0 && localCount > 0 && localTs > incomingTs) {
+                    logger.info('Sync', 'Persisted state is newer; sending it to client');
+                    ws.send(JSON.stringify({
+                        type: 'full_state',
+                        state: dashboardState
+                    }));
+                    break;
+                }
+
+                if (incomingModules.length === 0 && localCount === 0) {
+                    break;
+                }
+
+                dashboardState = {
+                    modules: incomingModules,
+                    instances: data.state.instances && typeof data.state.instances === 'object'
+                        ? data.state.instances
+                        : {},
+                    lastUpdated: Date.now()
+                };
+                saveDashboardState(true);
+                logger.info('Sync', `Updated state with ${incomingModules.length} modules`);
 
                 // Broadcast full state to all other clients
                 broadcastToOthers(ws, {
@@ -200,7 +293,9 @@ function handleMessage(ws, data) {
                 try {
                     if (handler(ws, data)) handled = true;
                 } catch (e) {
-                    logger.error('Server', `Module message hook failed: ${e.message}`);
+                    logger.error('Server', `Module message hook failed: ${e.message}`, {
+                        stack: e.stack
+                    });
                 }
             });
             if (!handled) {
@@ -260,10 +355,13 @@ function getCpuTemperature() {
                         resolve(finalTemp);
                         return;
                     }
-                } catch (e) {
-                    console.error(`[Temperature] Failed to read from ${source}:`, e.message);
-                    continue; // Try next source
-                }
+    } catch (e) {
+        logger.error('Temperature', `Failed to read from ${source}: ${e.message}`, {
+            stack: e.stack,
+            source
+        });
+        continue; // Try next source
+    }
             }
 
             // If all thermal zone reads fail, try vcgencmd (Raspberry Pi specific)
@@ -405,6 +503,9 @@ function getNetworkStatus() {
 
         return hasConnection ? 'online' : 'offline';
     } catch (e) {
+        logger.error('Network', `Failed to determine network status: ${e.message}`, {
+            stack: e.stack
+        });
         return 'unknown';
     }
 }
@@ -467,7 +568,9 @@ async function updateSystemStats() {
         });
 
     } catch (e) {
-        logger.error('SystemMonitor', `Error updating stats: ${e.message}`);
+        logger.error('SystemMonitor', `Error updating stats: ${e.message}`, {
+            stack: e.stack
+        });
         // Don't broadcast if we can't get valid data
         systemStats = {
             error: e.message,
@@ -481,6 +584,18 @@ async function updateSystemStats() {
         });
     }
 }
+
+process.on('uncaughtException', (err) => {
+    logger.error('Process', `Uncaught exception: ${err.message}`, {
+        stack: err.stack
+    });
+});
+
+process.on('unhandledRejection', (reason) => {
+    const message = reason && reason.message ? reason.message : String(reason);
+    const stack = reason && reason.stack ? reason.stack : null;
+    logger.error('Process', `Unhandled rejection: ${message}`, { stack });
+});
 
 // Update system stats every 5 seconds
 setInterval(updateSystemStats, 5000);

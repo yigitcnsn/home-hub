@@ -815,6 +815,48 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+.app-dialog-content {
+    max-width: 480px;
+}
+
+.app-dialog-message {
+    font-size: 14px;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.app-dialog-list {
+    margin: 12px 0 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.app-dialog-list li {
+    margin-bottom: 6px;
+}
+
+.app-dialog-list code {
+    font-size: 12px;
+    color: var(--danger);
+}
+
+.app-dialog-hint {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-danger:hover {
+    filter: brightness(0.95);
+}
+
 .btn {
     padding: 10px 20px;
     border: none;

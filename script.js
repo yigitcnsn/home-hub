@@ -25,18 +25,168 @@ class ModuleManager {
 
     init() {
         console.log('[ModuleManager] Initializing...');
-        this.loadModules();
-        this.loadInstances();
-        this.loadDarkMode();
-        this.setupEventListeners();
-        this.setupDragAndDrop();
-        this.buildModuleNav();
-        this.renderModules();
-        this.startClock();
-        this.initSync();
-        this.initAutoReload();
-        this.setView('home');
-        console.log('[ModuleManager] Initialization complete');
+        try {
+            this.loadModules();
+            this.loadInstances();
+            this.loadDarkMode();
+            this.setupEventListeners();
+            this.setupDragAndDrop();
+            this.buildModuleNav();
+            this.renderModules();
+            this.startClock();
+            this.initSync();
+            this.initAutoReload();
+            this.setView('home');
+            console.log('[ModuleManager] Initialization complete');
+        } catch (err) {
+            this.logError('ModuleManager', `Initialization failed: ${err.message}`, {
+                stack: err.stack
+            });
+            this.showAlert(
+                'Home Hub failed to start cleanly. Check Logs for details.',
+                'Startup error'
+            );
+        }
+    }
+
+    logError(source, message, meta) {
+        console.error(`[${source}] ${message}`, meta || '');
+        this.sendClientLog('error', source, message, meta);
+    }
+
+    logWarn(source, message, meta) {
+        console.warn(`[${source}] ${message}`, meta || '');
+        this.sendClientLog('warn', source, message, meta);
+    }
+
+    sendClientLog(level, source, message, meta) {
+        const payload = {
+            type: 'client_log',
+            level: level || 'error',
+            source: source || 'Client',
+            message: String(message || ''),
+            meta: meta || null
+        };
+
+        try {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify(payload));
+            }
+        } catch (err) {
+            console.error('[ClientLog] WebSocket send failed:', err.message || err);
+        }
+
+        fetch('/api/logs/client', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch((err) => {
+            console.error('[ClientLog] HTTP send failed:', err.message || err);
+        });
+    }
+
+    closeAppDialog() {
+        const dialog = document.getElementById('appDialog');
+        if (dialog) dialog.classList.remove('active');
+        this._dialogResolver = null;
+    }
+
+    showDialog({ title = 'Notice', bodyHtml = '', buttons = [] } = {}) {
+        const dialog = document.getElementById('appDialog');
+        const titleEl = document.getElementById('appDialogTitle');
+        const bodyEl = document.getElementById('appDialogBody');
+        const footerEl = document.getElementById('appDialogFooter');
+        if (!dialog || !titleEl || !bodyEl || !footerEl) {
+            console.error('[Dialog] App dialog elements missing');
+            return Promise.resolve(null);
+        }
+
+        titleEl.textContent = title;
+        bodyEl.innerHTML = bodyHtml;
+        footerEl.innerHTML = '';
+
+        return new Promise((resolve) => {
+            this._dialogResolver = resolve;
+
+            const finish = (value) => {
+                this.closeAppDialog();
+                resolve(value);
+            };
+
+            buttons.forEach((btn) => {
+                const el = document.createElement('button');
+                el.type = 'button';
+                el.className = `btn ${btn.className || 'btn-secondary'}`;
+                el.textContent = btn.label || 'OK';
+                el.addEventListener('click', () => {
+                    const value = typeof btn.value === 'undefined' ? true : btn.value;
+                    finish(value);
+                    if (typeof btn.onClick === 'function') btn.onClick(value);
+                });
+                footerEl.appendChild(el);
+            });
+
+            if (!buttons.length) {
+                const ok = document.createElement('button');
+                ok.type = 'button';
+                ok.className = 'btn btn-primary';
+                ok.textContent = 'OK';
+                ok.addEventListener('click', () => finish(true));
+                footerEl.appendChild(ok);
+            }
+
+            dialog.classList.add('active');
+        });
+    }
+
+    showAlert(message, title = 'Notice') {
+        return this.showDialog({
+            title,
+            bodyHtml: `<p class="app-dialog-message">${escapeHtml(message)}</p>`,
+            buttons: [{ label: 'OK', className: 'btn-primary', value: true }]
+        });
+    }
+
+    showConfirm(message, title = 'Confirm') {
+        return this.showDialog({
+            title,
+            bodyHtml: `<p class="app-dialog-message">${escapeHtml(message)}</p>`,
+            buttons: [
+                { label: 'Cancel', className: 'btn-secondary', value: false },
+                { label: 'Confirm', className: 'btn-primary', value: true }
+            ]
+        });
+    }
+
+    showWidgetFailureDialog(failures) {
+        if (!failures || !failures.length) return;
+
+        const items = failures.map((f) => {
+            const name = f.module && f.module.name ? f.module.name : 'Unknown';
+            const type = f.module && f.module.type ? f.module.type : '?';
+            const errMsg = f.error && f.error.message ? f.error.message : String(f.error || 'Unknown error');
+            return `<li><strong>${escapeHtml(name)}</strong> (${escapeHtml(type)}) — <code>${escapeHtml(errMsg)}</code></li>`;
+        }).join('');
+
+        this.showDialog({
+            title: 'Widget error',
+            bodyHtml: `
+                <p class="app-dialog-message">One or more widgets failed to create. Details were written to Logs.</p>
+                <ul class="app-dialog-list">${items}</ul>
+                <p class="app-dialog-hint">Clearing widgets can restore a working Home layout. System Monitor will be recreated.</p>
+            `,
+            buttons: [
+                { label: 'Keep widgets', className: 'btn-secondary', value: false },
+                {
+                    label: 'Clear widgets',
+                    className: 'btn-danger',
+                    value: true,
+                    onClick: (confirmed) => {
+                        if (confirmed) this.clearAllWidgets({ skipConfirm: true });
+                    }
+                }
+            ]
+        });
     }
 
     initAutoReload() {
@@ -55,7 +205,10 @@ class ModuleManager {
             fetch('/api/version')
                 .then((r) => r.json())
                 .then((data) => applyBuild(data && data.buildId))
-                .catch(() => {});
+                .catch((err) => {
+                    // Soft-fail while server restarts during Update
+                    console.warn('[AutoReload] Version poll failed:', err.message || err);
+                });
         };
 
         poll();
@@ -89,6 +242,25 @@ class ModuleManager {
             }
         });
 
+        const appDialog = document.getElementById('appDialog');
+        const appDialogClose = document.getElementById('appDialogClose');
+        if (appDialogClose) {
+            appDialogClose.addEventListener('click', () => {
+                const resolver = this._dialogResolver;
+                this.closeAppDialog();
+                if (typeof resolver === 'function') resolver(false);
+            });
+        }
+        if (appDialog) {
+            appDialog.addEventListener('click', (e) => {
+                if (e.target.id === 'appDialog') {
+                    const resolver = this._dialogResolver;
+                    this.closeAppDialog();
+                    if (typeof resolver === 'function') resolver(false);
+                }
+            });
+        }
+
         // Navigation
         document.getElementById('sidebarNav').addEventListener('click', (e) => {
             const item = e.target.closest('.nav-item');
@@ -111,7 +283,7 @@ class ModuleManager {
             };
             console.log('[setupEventListeners] Dark mode button onclick handler attached');
         } else {
-            console.error('[setupEventListeners] Dark mode button not found!');
+            this.logError('UI', 'Dark mode button not found during setup');
         }
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
@@ -132,7 +304,10 @@ class ModuleManager {
                     .then((r) => r.json())
                     .then((data) => {
                         if (!data.ok) {
-                            alert(data.error || 'Update request failed');
+                            this.logError('Update', data.error || 'Update request failed', data);
+                            this.showAlert(data.error || 'Update request failed', 'Update failed');
+                            updateNowBtn.disabled = false;
+                            updateNowBtn.querySelector('.btn-text').textContent = 'Update';
                             return;
                         }
                         // Watch mode should pull + restart; page reloads via build id
@@ -143,7 +318,10 @@ class ModuleManager {
                         }, 4000);
                     })
                     .catch((err) => {
-                        alert('Update request failed: ' + err.message);
+                        this.logError('Update', `Update request failed: ${err.message}`, {
+                            stack: err.stack
+                        });
+                        this.showAlert('Update request failed: ' + err.message, 'Update failed');
                         updateNowBtn.disabled = false;
                         updateNowBtn.querySelector('.btn-text').textContent = 'Update';
                     });
@@ -223,70 +401,79 @@ class ModuleManager {
     }
 
     addModule() {
-        const name = document.getElementById('moduleName').value.trim();
-        const type = document.getElementById('moduleType').value;
-        const size = document.getElementById('moduleSize').value;
+        try {
+            const name = document.getElementById('moduleName').value.trim();
+            const type = document.getElementById('moduleType').value;
+            const size = document.getElementById('moduleSize').value;
 
-        if (!name) {
-            alert('Please enter a module name');
-            return;
-        }
+            if (!name) {
+                this.showAlert('Please enter a module name', 'Missing name');
+                return;
+            }
 
-        // Prevent adding system / sidebar-only modules as Home widgets
-        const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === type);
-        if (type === 'system' || type === 'network' || (hubMod && hubMod.nav && typeof hubMod.render !== 'function')) {
-            alert('This is a sidebar module, not a Home widget. Use Speed Test for a widget.');
-            return;
-        }
+            // Prevent adding system / sidebar-only modules as Home widgets
+            const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === type);
+            if (type === 'system' || type === 'network' || (hubMod && hubMod.nav && typeof hubMod.render !== 'function')) {
+                this.showAlert('This is a sidebar module, not a Home widget. Use Speed Test for a widget.', 'Invalid widget');
+                return;
+            }
 
-        const instanceKey = this.getInstanceKey(name, type);
+            const instanceKey = this.getInstanceKey(name, type);
 
-        // Check if a module with the same name and type already exists
-        const existingModuleIndex = this.modules.findIndex(m =>
-            (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
-        );
+            // Check if a module with the same name and type already exists
+            const existingModuleIndex = this.modules.findIndex(m =>
+                (m.instanceKey || this.getInstanceKey(m.name, m.type)) === instanceKey
+            );
 
-        if (existingModuleIndex !== -1) {
-            // Update existing module instead of adding new one
-            const existingModule = this.modules[existingModuleIndex];
-            existingModule.size = size;
-            existingModule.createdAt = new Date().toISOString();
+            if (existingModuleIndex !== -1) {
+                // Update existing module instead of adding new one
+                const existingModule = this.modules[existingModuleIndex];
+                existingModule.size = size;
+                existingModule.createdAt = new Date().toISOString();
 
-            // Update instance data if it doesn't exist
+                // Update instance data if it doesn't exist
+                if (!this.moduleInstances[instanceKey]) {
+                    this.moduleInstances[instanceKey] = this.getSampleData(type);
+                }
+
+                this.saveModules();
+                this.saveInstances();
+                this.renderModules();
+                this.sendFullState();
+                this.closeAddModuleModal();
+                return;
+            }
+
+            // Create new module if it doesn't exist
+            const module = {
+                id: this.moduleIdCounter++,
+                name: name,
+                type: type,
+                size: size,
+                createdAt: new Date().toISOString(),
+                instanceKey: instanceKey
+            };
+
+            // Initialize instance data if it doesn't exist
             if (!this.moduleInstances[instanceKey]) {
                 this.moduleInstances[instanceKey] = this.getSampleData(type);
             }
 
+            this.modules.push(module);
             this.saveModules();
             this.saveInstances();
             this.renderModules();
             this.closeAddModuleModal();
-            return;
+
+            // Sync the new instance across devices
+            this.syncInstanceData(instanceKey, this.moduleInstances[instanceKey]);
+            this.sendFullState();
+        } catch (err) {
+            this.logError('Widgets', `Failed to add widget: ${err.message}`, {
+                stack: err.stack
+            });
+            this.showAlert(`Failed to add widget: ${err.message}`, 'Widget error');
         }
-
-        // Create new module if it doesn't exist
-        const module = {
-            id: this.moduleIdCounter++,
-            name: name,
-            type: type,
-            size: size,
-            createdAt: new Date().toISOString(),
-            instanceKey: instanceKey
-        };
-
-        // Initialize instance data if it doesn't exist
-        if (!this.moduleInstances[instanceKey]) {
-            this.moduleInstances[instanceKey] = this.getSampleData(type);
-        }
-
-        this.modules.push(module);
-        this.saveModules();
-        this.saveInstances();
-        this.renderModules();
-        this.closeAddModuleModal();
-
-        // Sync the new instance across devices
-        this.syncInstanceData(instanceKey, this.moduleInstances[instanceKey]);
     }
 
     getInstanceKey(name, type) {
@@ -300,7 +487,7 @@ class ModuleManager {
         // Prevent removal of persistent modules
         const hubMod = window.HomeHubModules && Object.values(window.HomeHubModules).find(m => m.type === moduleToRemove.type);
         if (moduleToRemove.type === 'system' || (hubMod && hubMod.persistent)) {
-            alert('This module cannot be removed. It is a persistent widget.');
+            this.showAlert('This module cannot be removed. It is a persistent widget.', 'Pinned widget');
             return;
         }
 
@@ -322,37 +509,91 @@ class ModuleManager {
 
         this.saveModules();
         this.renderModules();
+        this.sendFullState();
     }
 
     renderModules() {
         const grid = document.getElementById('modulesGrid');
-        grid.innerHTML = '';
+        if (!grid) {
+            this.logError('Widgets', 'modulesGrid element not found');
+            return;
+        }
 
-        this.modules.forEach(module => {
-            const moduleElement = this.createModuleElement(module);
-            grid.appendChild(moduleElement);
+        grid.innerHTML = '';
+        const failures = [];
+
+        this.modules.forEach((module) => {
+            try {
+                const moduleElement = this.createModuleElement(module);
+                grid.appendChild(moduleElement);
+            } catch (err) {
+                this.logError(
+                    'Widgets',
+                    `Failed to create widget "${module && module.name}" (${module && module.type}): ${err.message}`,
+                    {
+                        moduleId: module && module.id,
+                        name: module && module.name,
+                        type: module && module.type,
+                        size: module && module.size,
+                        stack: err.stack
+                    }
+                );
+                failures.push({ module, error: err });
+            }
         });
 
-        // System Monitor uses Fitness rings (no Home sparklines)
+        if (failures.length > 0) {
+            this.showWidgetFailureDialog(failures);
+        }
     }
 
     createModuleElement(module) {
+        if (!module || typeof module !== 'object') {
+            throw new Error('Invalid module definition');
+        }
+
         const div = document.createElement('div');
         const hubMod = window.HomeHubModules && window.HomeHubModules[module.type];
         const isPersistent = module.type === 'system' || (hubMod && hubMod.persistent);
-        div.className = `module ${module.size}${module.type === 'system' ? ' module-system' : ''}`;
+        const size = module.size || 'medium';
+        div.className = `module ${size}${module.type === 'system' ? ' module-system' : ''}`;
         div.draggable = true;
         div.dataset.moduleId = module.id;
         div.dataset.instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
 
         // Get instance data (shared across all modules with same name+type)
         const instanceKey = module.instanceKey || this.getInstanceKey(module.name, module.type);
-        const instanceData = this.moduleInstances[instanceKey] || this.getSampleData(module.type);
+        let instanceData;
+        try {
+            instanceData = this.moduleInstances[instanceKey] || this.getSampleData(module.type);
+        } catch (err) {
+            this.logError('Widgets', `Sample data failed for ${module.type}: ${err.message}`, {
+                stack: err.stack,
+                type: module.type
+            });
+            throw new Error(`Sample data failed for type "${module.type}": ${err.message}`);
+        }
 
         // If instance doesn't exist, create it
         if (!this.moduleInstances[instanceKey]) {
             this.moduleInstances[instanceKey] = instanceData;
             this.saveInstances();
+        }
+
+        let contentHtml;
+        try {
+            contentHtml = this.getModuleContent(module.type, instanceData, module);
+        } catch (err) {
+            this.logError(
+                'Widgets',
+                `Render failed for "${module.name}" (${module.type}): ${err.message}`,
+                {
+                    moduleId: module.id,
+                    type: module.type,
+                    stack: err.stack
+                }
+            );
+            throw new Error(`Render failed: ${err.message}`);
         }
 
         div.innerHTML = `
@@ -367,7 +608,7 @@ class ModuleManager {
                 </div>
             </div>
             <div class="module-content">
-                ${this.getModuleContent(module.type, instanceData, module)}
+                ${contentHtml}
             </div>
         `;
 
@@ -597,6 +838,7 @@ class ModuleManager {
                 this.saveModules();
                 this.saveInstances();
                 this.renderModules();
+                this.sendFullState();
                 this.closeAddModuleModal();
                 addBtn.textContent = 'Add Widget';
                 addBtn.onclick = () => this.addModule();
@@ -719,7 +961,9 @@ class ModuleManager {
                     const message = JSON.parse(event.data);
                     this.handleSyncMessage(message);
                 } catch (e) {
-                    console.error('[WebSocket] Error parsing message:', e);
+                    this.logError('WebSocket', `Error parsing message: ${e.message}`, {
+                        stack: e.stack
+                    });
                 }
             };
 
@@ -730,14 +974,16 @@ class ModuleManager {
                 setTimeout(() => this.initWebSocketSync(), 5000);
             };
 
-            this.ws.onerror = (error) => {
-                console.error('[WebSocket] Error:', error);
+            this.ws.onerror = () => {
+                this.logWarn('WebSocket', 'Connection error (will retry)');
                 this.syncEnabled = false;
                 this.updateSyncStatus('disconnected', 'Off');
             };
 
         } catch (e) {
-            console.error('[WebSocket] Failed to initialize:', e);
+            this.logError('WebSocket', `Failed to initialize: ${e.message}`, {
+                stack: e.stack
+            });
             this.updateSyncStatus('disconnected', 'Off');
             this.initPollingSync();
         }
@@ -825,7 +1071,8 @@ class ModuleManager {
             const fullState = {
                 modules: this.modules,
                 instances: this.moduleInstances,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                lastUpdated: Date.now()
             };
 
             this.ws.send(JSON.stringify({
@@ -837,12 +1084,29 @@ class ModuleManager {
 
     // Apply full state received from server
     applyFullState(state) {
-        if (state.modules) {
-            this.modules = state.modules;
+        if (!state || typeof state !== 'object') return;
+
+        const remoteModules = Array.isArray(state.modules) ? state.modules : null;
+        const remoteInstances = state.instances && typeof state.instances === 'object'
+            ? state.instances
+            : null;
+
+        // After Pi restart the server used to push modules:[] and wipe localStorage.
+        if (remoteModules && remoteModules.length === 0 && this.modules.length > 0) {
+            console.log('[Sync] Ignoring empty remote state; keeping local widgets and re-pushing');
+            this.sendFullState();
+            return;
         }
-        if (state.instances) {
-            this.moduleInstances = state.instances;
+
+        if (remoteModules) {
+            this.modules = remoteModules;
         }
+        if (remoteInstances) {
+            this.moduleInstances = remoteInstances;
+        }
+
+        this.ensureSystemMonitor();
+        this.ensureHubModules();
         this.saveModules();
         this.saveInstances();
         this.renderModules();
@@ -854,7 +1118,9 @@ class ModuleManager {
         const systemInstanceKey = 'system_monitoring';
 
         if (stats.error) {
-            console.error('[System] Stats update failed:', stats.error);
+            this.logError('System', `Stats update failed: ${stats.error}`, {
+                lastError: stats.lastError
+            });
             // Update with detailed error state
             this.updateInstanceData(systemInstanceKey, {
                 ...stats,
@@ -921,9 +1187,10 @@ class ModuleManager {
     }
 
     // Developer method to clear all widgets and instances
-    clearAllWidgets() {
-        if (confirm('Are you sure you want to clear all widgets? This action cannot be undone.')) {
+    clearAllWidgets(options = {}) {
+        const runClear = () => {
             console.log('[clearAllWidgets] Clearing all widgets and instances...');
+            this.logWarn('Widgets', 'Clearing all widgets (failsafe or user action)');
 
             // Clear all data
             this.modules = [];
@@ -938,10 +1205,25 @@ class ModuleManager {
             // Always keep persistent modules
             this.ensureSystemMonitor();
             this.ensureHubModules();
+            this.saveModules();
+            this.saveInstances();
             this.renderModules();
+            this.sendFullState();
 
             console.log('[clearAllWidgets] Widgets cleared; persistent modules restored');
+        };
+
+        if (options.skipConfirm) {
+            runClear();
+            return;
         }
+
+        this.showConfirm(
+            'Are you sure you want to clear all widgets? This action cannot be undone.',
+            'Clear widgets'
+        ).then((ok) => {
+            if (ok) runClear();
+        });
     }
 
     toggleFullscreen() {
@@ -957,6 +1239,7 @@ class ModuleManager {
         const newOrder = Array.from(moduleElements).map(el => parseInt(el.dataset.moduleId));
         this.modules.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
         this.saveModules();
+        this.sendFullState();
     }
 
     saveModules() {
@@ -973,13 +1256,24 @@ class ModuleManager {
         const savedCounter = localStorage.getItem('homeHubModuleIdCounter');
 
         if (saved) {
-            this.modules = JSON.parse(saved);
-            // Ensure all modules have instanceKey
-            this.modules.forEach(module => {
-                if (!module.instanceKey) {
-                    module.instanceKey = this.getInstanceKey(module.name, module.type);
-                }
-            });
+            try {
+                this.modules = JSON.parse(saved);
+                // Ensure all modules have instanceKey
+                this.modules.forEach(module => {
+                    if (!module.instanceKey) {
+                        module.instanceKey = this.getInstanceKey(module.name, module.type);
+                    }
+                });
+            } catch (err) {
+                this.logError('Widgets', `Failed to parse saved modules: ${err.message}`, {
+                    stack: err.stack
+                });
+                this.modules = [];
+                this.showWidgetFailureDialog([{
+                    module: { name: 'Saved layout', type: 'storage' },
+                    error: err
+                }]);
+            }
         }
 
         // Always ensure system monitor widget exists
@@ -987,7 +1281,7 @@ class ModuleManager {
         this.ensureHubModules();
 
         if (savedCounter) {
-            this.moduleIdCounter = parseInt(savedCounter);
+            this.moduleIdCounter = parseInt(savedCounter, 10) || 0;
         }
     }
 
@@ -1027,8 +1321,14 @@ class ModuleManager {
     ensureHubModules() {
         if (!window.HomeHubModules) return;
         Object.values(window.HomeHubModules).forEach((mod) => {
-            if (typeof mod.ensure === 'function') {
+            if (typeof mod.ensure !== 'function') return;
+            try {
                 mod.ensure(this);
+            } catch (err) {
+                this.logError('Widgets', `Module ensure failed for ${mod.type || mod.id}: ${err.message}`, {
+                    stack: err.stack,
+                    type: mod.type
+                });
             }
         });
     }
@@ -1036,7 +1336,14 @@ class ModuleManager {
     loadInstances() {
         const saved = localStorage.getItem('homeHubModuleInstances');
         if (saved) {
-            this.moduleInstances = JSON.parse(saved);
+            try {
+                this.moduleInstances = JSON.parse(saved);
+            } catch (err) {
+                this.logError('Widgets', `Failed to parse saved instances: ${err.message}`, {
+                    stack: err.stack
+                });
+                this.moduleInstances = {};
+            }
         } else {
             // Initialize instance data for existing modules
             this.modules.forEach(module => {

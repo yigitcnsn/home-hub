@@ -162,6 +162,18 @@
         </div>
     </div>
 
+    <!-- In-page app dialog (replaces alert/confirm) -->
+    <div class="modal" id="appDialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <div class="modal-content app-dialog-content">
+            <div class="modal-header">
+                <h3 id="appDialogTitle">Notice</h3>
+                <button type="button" class="modal-close" id="appDialogClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body" id="appDialogBody"></div>
+            <div class="modal-footer" id="appDialogFooter"></div>
+        </div>
+    </div>
+
     <script src="modules/activity/client.js"></script>
     <script src="modules/system/client.js"></script>
     <script src="modules/network/client.js"></script>
