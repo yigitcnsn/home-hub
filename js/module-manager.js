@@ -486,5 +486,10 @@ class ModuleManager {
             .filter((c) => c && !c.startsWith('view-'))
             .concat([`view-${view}`])
             .join(' ');
+
+        this.currentView = view;
+        if (hubMod && typeof hubMod.onViewActivate === 'function') {
+            hubMod.onViewActivate(this);
+        }
     }
 }

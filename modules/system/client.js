@@ -375,9 +375,16 @@
         bindChartHovers(root);
     }
 
+    function isMonitorVisible() {
+        const panel = document.getElementById('monitorView');
+        return Boolean(panel && !panel.hidden);
+    }
+
     function onStats(data) {
         if (!data) return;
         state = data;
+        // Skip expensive full-page rebuild while Monitor is not the active view
+        if (!isMonitorVisible()) return;
         if (hoveringChart) {
             updateHeroOnly();
             return;
@@ -390,6 +397,13 @@
         pageBound = true;
 
         // Seed from current widget instance if available
+        if (manager && manager.moduleInstances && manager.moduleInstances.system_monitoring) {
+            state = manager.moduleInstances.system_monitoring;
+        }
+        if (isMonitorVisible()) renderPage();
+    }
+
+    function onViewActivate(manager) {
         if (manager && manager.moduleInstances && manager.moduleInstances.system_monitoring) {
             state = manager.moduleInstances.system_monitoring;
         }
@@ -416,6 +430,7 @@
         getSampleData: null,
         render: null,
         ensure,
+        onViewActivate,
         handleMessage,
         onStats
     };

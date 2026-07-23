@@ -209,7 +209,8 @@
         // Refresh widget instances if present
         if (window.moduleManager) {
             Object.keys(window.moduleManager.moduleInstances || {}).forEach((key) => {
-                if (!key.startsWith('kap_')) return;
+                // Type-only key is `kap`; keep `kap_*` for legacy layouts
+                if (key !== 'kap' && !key.startsWith('kap_')) return;
                 window.moduleManager.moduleInstances[key] = {
                     watchlist: state.watchlist,
                     disclosures: state.disclosures.slice(0, 5),

@@ -344,7 +344,8 @@
 
         let changed = false;
         Object.keys(manager.moduleInstances).forEach((key) => {
-            if (!key.startsWith('speed_test_')) return;
+            // Type-only key is `speed_test`; keep `speed_test_*` for legacy layouts
+            if (key !== 'speed_test' && !key.startsWith('speed_test_')) return;
             const prev = manager.moduleInstances[key] || {};
             if (
                 prev.downloadMbps === payload.downloadMbps &&

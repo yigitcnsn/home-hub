@@ -117,7 +117,30 @@ Object.assign(ModuleManager.prototype, {
             addLogEntry(`Disk usage ${direction} to ${data.diskUsage}%`, data.diskUsage > 90 ? 'error' : 'info');
         }
 
-        this.renderModules();
+        this.patchSystemMonitorWidget();
+    },
+
+    /** Update Home System Monitor in place — avoid full-grid rebuild every stats tick. */
+    patchSystemMonitorWidget() {
+        const grid = document.getElementById('modulesGrid');
+        const instanceData = this.moduleInstances.system_monitoring;
+        if (!grid || !instanceData) return;
+
+        const el = grid.querySelector('[data-instance-key="system_monitoring"]');
+        const content = el && el.querySelector('.module-content');
+        if (!content) {
+            this.renderModules();
+            return;
+        }
+
+        try {
+            content.innerHTML = this.getModuleContent('system', instanceData);
+        } catch (err) {
+            this.logError('System', `Failed to patch System Monitor: ${err.message}`, {
+                stack: err.stack
+            });
+            this.renderModules();
+        }
     },
 
     clearSystemLogs(instanceKey) {

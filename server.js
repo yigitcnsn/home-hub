@@ -608,8 +608,43 @@ setInterval(() => {
     broadcastToOthers(null, { type: 'ping' });
 }, 30000);
 
-// Serve dashboard UI from the project directory
-app.use(express.static(path.join(__dirname)));
+// Serve only dashboard UI assets — never expose .env, data/, logs/, .git, or server source
+const PUBLIC_ROOT_FILES = new Set(['styles.css', 'script.js']);
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/:file', (req, res, next) => {
+    const file = req.params.file;
+    if (!PUBLIC_ROOT_FILES.has(file)) return next();
+    res.sendFile(path.join(__dirname, file), (err) => {
+        if (err) next();
+    });
+});
+
+app.use('/js', express.static(path.join(__dirname, 'js'), {
+    fallthrough: false,
+    index: false,
+    dotfiles: 'deny'
+}));
+
+// Only module browser clients (never modules/*/server.js or other server-side files)
+app.get('/modules/:name/client.js', (req, res, next) => {
+    const name = req.params.name;
+    if (!/^[a-z0-9_-]+$/i.test(name)) {
+        return res.status(400).send('Invalid module name');
+    }
+    const modulesRoot = path.join(__dirname, 'modules');
+    const filePath = path.join(modulesRoot, name, 'client.js');
+    if (!filePath.startsWith(modulesRoot + path.sep)) {
+        return res.status(400).send('Invalid path');
+    }
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).send('Not found');
+    }
+    res.type('application/javascript').sendFile(filePath);
+});
 
 // Start server
 const PORT = process.env.PORT || 3000;

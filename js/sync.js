@@ -39,7 +39,8 @@ Object.assign(ModuleManager.prototype, {
 
     initWebSocketSync() {
         try {
-            const wsUrl = `ws://${window.location.hostname}:3000/dashboard`;
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${proto}//${window.location.host}/dashboard`;
             this.ws = new WebSocket(wsUrl);
             this.updateSyncStatus('connecting', '...');
 
