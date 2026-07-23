@@ -2188,6 +2188,47 @@ body {
     min-width: 0;
 }
 
+.kap-wl-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.kap-wl-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kap-wl-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-hover);
+}
+
+.kap-wl-row-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.kap-wl-row-code {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-primary);
+}
+
+.kap-wl-remove-btn {
+    flex-shrink: 0;
+}
+
 .kap-badge {
     font-size: 10px;
     font-weight: 700;

@@ -58,23 +58,31 @@
         return parts.join(' · ');
     }
 
-    function watchlistChips(editable) {
-        if (!state.watchlist.length) {
-            return '<div class="kap-empty">No tickers — add one below</div>';
-        }
-        return state.watchlist.map((code) => {
+    function watchlistEditor() {
+        const rows = (state.watchlist || []).map((code) => {
             const latest = (state.disclosures || []).find((d) => d.stock === code);
             const sent = latest && latest.classification ? latest.classification.sentiment : null;
             return `
-                <div class="kap-chip">
-                    <span class="kap-chip-code">${esc(code)}</span>
-                    ${badge(sent)}
-                    ${editable
-        ? `<button type="button" class="kap-chip-remove" data-kap-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>`
-        : ''}
+                <div class="kap-wl-row">
+                    <div class="kap-wl-row-main">
+                        <span class="kap-wl-row-code">${esc(code)}</span>
+                        ${badge(sent)}
+                    </div>
+                    <button type="button" class="kap-mini-btn kap-wl-remove-btn" data-kap-remove="${esc(code)}">Remove</button>
                 </div>
             `;
-        }).join('');
+        }).join('') || '<div class="kap-empty">Watchlist is empty</div>';
+
+        return `
+            <div class="kap-wl-editor">
+                <div class="kap-wl-rows">${rows}</div>
+                <div class="kap-watchlist-edit">
+                    <input type="text" id="kapWatchlistInput" class="kap-input" placeholder="Add tickers e.g. THYAO, ASELS" maxlength="64" autocomplete="off" />
+                    <button type="button" class="network-run-btn" id="kapWatchlistAddBtn">Add</button>
+                </div>
+                <div class="kap-meta-line">Saved on the Pi · comma or space separated · last scrape ${esc(formatWhen(state.lastScrapeAt))}</div>
+            </div>
+        `;
     }
 
     function disclosureRows() {
@@ -143,12 +151,7 @@
 
                 <section class="kap-section">
                     <h3 class="network-section-title">Watchlist</h3>
-                    <div class="kap-watchlist">${watchlistChips(true)}</div>
-                    <div class="kap-watchlist-edit">
-                        <input type="text" id="kapWatchlistInput" class="kap-input" placeholder="Add ticker e.g. THYAO" maxlength="12" autocomplete="off" />
-                        <button type="button" class="network-secondary-btn" id="kapWatchlistAddBtn">Add</button>
-                    </div>
-                    <div class="kap-meta-line">Last scrape: ${esc(formatWhen(state.lastScrapeAt))} · Auto-scan hourly</div>
+                    ${watchlistEditor()}
                 </section>
 
                 <section class="kap-section">
@@ -177,20 +180,27 @@
     }
 
     function addWatchlistCode(manager, code) {
-        const ticker = String(code || '').trim().toUpperCase();
-        if (!ticker) return;
-        if (!send(manager, { type: 'kap_watchlist_add', code: ticker })) {
-            fetch('/api/kap/watchlist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'add', code: ticker })
-            })
-                .then((r) => r.json())
-                .then((data) => {
-                    if (data && data.state) applyState(data.state);
+        const raw = String(code || '');
+        const tickers = raw
+            .split(/[,;\s]+/)
+            .map((s) => s.trim().toUpperCase())
+            .filter(Boolean);
+        if (!tickers.length) return;
+
+        tickers.forEach((ticker) => {
+            if (!send(manager, { type: 'kap_watchlist_add', code: ticker })) {
+                fetch('/api/kap/watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'add', code: ticker })
                 })
-                .catch(() => {});
-        }
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (data && data.state) applyState(data.state);
+                    })
+                    .catch(() => {});
+            }
+        });
     }
 
     function removeWatchlistCode(manager, code) {
