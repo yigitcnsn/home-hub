@@ -50,17 +50,25 @@ ensure_deps() {
 }
 
 free_port() {
+  local PIDS=""
+
   if command -v lsof >/dev/null 2>&1; then
-    local PIDS
     PIDS="$(lsof -ti tcp:3000 -sTCP:LISTEN 2>/dev/null || true)"
-    if [[ -n "${PIDS}" ]]; then
-      echo "[start] Port 3000 in use — stopping: ${PIDS}"
-      # shellcheck disable=SC2086
-      kill ${PIDS} 2>/dev/null || true
-      sleep 1
-      # shellcheck disable=SC2086
-      kill -9 ${PIDS} 2>/dev/null || true
-    fi
+  elif command -v ss >/dev/null 2>&1; then
+    # Raspberry Pi OS often has ss but not lsof
+    PIDS="$(ss -ltnp 2>/dev/null | awk '/:3000 / { if (match($0, /pid=[0-9]+/)) print substr($0, RSTART+4, RLENGTH-4) }' | sort -u | tr '\n' ' ')"
+  elif command -v fuser >/dev/null 2>&1; then
+    PIDS="$(fuser 3000/tcp 2>/dev/null || true)"
+  fi
+
+  PIDS="$(echo "${PIDS}" | xargs 2>/dev/null || true)"
+  if [[ -n "${PIDS}" ]]; then
+    echo "[start] Port 3000 in use — stopping: ${PIDS}"
+    # shellcheck disable=SC2086
+    kill ${PIDS} 2>/dev/null || true
+    sleep 1
+    # shellcheck disable=SC2086
+    kill -9 ${PIDS} 2>/dev/null || true
   fi
 }
 
