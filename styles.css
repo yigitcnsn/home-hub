@@ -376,6 +376,27 @@ body {
     letter-spacing: 0.2px;
 }
 
+.build-tracker {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.build-tracker-id {
+    font-variant-numeric: tabular-nums;
+}
+
+.build-tracker-date {
+    font-weight: 500;
+    opacity: 0.9;
+}
+
 .top-bar-actions {
     display: flex;
     gap: 8px;

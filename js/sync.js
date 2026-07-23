@@ -5,7 +5,8 @@
 Object.assign(ModuleManager.prototype, {
     initAutoReload() {
         this.knownBuildId = null;
-        const applyBuild = (buildId) => {
+        const applyBuild = (data) => {
+            const buildId = typeof data === 'string' ? data : (data && data.buildId);
             if (!buildId) return;
             if (this.knownBuildId && this.knownBuildId !== buildId) {
                 console.log(`[AutoReload] New build ${buildId} (was ${this.knownBuildId}) — reloading`);
@@ -13,12 +14,15 @@ Object.assign(ModuleManager.prototype, {
                 return;
             }
             this.knownBuildId = buildId;
+            if (data && typeof data === 'object') {
+                this.updateBuildTracker(data);
+            }
         };
 
         const poll = () => {
             fetch('/api/version')
                 .then((r) => r.json())
-                .then((data) => applyBuild(data && data.buildId))
+                .then((data) => applyBuild(data))
                 .catch((err) => {
                     console.warn('[AutoReload] Version poll failed:', err.message || err);
                 });
@@ -123,7 +127,7 @@ Object.assign(ModuleManager.prototype, {
 
             case 'build_info':
                 if (message.data && typeof this._applyBuildInfo === 'function') {
-                    this._applyBuildInfo(message.data.buildId);
+                    this._applyBuildInfo(message.data);
                 }
                 break;
 

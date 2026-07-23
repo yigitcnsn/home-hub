@@ -427,6 +427,44 @@ class ModuleManager {
         });
     }
 
+    updateBuildTracker(info) {
+        const tracker = document.getElementById('buildTracker');
+        const idEl = document.getElementById('buildTrackerId');
+        const dateEl = document.getElementById('buildTrackerDate');
+        if (!tracker || !idEl || !dateEl || !info) return;
+
+        const buildId = info.buildId || 'unknown';
+        const dirty = info.dirty ? '*' : '';
+        idEl.textContent = `v${info.version || '?'} · ${buildId}${dirty}`;
+
+        let dateText = '';
+        if (info.committedAt) {
+            const d = new Date(info.committedAt);
+            if (!Number.isNaN(d.getTime())) {
+                dateText = d.toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
+            }
+        }
+        dateEl.textContent = dateText;
+        dateEl.hidden = !dateText;
+
+        const titleParts = [
+            `version ${info.version || '?'}`,
+            `commit ${buildId}${dirty}`,
+            info.branch ? `branch ${info.branch}` : null,
+            info.committedAt ? `committed ${info.committedAt}` : null,
+            info.startedAt ? `started ${info.startedAt}` : null
+        ].filter(Boolean);
+        tracker.title = titleParts.join(' · ');
+        tracker.hidden = false;
+    }
+
     buildModuleNav() {
         const nav = document.getElementById('sidebarNav');
         if (!nav || !window.HomeHubModules) return;
