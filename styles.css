@@ -2127,6 +2127,39 @@ body {
     color: var(--text-primary);
 }
 
+.kap-chip-remove {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.kap-chip-remove:hover {
+    color: var(--danger);
+}
+
+.kap-digest-banner {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 8px;
+}
+
+.kap-watchlist-edit {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.kap-watchlist-edit .kap-input {
+    flex: 1;
+    min-width: 0;
+}
+
 .kap-badge {
     font-size: 10px;
     font-weight: 700;
@@ -2252,6 +2285,13 @@ body {
     min-width: 0;
 }
 
+.kap-widget-digest {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--comp-text);
+    line-height: 1.35;
+}
+
 .kap-widget-chips {
     display: flex;
     flex-wrap: wrap;
@@ -2263,10 +2303,38 @@ body {
     color: var(--comp-text);
     border: none;
     border-radius: 999px;
-    padding: 5px 10px;
+    padding: 5px 8px;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.04em;
+}
+
+.kap-widget-add {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.kap-widget-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--comp-border, var(--border-color));
+    background: var(--comp-bg-elevated, var(--bg-hover));
+    color: var(--comp-text, var(--text-primary));
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+
+.kap-widget-add-btn {
+    border: none;
+    background: var(--accent, var(--primary));
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
 }
 
 .kap-widget-footer {
@@ -2292,6 +2360,10 @@ body {
 
 .module.small .kap-widget-chips {
     justify-content: center;
+}
+
+.module.small .kap-widget-add {
+    width: 100%;
 }
 
 .module.small .kap-widget-footer {

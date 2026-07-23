@@ -5,8 +5,35 @@ const store = require('./store');
 const scrape = require('./scrape');
 const ollama = require('./ollama');
 
-const POLL_MS = Number(process.env.KAP_POLL_INTERVAL_MS || 15 * 60 * 1000);
+const POLL_MS = Number(process.env.KAP_POLL_INTERVAL_MS || 60 * 60 * 1000);
 const AUTO_CLASSIFY = String(process.env.KAP_AUTO_CLASSIFY || '1') !== '0';
+
+function buildDailyDigest(disclosures, watchlist) {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const startMs = start.getTime();
+    const watch = Array.isArray(watchlist) ? new Set(watchlist) : null;
+
+    let count = 0;
+    let good = 0;
+    let bad = 0;
+    let neutral = 0;
+    let pending = 0;
+
+    (disclosures || []).forEach((d) => {
+        if (watch && watch.size && !watch.has(d.stock)) return;
+        const t = new Date(d.date || 0).getTime();
+        if (Number.isNaN(t) || t < startMs) return;
+        count += 1;
+        const sentiment = d.classification && String(d.classification.sentiment || '').toLowerCase();
+        if (sentiment === 'good') good += 1;
+        else if (sentiment === 'bad') bad += 1;
+        else if (sentiment === 'neutral') neutral += 1;
+        else pending += 1;
+    });
+
+    return { count, good, bad, neutral, pending };
+}
 
 function register(ctx) {
     const { app, logger, broadcastToAll, onClientConnected, onClientMessage } = ctx;
@@ -37,8 +64,9 @@ function register(ctx) {
             classification: byId.get(String(d.id)) || null
         }));
 
+        const watchlist = store.getWatchlist();
         return {
-            watchlist: scrape.getWatchlist(),
+            watchlist,
             disclosures: enriched.slice(0, 100),
             classifications: classifications.slice(0, 100),
             jobs: Array.from(jobsById.values()).slice(0, 30),
@@ -46,11 +74,19 @@ function register(ctx) {
             running,
             lastError,
             lastScrapeAt,
+            digest: buildDailyDigest(enriched, watchlist),
+            pollIntervalMs: POLL_MS,
             model: ollama.DEFAULT_MODEL,
             ollamaBaseUrl: ollama.DEFAULT_BASE,
             language: scrape.LANGUAGE,
             disclaimer: 'Not investment advice. For personal research only.'
         };
+    }
+
+    function updateWatchlist(mutator) {
+        const next = mutator();
+        broadcastState();
+        return next;
     }
 
     function broadcastState() {
@@ -164,7 +200,7 @@ function register(ctx) {
     }
 
     async function scrapeNow({ mode = 'watchlist', autoClassify = AUTO_CLASSIFY } = {}) {
-        const watchlist = scrape.getWatchlist();
+        const watchlist = store.getWatchlist();
         // Empty watchlist → general scan so the UI still does something useful
         const effectiveMode = (mode === 'watchlist' && !watchlist.length) ? 'general' : mode;
 
@@ -207,9 +243,30 @@ function register(ctx) {
 
     app.get('/api/kap/disclosures', (req, res) => {
         res.json({
-            watchlist: scrape.getWatchlist(),
+            watchlist: store.getWatchlist(),
             disclosures: getState().disclosures
         });
+    });
+
+    app.post('/api/kap/watchlist', (req, res) => {
+        try {
+            const body = req.body || {};
+            const action = String(body.action || '').toLowerCase();
+            let watchlist;
+            if (action === 'add') {
+                watchlist = updateWatchlist(() => store.addWatchlistCode(body.code));
+            } else if (action === 'remove') {
+                watchlist = updateWatchlist(() => store.removeWatchlistCode(body.code));
+            } else if (action === 'set' && Array.isArray(body.codes)) {
+                watchlist = updateWatchlist(() => store.setWatchlist(body.codes));
+            } else {
+                res.status(400).json({ ok: false, error: 'action must be add, remove, or set' });
+                return;
+            }
+            res.json({ ok: true, watchlist, state: getState() });
+        } catch (err) {
+            res.status(500).json({ ok: false, error: err.message || String(err) });
+        }
     });
 
     app.get('/api/kap/jobs/:id', (req, res) => {
@@ -277,6 +334,14 @@ function register(ctx) {
     });
 
     onClientMessage((ws, data) => {
+        if (data.type === 'kap_watchlist_add') {
+            updateWatchlist(() => store.addWatchlistCode(data.code));
+            return true;
+        }
+        if (data.type === 'kap_watchlist_remove') {
+            updateWatchlist(() => store.removeWatchlistCode(data.code));
+            return true;
+        }
         if (data.type === 'kap_scrape') {
             const mode = data.mode === 'general' ? 'general' : 'watchlist';
             scrapeNow({
@@ -312,20 +377,27 @@ function register(ctx) {
         return false;
     });
 
-    if (scrape.getWatchlist().length && POLL_MS > 0) {
-        setTimeout(() => {
-            scrapeNow({ mode: 'watchlist', autoClassify: true }).catch((err) => {
-                logger.warn('KAP', `Initial scrape skipped: ${err.message || err}`);
-            });
-        }, 8000);
-        setInterval(() => {
-            scrapeNow({ mode: 'watchlist', autoClassify: true }).catch((err) => {
+    function scheduleScrape() {
+        if (!(POLL_MS > 0)) {
+            logger.info('KAP', 'Scheduled scrape disabled (KAP_POLL_INTERVAL_MS <= 0)');
+            return;
+        }
+
+        const run = () => {
+            const mode = store.getWatchlist().length ? 'watchlist' : 'general';
+            scrapeNow({ mode, autoClassify: mode === 'watchlist' }).catch((err) => {
                 logger.warn('KAP', `Scheduled scrape failed: ${err.message || err}`);
             });
-        }, POLL_MS);
-    } else {
-        logger.info('KAP', 'No KAP_WATCHLIST set — use General scan in the UI, or set watchlist in .env');
+        };
+
+        setTimeout(() => {
+            run();
+        }, 8000);
+        setInterval(run, POLL_MS);
+        logger.info('KAP', `Scheduled scrape every ${Math.round(POLL_MS / 60000)} min`);
     }
+
+    scheduleScrape();
 
     logger.info('KAP', `KAP module registered (model=${ollama.DEFAULT_MODEL}, prompt=${ollama.resolvePromptPath()})`);
 }

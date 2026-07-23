@@ -1,5 +1,5 @@
 /**
- * KAP module (browser) — watchlist + sentiment badges; paste-classify secondary.
+ * KAP module (browser) — watchlist editor, daily digest, scrape/classify.
  */
 (function () {
     const VIEW = 'kap';
@@ -12,9 +12,11 @@
         running: false,
         lastError: null,
         lastScrapeAt: null,
+        digest: { count: 0, good: 0, bad: 0, neutral: 0, pending: 0 },
         disclaimer: 'Not investment advice. For personal research only.'
     };
     let pageBound = false;
+    let widgetBound = false;
 
     function esc(value) {
         return String(value == null ? '' : value)
@@ -40,9 +42,23 @@
         return `<span class="kap-badge kap-badge-${esc(label)}">${esc(label)}</span>`;
     }
 
-    function watchlistChips() {
+    function digestLine(digest) {
+        const d = digest || state.digest || {};
+        const count = Number(d.count) || 0;
+        if (!count) {
+            return 'Today: no filings yet';
+        }
+        const parts = [`Today: ${count} filing${count === 1 ? '' : 's'}`];
+        if (d.good) parts.push(`${d.good} good`);
+        if (d.bad) parts.push(`${d.bad} bad`);
+        if (d.neutral) parts.push(`${d.neutral} neutral`);
+        if (d.pending) parts.push(`${d.pending} pending`);
+        return parts.join(' · ');
+    }
+
+    function watchlistChips(editable) {
         if (!state.watchlist.length) {
-            return '<div class="kap-empty">Set KAP_WATCHLIST on the server (e.g. THYAO,ASELS)</div>';
+            return '<div class="kap-empty">No tickers — add one below</div>';
         }
         return state.watchlist.map((code) => {
             const latest = (state.disclosures || []).find((d) => d.stock === code);
@@ -51,6 +67,9 @@
                 <div class="kap-chip">
                     <span class="kap-chip-code">${esc(code)}</span>
                     ${badge(sent)}
+                    ${editable
+        ? `<button type="button" class="kap-chip-remove" data-kap-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>`
+        : ''}
                 </div>
             `;
         }).join('');
@@ -59,7 +78,7 @@
     function disclosureRows() {
         const rows = state.disclosures || [];
         if (!rows.length) {
-            return '<div class="kap-empty">No disclosures yet — click Scrape or wait for the schedule</div>';
+            return '<div class="kap-empty">No disclosures yet — click Scrape or wait for the hourly scan</div>';
         }
         return rows.slice(0, 40).map((d) => {
             const c = d.classification;
@@ -115,11 +134,16 @@
                 ${jobLine()}
 
                 <p class="kap-disclaimer">${esc(state.disclaimer)}</p>
+                <div class="kap-digest-banner">${esc(digestLine(state.digest))}</div>
 
                 <section class="kap-section">
                     <h3 class="network-section-title">Watchlist</h3>
-                    <div class="kap-watchlist">${watchlistChips()}</div>
-                    <div class="kap-meta-line">Last scrape: ${esc(formatWhen(state.lastScrapeAt))}</div>
+                    <div class="kap-watchlist">${watchlistChips(true)}</div>
+                    <div class="kap-watchlist-edit">
+                        <input type="text" id="kapWatchlistInput" class="kap-input" placeholder="Add ticker e.g. THYAO" maxlength="12" autocomplete="off" />
+                        <button type="button" class="network-secondary-btn" id="kapWatchlistAddBtn">Add</button>
+                    </div>
+                    <div class="kap-meta-line">Last scrape: ${esc(formatWhen(state.lastScrapeAt))} · Auto-scan hourly</div>
                 </section>
 
                 <section class="kap-section">
@@ -140,11 +164,45 @@
     }
 
     function send(manager, payload) {
-        if (manager.ws && manager.ws.readyState === WebSocket.OPEN) {
+        if (manager && manager.ws && manager.ws.readyState === WebSocket.OPEN) {
             manager.ws.send(JSON.stringify(payload));
             return true;
         }
         return false;
+    }
+
+    function addWatchlistCode(manager, code) {
+        const ticker = String(code || '').trim().toUpperCase();
+        if (!ticker) return;
+        if (!send(manager, { type: 'kap_watchlist_add', code: ticker })) {
+            fetch('/api/kap/watchlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', code: ticker })
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data && data.state) applyState(data.state);
+                })
+                .catch(() => {});
+        }
+    }
+
+    function removeWatchlistCode(manager, code) {
+        const ticker = String(code || '').trim().toUpperCase();
+        if (!ticker) return;
+        if (!send(manager, { type: 'kap_watchlist_remove', code: ticker })) {
+            fetch('/api/kap/watchlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'remove', code: ticker })
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (data && data.state) applyState(data.state);
+                })
+                .catch(() => {});
+        }
     }
 
     function bindPage(manager) {
@@ -153,6 +211,18 @@
         pageBound = true;
 
         view.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('[data-kap-remove]');
+            if (removeBtn) {
+                e.preventDefault();
+                removeWatchlistCode(manager, removeBtn.getAttribute('data-kap-remove'));
+                return;
+            }
+            if (e.target.closest('#kapWatchlistAddBtn')) {
+                const input = document.getElementById('kapWatchlistInput');
+                addWatchlistCode(manager, input && input.value);
+                if (input) input.value = '';
+                return;
+            }
             if (e.target.closest('#kapScrapeGeneralBtn')) {
                 if (!send(manager, { type: 'kap_scrape', mode: 'general' })) {
                     fetch('/api/kap/scrape', {
@@ -177,7 +247,11 @@
                 const stock = (document.getElementById('kapPasteStock') || {}).value || '';
                 const text = (document.getElementById('kapPasteText') || {}).value || '';
                 if (!stock.trim() || !text.trim()) {
-                    alert('Stock and text required');
+                    if (manager && typeof manager.showAlert === 'function') {
+                        manager.showAlert('Stock and text required', 'KAP');
+                    } else {
+                        alert('Stock and text required');
+                    }
                     return;
                 }
                 if (!send(manager, { type: 'kap_classify', stock: stock.trim(), text: text.trim() })) {
@@ -201,23 +275,76 @@
                 }
             }
         });
+
+        view.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (e.target && e.target.id === 'kapWatchlistInput') {
+                e.preventDefault();
+                addWatchlistCode(manager, e.target.value);
+                e.target.value = '';
+            }
+        });
+    }
+
+    function bindWidget(manager) {
+        const grid = document.getElementById('modulesGrid');
+        if (!grid || widgetBound) return;
+        widgetBound = true;
+
+        grid.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('.kap-widget [data-kap-remove]');
+            if (removeBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                removeWatchlistCode(manager, removeBtn.getAttribute('data-kap-remove'));
+                return;
+            }
+            const addBtn = e.target.closest('[data-kap-add-btn]');
+            if (addBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const wrap = addBtn.closest('.kap-widget');
+                const input = wrap && wrap.querySelector('[data-kap-add-input]');
+                addWatchlistCode(manager, input && input.value);
+                if (input) input.value = '';
+            }
+        });
+
+        grid.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            if (!e.target || !e.target.matches('[data-kap-add-input]')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            addWatchlistCode(manager, e.target.value);
+            e.target.value = '';
+        });
+
+        grid.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.kap-widget input, .kap-widget button')) {
+                e.stopPropagation();
+            }
+        });
+    }
+
+    function widgetPayload() {
+        return {
+            watchlist: state.watchlist,
+            disclosures: (state.disclosures || []).slice(0, 5),
+            digest: state.digest || { count: 0, good: 0, bad: 0, neutral: 0, pending: 0 },
+            lastError: state.lastError,
+            lastScrapeAt: state.lastScrapeAt,
+            running: state.running,
+            queueLength: state.queueLength
+        };
     }
 
     function applyState(incoming) {
         state = { ...state, ...incoming };
         renderPage();
-        // Refresh widget instances if present
         if (window.moduleManager) {
             Object.keys(window.moduleManager.moduleInstances || {}).forEach((key) => {
-                // Type-only key is `kap`; keep `kap_*` for legacy layouts
                 if (key !== 'kap' && !key.startsWith('kap_')) return;
-                window.moduleManager.moduleInstances[key] = {
-                    watchlist: state.watchlist,
-                    disclosures: state.disclosures.slice(0, 5),
-                    lastError: state.lastError,
-                    running: state.running,
-                    queueLength: state.queueLength
-                };
+                window.moduleManager.moduleInstances[key] = widgetPayload();
             });
             window.moduleManager.renderModules();
         }
@@ -225,6 +352,7 @@
 
     function ensure(manager) {
         bindPage(manager);
+        bindWidget(manager);
         renderPage();
         fetch('/api/kap')
             .then((r) => r.json())
@@ -244,7 +372,9 @@
         return {
             watchlist: [],
             disclosures: [],
+            digest: { count: 0, good: 0, bad: 0, neutral: 0, pending: 0 },
             lastError: null,
+            lastScrapeAt: null,
             running: false,
             queueLength: 0
         };
@@ -252,18 +382,32 @@
 
     function renderWidget(data) {
         const list = (data && data.disclosures) || [];
-        const chips = ((data && data.watchlist) || []).slice(0, 6).map((code) => {
+        const digest = (data && data.digest) || {};
+        const chips = ((data && data.watchlist) || []).slice(0, 8).map((code) => {
             const latest = list.find((d) => d.stock === code);
             const sent = latest && latest.classification ? latest.classification.sentiment : null;
-            return `<span class="kap-chip-inline"><span>${esc(code)}</span>${badge(sent)}</span>`;
+            return `
+                <span class="kap-chip-inline">
+                    <span>${esc(code)}</span>
+                    ${badge(sent)}
+                    <button type="button" class="kap-chip-remove" data-kap-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>
+                </span>
+            `;
         }).join('') || '<span class="kap-empty">No watchlist</span>';
+
+        const status = (data && data.running) || (data && data.queueLength)
+            ? 'Classifying…'
+            : (data && data.lastScrapeAt ? `Scanned ${formatWhen(data.lastScrapeAt)}` : 'Hourly scan');
 
         return `
             <div class="kap-widget">
+                <div class="kap-widget-digest">${esc(digestLine(digest))}</div>
                 <div class="kap-widget-chips">${chips}</div>
-                <div class="kap-widget-footer">
-                    ${(data && data.running) || (data && data.queueLength) ? 'Classifying…' : 'Watchlist'}
+                <div class="kap-widget-add">
+                    <input type="text" class="kap-widget-input" data-kap-add-input placeholder="Add" maxlength="12" autocomplete="off" draggable="false" />
+                    <button type="button" class="kap-widget-add-btn" data-kap-add-btn>Add</button>
                 </div>
+                <div class="kap-widget-footer">${esc(status)}</div>
             </div>
         `;
     }

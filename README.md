@@ -54,7 +54,7 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Logs** — live server + client log stream with All / Info / Warn / Error filters and Clear info
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload + Run on Home only
-- **KAP** — Borsa İstanbul disclosures: watchlist, scrape, Ollama sentiment classify (sidebar + optional Home widget)
+- **KAP** — Borsa İstanbul disclosures: editable watchlist, hourly scrape, daily digest, Ollama sentiment (sidebar + Home widget)
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
@@ -91,7 +91,7 @@ export KAP_LANGUAGE=tr
 cd ~/home-hub && npm start
 ```
 
-Sidebar **KAP**: watchlist badges, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Data under `data/kap/`. Optional Home widget shows the watchlist at a glance.
+Sidebar **KAP**: editable watchlist, daily digest, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Home widget shows today’s digest and lets you add/remove tickers. Watchlist persists under `data/kap/watchlist.json` (seeded from `KAP_WATCHLIST`). Auto-scrape runs once per hour.
 
 ---
 
@@ -234,7 +234,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `KAP_LANGUAGE` | Classify language (default `tr`) |
 | `KAP_WATCHLIST` | Comma-separated tickers (e.g. `THYAO,ASELS`) |
 | `KAP_PROMPT_PATH` | Sentiment prompt file |
-| `KAP_POLL_INTERVAL_MS` | Optional scrape poll interval |
+| `KAP_POLL_INTERVAL_MS` | Scheduled scrape interval (default **1 hour** / `3600000`) |
 | `HOMEHUB_WATCH_SECONDS` | Watch-mode fetch interval (default `60`) |
 | `PORT` | HTTP port (default `3000`) |
 
@@ -256,6 +256,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `GET` | `/api/kap` | KAP state |
 | `GET` | `/api/kap/disclosures` | Watchlist + disclosures |
 | `GET` | `/api/kap/jobs/:id` | Classify / scrape job status |
+| `POST` | `/api/kap/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
 | `POST` | `/api/kap/scrape` | `{ mode: 'watchlist' \| 'general' }` |
 | `POST` | `/api/kap/classify` | Paste text or `disclosureId` |
 
@@ -287,6 +288,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `run_network_test` | Full network analysis |
 | `refresh_network_snapshot` | Refresh interfaces / LAN / Wi‑Fi |
 | `kap_scrape` / `kap_classify` | KAP jobs |
+| `kap_watchlist_add` / `kap_watchlist_remove` | Edit watchlist |
 
 </details>
 

@@ -33,8 +33,8 @@ No model runtime / weights in home-hub.
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Root URL only (no `/v1`) |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | Configurable; UI picker optional later |
 | `KAP_LANGUAGE` | `tr` | v1 scrapes Turkish KAP (`/tr`) |
-| `KAP_WATCHLIST` | _(empty)_ | Comma-separated codes, e.g. `THYAO,ASELS` |
-| `KAP_POLL_INTERVAL_MS` | _(TBD)_ | Scheduled scrape |
+| `KAP_WATCHLIST` | _(empty)_ | Seed for `data/kap/watchlist.json` (UI can edit after) |
+| `KAP_POLL_INTERVAL_MS` | `3600000` (1 hour) | Scheduled scrape |
 | `KAP_PROMPT_PATH` | `../pi-llm/prompts/kap_sentiment.txt` | Relative to home-hub on `ev` |
 
 ## Module UX

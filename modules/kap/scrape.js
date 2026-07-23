@@ -2,16 +2,15 @@
  * KAP public disclosure scrape (Turkish site APIs).
  * Modes: watchlist (filter codes) | general (recent market feed)
  */
+const store = require('./store');
+
 const LANGUAGE = process.env.KAP_LANGUAGE || 'tr';
 const BASE = `https://www.kap.org.tr/${LANGUAGE}`;
 const GENERAL_DAYS = Number(process.env.KAP_GENERAL_DAYS || 1);
 const GENERAL_LIMIT = Number(process.env.KAP_GENERAL_LIMIT || 150);
 
 function getWatchlist() {
-    return String(process.env.KAP_WATCHLIST || '')
-        .split(',')
-        .map((s) => s.trim().toUpperCase())
-        .filter(Boolean);
+    return store.getWatchlist();
 }
 
 function parseKapDate(value) {
@@ -136,7 +135,7 @@ async function fetchRecentDisclosures(opts = {}) {
             items: [],
             scraped: raw.length,
             days,
-            note: 'KAP_WATCHLIST is empty — use general scan or set watchlist'
+            note: 'Watchlist is empty — use general scan or add tickers'
         };
     }
 
