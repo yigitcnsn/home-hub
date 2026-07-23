@@ -179,6 +179,22 @@
         return false;
     }
 
+    function postWatchlist(action, payload) {
+        return fetch('/api/kap/watchlist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ...payload })
+        })
+            .then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    throw new Error((data && data.error) || `Watchlist ${action} failed (${r.status})`);
+                }
+                if (data && data.state) applyState(data.state);
+                return data;
+            });
+    }
+
     function addWatchlistCode(manager, code) {
         const raw = String(code || '');
         const tickers = raw
@@ -187,18 +203,13 @@
             .filter(Boolean);
         if (!tickers.length) return;
 
-        tickers.forEach((ticker) => {
-            if (!send(manager, { type: 'kap_watchlist_add', code: ticker })) {
-                fetch('/api/kap/watchlist', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'add', code: ticker })
-                })
-                    .then((r) => r.json())
-                    .then((data) => {
-                        if (data && data.state) applyState(data.state);
-                    })
-                    .catch(() => {});
+        // Prefer HTTP so edits work even when WS handlers are stale / missing
+        tickers.reduce(
+            (chain, ticker) => chain.then(() => postWatchlist('add', { code: ticker })),
+            Promise.resolve()
+        ).catch((err) => {
+            if (manager && typeof manager.showAlert === 'function') {
+                manager.showAlert(err.message || String(err), 'Watchlist');
             }
         });
     }
@@ -206,18 +217,12 @@
     function removeWatchlistCode(manager, code) {
         const ticker = String(code || '').trim().toUpperCase();
         if (!ticker) return;
-        if (!send(manager, { type: 'kap_watchlist_remove', code: ticker })) {
-            fetch('/api/kap/watchlist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'remove', code: ticker })
-            })
-                .then((r) => r.json())
-                .then((data) => {
-                    if (data && data.state) applyState(data.state);
-                })
-                .catch(() => {});
-        }
+
+        postWatchlist('remove', { code: ticker }).catch((err) => {
+            if (manager && typeof manager.showAlert === 'function') {
+                manager.showAlert(err.message || String(err), 'Watchlist');
+            }
+        });
     }
 
     function bindPage(manager) {
