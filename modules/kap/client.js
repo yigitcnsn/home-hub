@@ -13,6 +13,8 @@
         lastError: null,
         lastScrapeAt: null,
         digest: { count: 0, good: 0, bad: 0, neutral: 0, pending: 0 },
+        oracleOnline: true,
+        eclipse: false,
         disclaimer: 'Not investment advice. For personal research only.'
     };
     let pageBound = false;
@@ -97,7 +99,7 @@
                     </div>
                     <div class="kap-row-actions">
                         ${d.sourceUrl ? `<a class="kap-link" href="${esc(d.sourceUrl)}" target="_blank" rel="noopener">KAP</a>` : ''}
-                        <button type="button" class="kap-mini-btn" data-kap-classify-id="${esc(d.id)}">Classify</button>
+                        <button type="button" class="kap-mini-btn" data-kap-classify-id="${esc(d.id)}" ${state.eclipse ? 'disabled' : ''}>${state.eclipse ? 'Offline' : 'Classify'}</button>
                     </div>
                 </div>
             `;
@@ -105,6 +107,9 @@
     }
 
     function jobLine() {
+        if (state.eclipse) {
+            return '<div class="kap-banner kap-banner-eclipse">Eclipse · oracle offline</div>';
+        }
         if (state.lastError) {
             return `<div class="kap-banner kap-banner-error">${esc(state.lastError)}</div>`;
         }
@@ -154,9 +159,9 @@
                 <section class="kap-section">
                     <h3 class="network-section-title">Paste → classify</h3>
                     <div class="kap-paste">
-                        <input type="text" id="kapPasteStock" class="kap-input" placeholder="Stock e.g. THYAO" maxlength="12" />
-                        <textarea id="kapPasteText" class="kap-textarea" rows="4" placeholder="Konu: ...&#10;Özet: ..."></textarea>
-                        <button type="button" class="network-run-btn" id="kapPasteBtn">Classify text</button>
+                        <input type="text" id="kapPasteStock" class="kap-input" placeholder="Stock e.g. THYAO" maxlength="12" ${state.eclipse ? 'disabled' : ''} />
+                        <textarea id="kapPasteText" class="kap-textarea" rows="4" placeholder="Konu: ...&#10;Özet: ..." ${state.eclipse ? 'disabled' : ''}></textarea>
+                        <button type="button" class="network-run-btn" id="kapPasteBtn" ${state.eclipse ? 'disabled' : ''}>${state.eclipse ? 'Oracle offline' : 'Classify text'}</button>
                     </div>
                 </section>
             </div>
@@ -339,7 +344,9 @@
             lastError: state.lastError,
             lastScrapeAt: state.lastScrapeAt,
             running: state.running,
-            queueLength: state.queueLength
+            queueLength: state.queueLength,
+            eclipse: state.eclipse === true,
+            oracleOnline: state.oracleOnline !== false
         };
     }
 
@@ -349,7 +356,9 @@
             disclosures: (state.disclosures || []).slice(0, 12),
             lastScrapeAt: state.lastScrapeAt,
             running: state.running,
-            queueLength: state.queueLength
+            queueLength: state.queueLength,
+            eclipse: state.eclipse === true,
+            oracleOnline: state.oracleOnline !== false
         };
     }
 
@@ -421,7 +430,9 @@
             lastError: null,
             lastScrapeAt: null,
             running: false,
-            queueLength: 0
+            queueLength: 0,
+            eclipse: false,
+            oracleOnline: true
         };
     }
 
@@ -431,11 +442,14 @@
             disclosures: [],
             lastScrapeAt: null,
             running: false,
-            queueLength: 0
+            queueLength: 0,
+            eclipse: false,
+            oracleOnline: true
         };
     }
 
     function renderDigestWidget(data) {
+        const eclipse = data && data.eclipse === true;
         const digest = (data && data.digest) || {};
         const count = Number(digest.count) || 0;
         const good = Number(digest.good) || 0;
@@ -443,12 +457,15 @@
         const neutral = Number(digest.neutral) || 0;
         const pending = Number(digest.pending) || 0;
         const busy = (data && data.running) || (data && data.queueLength);
-        const footer = data && data.lastError
-            ? 'Error'
-            : (busy ? 'Classifying…' : (data && data.lastScrapeAt ? formatWhen(data.lastScrapeAt) : 'Hourly scan'));
+        const footer = eclipse
+            ? 'Oracle offline'
+            : (data && data.lastError
+                ? 'Error'
+                : (busy ? 'Classifying…' : (data && data.lastScrapeAt ? formatWhen(data.lastScrapeAt) : 'Hourly scan')));
 
         return `
-            <div class="kap-digest-widget">
+            <div class="kap-digest-widget${eclipse ? ' kap-eclipse' : ''}">
+                ${eclipse ? '<div class="kap-eclipse-label">Oracle offline</div>' : ''}
                 <div class="kap-digest-hero">
                     <span class="kap-digest-count">${esc(String(count))}</span>
                     <span class="kap-digest-label">today</span>
@@ -473,6 +490,7 @@
     }
 
     function renderWatchlistWidget(data) {
+        const eclipse = data && data.eclipse === true;
         const list = (data && data.disclosures) || [];
         const codes = (data && data.watchlist) || [];
         const chips = codes.map((code) => {
@@ -488,7 +506,8 @@
         }).join('') || '<div class="kap-empty">Add a ticker</div>';
 
         return `
-            <div class="kap-watchlist-widget">
+            <div class="kap-watchlist-widget${eclipse ? ' kap-eclipse' : ''}">
+                ${eclipse ? '<div class="kap-eclipse-label">Oracle offline</div>' : ''}
                 <div class="kap-wl-chips">${chips}</div>
                 <div class="kap-wl-add">
                     <input type="text" class="kap-widget-input" data-kap-add-input placeholder="THYAO" maxlength="12" autocomplete="off" draggable="false" />

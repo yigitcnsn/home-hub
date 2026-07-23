@@ -2097,6 +2097,13 @@ body {
     color: var(--danger);
 }
 
+.kap-banner-eclipse {
+    border-color: rgba(100, 116, 139, 0.45);
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+
 .kap-section {
     border: 1px solid var(--border-color);
     border-radius: 12px;
@@ -2426,6 +2433,37 @@ body {
 
 .module.small .kap-wl-chips {
     max-height: 88px;
+}
+
+/* Eclipse — Ollama / oracle offline */
+.kap-eclipse {
+    filter: grayscale(1);
+    opacity: 0.88;
+}
+
+.kap-eclipse-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--comp-text-muted, var(--text-muted));
+}
+
+.kap-eclipse .kap-digest-stat.is-good .kap-digest-stat-value,
+.kap-eclipse .kap-digest-stat.is-bad .kap-digest-stat-value,
+.kap-eclipse .kap-digest-stat.is-neutral .kap-digest-stat-value {
+    color: var(--comp-text, var(--text-primary));
+}
+
+.kap-eclipse .kap-badge {
+    background: rgba(100, 116, 139, 0.18);
+    color: var(--text-secondary);
+}
+
+.kap-mini-btn:disabled,
+.network-run-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 
 @media (max-width: 700px) {

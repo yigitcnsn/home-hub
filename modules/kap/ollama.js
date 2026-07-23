@@ -29,6 +29,46 @@ function chatCompletionsUrl(baseUrl) {
     return `${root}/v1/chat/completions`;
 }
 
+function rootUrl(baseUrl) {
+    let root = (baseUrl || DEFAULT_BASE).replace(/\/$/, '');
+    if (root.endsWith('/v1')) root = root.slice(0, -3);
+    return root;
+}
+
+/**
+ * Lightweight reachability check (Ollama /api/tags).
+ * @returns {Promise<{ online: boolean, checkedAt: string, error?: string }>}
+ */
+async function checkHealth(opts = {}) {
+    const baseUrl = opts.baseUrl || DEFAULT_BASE;
+    const timeoutMs = Number(opts.timeoutMs) || 3000;
+    const checkedAt = new Date().toISOString();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const res = await fetch(`${rootUrl(baseUrl)}/api/tags`, {
+            method: 'GET',
+            signal: controller.signal
+        });
+        if (!res.ok) {
+            return {
+                online: false,
+                checkedAt,
+                error: `Ollama HTTP ${res.status}`
+            };
+        }
+        return { online: true, checkedAt };
+    } catch (err) {
+        const message = err && err.name === 'AbortError'
+            ? 'Ollama health check timed out'
+            : (err && err.message) || String(err);
+        return { online: false, checkedAt, error: message };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 /**
  * Call Ollama OpenAI-compatible chat completions.
  * Returns model fields only: stock, sentiment, confidence, summary, reason
@@ -99,9 +139,11 @@ async function classifyKap(opts) {
 
 module.exports = {
     classifyKap,
+    checkHealth,
     loadSystemPrompt,
     resolvePromptPath,
     chatCompletionsUrl,
+    rootUrl,
     DEFAULT_BASE,
     DEFAULT_MODEL,
     TIMEOUT_MS

@@ -43,6 +43,9 @@ function register(ctx) {
     let running = false;
     let lastError = null;
     let lastScrapeAt = null;
+    let oracleOnline = false;
+    let oracleCheckedAt = null;
+    let oracleError = null;
 
     // Restore recent jobs into memory map (display only)
     store.getJobs().forEach((job) => {
@@ -76,11 +79,32 @@ function register(ctx) {
             lastScrapeAt,
             digest: buildDailyDigest(enriched, watchlist),
             pollIntervalMs: POLL_MS,
+            oracleOnline,
+            oracleCheckedAt,
+            oracleError,
+            eclipse: oracleOnline !== true,
             model: ollama.DEFAULT_MODEL,
             ollamaBaseUrl: ollama.DEFAULT_BASE,
             language: scrape.LANGUAGE,
             disclaimer: 'Not investment advice. For personal research only.'
         };
+    }
+
+    async function refreshOracle(broadcast = true) {
+        const prev = oracleOnline;
+        const health = await ollama.checkHealth();
+        oracleOnline = health.online === true;
+        oracleCheckedAt = health.checkedAt;
+        oracleError = health.online ? null : (health.error || 'Ollama unreachable');
+        if (broadcast && prev !== oracleOnline) {
+            if (!oracleOnline) {
+                logger.warn('KAP', `Eclipse: oracle offline (${oracleError})`);
+            } else {
+                logger.info('KAP', 'Eclipse lifted: oracle online');
+            }
+            broadcastState();
+        }
+        return oracleOnline;
     }
 
     function updateWatchlist(mutator) {
@@ -103,6 +127,11 @@ function register(ctx) {
     }
 
     function enqueueClassify(payload) {
+        if (!oracleOnline) {
+            lastError = 'Oracle offline — classify paused until Ollama is back';
+            broadcastState();
+            return null;
+        }
         const id = payload.jobId || `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const job = {
             id,
@@ -178,6 +207,8 @@ function register(ctx) {
             job.finishedAt = new Date().toISOString();
             lastError = job.error;
             logger.error('KAP', `Classify job ${job.id} failed: ${job.error}`);
+            // Likely connectivity — flip Eclipse if Ollama is gone
+            refreshOracle(true).catch(() => {});
         }
 
         persistJobs();
@@ -323,6 +354,14 @@ function register(ctx) {
             disclosureId,
             text: finalText
         });
+        if (!job) {
+            res.status(503).json({
+                ok: false,
+                error: 'Oracle offline — classify paused until Ollama is back',
+                state: getState()
+            });
+            return;
+        }
         res.status(202).json({ ok: true, job });
     });
 
@@ -398,6 +437,19 @@ function register(ctx) {
     }
 
     scheduleScrape();
+
+    function scheduleOracleWatch() {
+        const tick = () => {
+            refreshOracle(true).catch((err) => {
+                logger.warn('KAP', `Oracle health check failed: ${err.message || err}`);
+            });
+        };
+        // Immediate probe so widgets know eclipse state on boot
+        setTimeout(tick, 1500);
+        setInterval(tick, 30000);
+    }
+
+    scheduleOracleWatch();
 
     logger.info('KAP', `KAP module registered (model=${ollama.DEFAULT_MODEL}, prompt=${ollama.resolvePromptPath()})`);
 }
