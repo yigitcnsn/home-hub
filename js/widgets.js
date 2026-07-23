@@ -3,20 +3,6 @@
  * Extends ModuleManager.prototype — load after module-manager.js
  */
 (function () {
-    function statusLabel(status, activeText, inactiveText) {
-        const isActive = status === 'active';
-        return `<div class="comp-sub ${isActive ? 'is-active' : 'is-inactive'}">${isActive ? activeText : inactiveText}</div>`;
-    }
-
-    function complicationFace(value, subHtml) {
-        return `
-            <div class="comp-face">
-                <div class="comp-value">${escapeHtml(value)}</div>
-                ${subHtml}
-            </div>
-        `;
-    }
-
     function renderSystemFitness(data) {
         if (!data || (!data.lastUpdate && !data.error)) {
             return `
@@ -119,20 +105,14 @@
             // Back-compat: older callers used getInstanceKey(name, type)
             const type = maybeType != null ? maybeType : typeOrName;
             if (type === 'system') return 'system_monitoring';
-            return String(type || 'custom');
+            return String(type || 'unknown');
         },
 
         getWidgetLabel(type) {
             const defaults = {
-                temperature: 'Temperature',
-                lighting: 'Lighting',
-                security: 'Security',
-                energy: 'Energy',
-                weather: 'Weather',
                 system: 'System Monitor',
                 speed_test: 'Speed Test',
-                kap: 'KAP',
-                custom: 'Custom'
+                kap: 'KAP'
             };
             const hubMod = window.HomeHubModules && window.HomeHubModules[type];
             if (hubMod && (hubMod.label || hubMod.navLabel)) {
@@ -237,11 +217,6 @@
 
         getSampleData(type) {
             const data = {
-                temperature: { value: '22°C', status: 'active' },
-                lighting: { value: '75%', status: 'active' },
-                security: { value: 'Armed', status: 'active' },
-                energy: { value: '2.4 kW', status: 'active' },
-                weather: { value: '18°C', status: 'active' },
                 system: {
                     cpuUsage: 15,
                     cpuTemp: 45,
@@ -257,8 +232,7 @@
                     lastUpdate: new Date().toISOString(),
                     history: { cpu: [], memory: [], disk: [], temperature: [], timestamps: [] },
                     logs: []
-                },
-                custom: { value: 'Ready', status: 'active' }
+                }
             };
 
             if (window.HomeHubModules) {
@@ -269,25 +243,10 @@
                 });
             }
 
-            return data[type] || data.custom;
+            return data[type] || {};
         },
 
         getModuleContent(type, data, module) {
-            if (type === 'temperature') {
-                return complicationFace(data.value, statusLabel(data.status, 'Active', 'Inactive'));
-            }
-            if (type === 'lighting') {
-                return complicationFace(data.value, statusLabel(data.status, 'On', 'Off'));
-            }
-            if (type === 'security') {
-                return complicationFace(data.value, statusLabel(data.status, 'Secure', 'Unsecure'));
-            }
-            if (type === 'energy') {
-                return complicationFace(data.value, '<div class="comp-sub">Current usage</div>');
-            }
-            if (type === 'weather') {
-                return complicationFace(data.value, '<div class="comp-sub">Outside</div>');
-            }
             if (type === 'system') {
                 return renderSystemFitness(data);
             }
@@ -297,7 +256,12 @@
                 return hubMod.render(data, module);
             }
 
-            return complicationFace(data.value || 'Ready', statusLabel(data.status, 'Active', 'Inactive'));
+            return `
+                <div class="system-monitor error-state">
+                    <div class="error-text">Unknown widget</div>
+                    <div class="error-message">${escapeHtml(type || 'missing type')}</div>
+                </div>
+            `;
         }
     });
 })();

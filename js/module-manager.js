@@ -173,7 +173,7 @@ class ModuleManager {
 
     openAddModuleModal() {
         document.getElementById('addModuleModal').classList.add('active');
-        document.getElementById('moduleType').value = 'temperature';
+        document.getElementById('moduleType').value = 'speed_test';
         document.getElementById('moduleSize').value = 'medium';
         document.getElementById('addBtn').textContent = 'Add Widget';
         document.getElementById('addBtn').onclick = () => this.addModule();

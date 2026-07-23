@@ -37,7 +37,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 | Area | Role |
 |:-----|:-----|
 | **Sidebar** | App modules (pages): Home · Logs · KAP · Monitor · Network |
-| **Home** | Widget grid: System Monitor, Speed Test, KAP, sensors, custom |
+| **Home** | Widget grid: System Monitor, Speed Test, KAP |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
 New server features go in `modules/<name>/` (`server.js` + `client.js`). Core UI lives under `js/`.
@@ -179,7 +179,6 @@ flowchart LR
 
 | Type | Notes |
 |:-----|:------|
-| Temperature · Lighting · Security · Energy · Weather · Custom | Placeholder / custom complications |
 | **System Monitor** | Persistent — Fitness rings; always on Home |
 | **Speed Test** | Compact down / up + Run |
 | **KAP** | Watchlist chips (optional) |

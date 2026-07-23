@@ -178,6 +178,7 @@ Object.assign(ModuleManager.prototype, {
         if (remoteModules) this.modules = remoteModules;
         if (remoteInstances) this.moduleInstances = remoteInstances;
 
+        this.normalizeWidgetKeys();
         this.ensureSystemMonitor();
         this.ensureHubModules();
         this.saveModules();
