@@ -37,7 +37,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 | Area | Role |
 |:-----|:-----|
 | **Sidebar** | App modules (pages): Home · Logs · KAP · Monitor · Network |
-| **Home** | Widget grid: System Monitor, Speed Test, KAP |
+| **Home** | Widget grid: System Monitor, Speed Test, KAP Digest, KAP Watchlist |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
 New server features go in `modules/<name>/` (`server.js` + `client.js`). Core UI lives under `js/`.
@@ -91,7 +91,7 @@ export KAP_LANGUAGE=tr
 cd ~/home-hub && npm start
 ```
 
-Sidebar **KAP**: editable watchlist, daily digest, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Home widget shows today’s digest and lets you add/remove tickers. Watchlist persists under `data/kap/watchlist.json` (seeded from `KAP_WATCHLIST`). Auto-scrape runs once per hour.
+Sidebar **KAP**: editable watchlist, daily digest, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Home widgets: **KAP Digest** (today’s counts) and **KAP Watchlist** (add/remove tickers). Watchlist persists under `data/kap/watchlist.json` (seeded from `KAP_WATCHLIST`). Auto-scrape runs once per hour.
 
 ---
 
@@ -181,7 +181,8 @@ flowchart LR
 |:-----|:------|
 | **System Monitor** | Persistent — Fitness rings; always on Home |
 | **Speed Test** | Compact down / up + Run |
-| **KAP** | Watchlist chips (optional) |
+| **KAP Digest** | Today’s filing count + good / bad / other |
+| **KAP Watchlist** | Tickers with sentiment; add / remove |
 
 **Sizes:** Small `1×1` (circular) · Medium `2×1` · Large `2×2`  
 System Monitor always spans the full row.

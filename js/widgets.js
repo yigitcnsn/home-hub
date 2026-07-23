@@ -112,7 +112,8 @@
             const defaults = {
                 system: 'System Monitor',
                 speed_test: 'Speed Test',
-                kap: 'KAP'
+                kap_digest: 'KAP Digest',
+                kap_watchlist: 'KAP Watchlist'
             };
             const hubMod = window.HomeHubModules && window.HomeHubModules[type];
             if (hubMod && (hubMod.label || hubMod.navLabel)) {

@@ -292,7 +292,7 @@
         widgetBound = true;
 
         grid.addEventListener('click', (e) => {
-            const removeBtn = e.target.closest('.kap-widget [data-kap-remove]');
+            const removeBtn = e.target.closest('.kap-watchlist-widget [data-kap-remove]');
             if (removeBtn) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -303,7 +303,7 @@
             if (addBtn) {
                 e.preventDefault();
                 e.stopPropagation();
-                const wrap = addBtn.closest('.kap-widget');
+                const wrap = addBtn.closest('.kap-watchlist-widget');
                 const input = wrap && wrap.querySelector('[data-kap-add-input]');
                 addWatchlistCode(manager, input && input.value);
                 if (input) input.value = '';
@@ -320,16 +320,21 @@
         });
 
         grid.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.kap-widget input, .kap-widget button')) {
+            if (e.target.closest('.kap-watchlist-widget input, .kap-watchlist-widget button')) {
                 e.stopPropagation();
             }
         });
     }
 
-    function widgetPayload() {
+    function isKapWidgetKey(key) {
+        return key === 'kap' ||
+            key === 'kap_digest' ||
+            key === 'kap_watchlist' ||
+            key.startsWith('kap_');
+    }
+
+    function digestPayload() {
         return {
-            watchlist: state.watchlist,
-            disclosures: (state.disclosures || []).slice(0, 5),
             digest: state.digest || { count: 0, good: 0, bad: 0, neutral: 0, pending: 0 },
             lastError: state.lastError,
             lastScrapeAt: state.lastScrapeAt,
@@ -338,19 +343,61 @@
         };
     }
 
-    function applyState(incoming) {
-        state = { ...state, ...incoming };
-        renderPage();
-        if (window.moduleManager) {
-            Object.keys(window.moduleManager.moduleInstances || {}).forEach((key) => {
-                if (key !== 'kap' && !key.startsWith('kap_')) return;
-                window.moduleManager.moduleInstances[key] = widgetPayload();
-            });
-            window.moduleManager.renderModules();
+    function watchlistPayload() {
+        return {
+            watchlist: state.watchlist,
+            disclosures: (state.disclosures || []).slice(0, 12),
+            lastScrapeAt: state.lastScrapeAt,
+            running: state.running,
+            queueLength: state.queueLength
+        };
+    }
+
+    function syncKapWidgets() {
+        if (!window.moduleManager) return;
+        const instances = window.moduleManager.moduleInstances || {};
+        Object.keys(instances).forEach((key) => {
+            if (!isKapWidgetKey(key)) return;
+            if (key === 'kap_watchlist' || key.startsWith('kap_watchlist')) {
+                instances[key] = watchlistPayload();
+            } else {
+                // kap_digest, legacy `kap`, and other kap_* keys
+                instances[key] = digestPayload();
+            }
+        });
+        window.moduleManager.renderModules();
+    }
+
+    function migrateLegacyWidgets(manager) {
+        if (!manager || !Array.isArray(manager.modules)) return;
+        let changed = false;
+
+        manager.modules.forEach((m) => {
+            if (!m || m.type !== 'kap') return;
+            m.type = 'kap_digest';
+            const oldKey = m.instanceKey;
+            m.instanceKey = manager.getInstanceKey('kap_digest');
+            if (oldKey && manager.moduleInstances[oldKey] && !manager.moduleInstances[m.instanceKey]) {
+                manager.moduleInstances[m.instanceKey] = manager.moduleInstances[oldKey];
+                delete manager.moduleInstances[oldKey];
+            }
+            changed = true;
+        });
+
+        if (changed) {
+            manager.saveModules();
+            manager.saveInstances();
         }
     }
 
+    function applyState(incoming) {
+        state = { ...state, ...incoming };
+        renderPage();
+        syncKapWidgets();
+    }
+
     function ensure(manager) {
+        migrateLegacyWidgets(manager);
         bindPage(manager);
         bindWidget(manager);
         renderPage();
@@ -368,10 +415,8 @@
         return false;
     }
 
-    function getSampleData() {
+    function getDigestSampleData() {
         return {
-            watchlist: [],
-            disclosures: [],
             digest: { count: 0, good: 0, bad: 0, neutral: 0, pending: 0 },
             lastError: null,
             lastScrapeAt: null,
@@ -380,34 +425,75 @@
         };
     }
 
-    function renderWidget(data) {
-        const list = (data && data.disclosures) || [];
+    function getWatchlistSampleData() {
+        return {
+            watchlist: [],
+            disclosures: [],
+            lastScrapeAt: null,
+            running: false,
+            queueLength: 0
+        };
+    }
+
+    function renderDigestWidget(data) {
         const digest = (data && data.digest) || {};
-        const chips = ((data && data.watchlist) || []).slice(0, 8).map((code) => {
+        const count = Number(digest.count) || 0;
+        const good = Number(digest.good) || 0;
+        const bad = Number(digest.bad) || 0;
+        const neutral = Number(digest.neutral) || 0;
+        const pending = Number(digest.pending) || 0;
+        const busy = (data && data.running) || (data && data.queueLength);
+        const footer = data && data.lastError
+            ? 'Error'
+            : (busy ? 'Classifying…' : (data && data.lastScrapeAt ? formatWhen(data.lastScrapeAt) : 'Hourly scan'));
+
+        return `
+            <div class="kap-digest-widget">
+                <div class="kap-digest-hero">
+                    <span class="kap-digest-count">${esc(String(count))}</span>
+                    <span class="kap-digest-label">today</span>
+                </div>
+                <div class="kap-digest-stats">
+                    <div class="kap-digest-stat is-good">
+                        <span class="kap-digest-stat-value">${esc(String(good))}</span>
+                        <span class="kap-digest-stat-label">Good</span>
+                    </div>
+                    <div class="kap-digest-stat is-bad">
+                        <span class="kap-digest-stat-value">${esc(String(bad))}</span>
+                        <span class="kap-digest-stat-label">Bad</span>
+                    </div>
+                    <div class="kap-digest-stat is-neutral">
+                        <span class="kap-digest-stat-value">${esc(String(neutral + pending))}</span>
+                        <span class="kap-digest-stat-label">${pending && !neutral ? 'Pending' : 'Other'}</span>
+                    </div>
+                </div>
+                <div class="kap-digest-footer">${esc(footer)}</div>
+            </div>
+        `;
+    }
+
+    function renderWatchlistWidget(data) {
+        const list = (data && data.disclosures) || [];
+        const codes = (data && data.watchlist) || [];
+        const chips = codes.map((code) => {
             const latest = list.find((d) => d.stock === code);
             const sent = latest && latest.classification ? latest.classification.sentiment : null;
             return `
-                <span class="kap-chip-inline">
-                    <span>${esc(code)}</span>
+                <div class="kap-wl-chip">
+                    <span class="kap-wl-code">${esc(code)}</span>
                     ${badge(sent)}
                     <button type="button" class="kap-chip-remove" data-kap-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>
-                </span>
+                </div>
             `;
-        }).join('') || '<span class="kap-empty">No watchlist</span>';
-
-        const status = (data && data.running) || (data && data.queueLength)
-            ? 'Classifying…'
-            : (data && data.lastScrapeAt ? `Scanned ${formatWhen(data.lastScrapeAt)}` : 'Hourly scan');
+        }).join('') || '<div class="kap-empty">Add a ticker</div>';
 
         return `
-            <div class="kap-widget">
-                <div class="kap-widget-digest">${esc(digestLine(digest))}</div>
-                <div class="kap-widget-chips">${chips}</div>
-                <div class="kap-widget-add">
-                    <input type="text" class="kap-widget-input" data-kap-add-input placeholder="Add" maxlength="12" autocomplete="off" draggable="false" />
+            <div class="kap-watchlist-widget">
+                <div class="kap-wl-chips">${chips}</div>
+                <div class="kap-wl-add">
+                    <input type="text" class="kap-widget-input" data-kap-add-input placeholder="THYAO" maxlength="12" autocomplete="off" draggable="false" />
                     <button type="button" class="kap-widget-add-btn" data-kap-add-btn>Add</button>
                 </div>
-                <div class="kap-widget-footer">${esc(status)}</div>
             </div>
         `;
     }
@@ -421,9 +507,33 @@
         view: VIEW,
         navLabel: 'KAP',
         persistent: false,
-        getSampleData,
-        render: renderWidget,
+        getSampleData: null,
+        render: null,
         ensure,
         handleMessage
+    };
+
+    window.HomeHubModules.kap_digest = {
+        id: 'kap_digest',
+        type: 'kap_digest',
+        label: 'KAP Digest',
+        nav: false,
+        persistent: false,
+        getSampleData: getDigestSampleData,
+        render: renderDigestWidget,
+        ensure: null,
+        handleMessage: null
+    };
+
+    window.HomeHubModules.kap_watchlist = {
+        id: 'kap_watchlist',
+        type: 'kap_watchlist',
+        label: 'KAP Watchlist',
+        nav: false,
+        persistent: false,
+        getSampleData: getWatchlistSampleData,
+        render: renderWatchlistWidget,
+        ensure: null,
+        handleMessage: null
     };
 })();

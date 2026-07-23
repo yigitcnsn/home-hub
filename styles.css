@@ -2276,43 +2276,118 @@ body {
     padding: 8px 0;
 }
 
-.kap-widget {
+/* KAP Digest widget */
+.kap-digest-widget {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    justify-content: flex-start;
+    gap: 12px;
     height: 100%;
     min-width: 0;
 }
 
-.kap-widget-digest {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--comp-text);
-    line-height: 1.35;
-}
-
-.kap-widget-chips {
+.kap-digest-hero {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    align-items: baseline;
+    gap: 8px;
 }
 
-.kap-widget .kap-chip-inline {
-    background: var(--comp-bg-elevated);
-    color: var(--comp-text);
-    border: none;
-    border-radius: 999px;
-    padding: 5px 8px;
+.kap-digest-count {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--comp-text, var(--text-primary));
+}
+
+.kap-digest-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--comp-text-muted, var(--text-muted));
+}
+
+.kap-digest-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.kap-digest-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.kap-digest-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--comp-text, var(--text-primary));
+}
+
+.kap-digest-stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--comp-text-muted, var(--text-muted));
+}
+
+.kap-digest-stat.is-good .kap-digest-stat-value { color: var(--success); }
+.kap-digest-stat.is-bad .kap-digest-stat-value { color: var(--danger); }
+.kap-digest-stat.is-neutral .kap-digest-stat-value { color: var(--text-secondary); }
+
+.kap-digest-footer {
+    margin-top: auto;
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--comp-text-muted, var(--text-muted));
 }
 
-.kap-widget-add {
+/* KAP Watchlist widget */
+.kap-watchlist-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    min-width: 0;
+}
+
+.kap-wl-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.kap-wl-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    background: var(--comp-bg-elevated, var(--bg-hover));
+}
+
+.kap-wl-code {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--comp-text, var(--text-primary));
+    margin-right: auto;
+}
+
+.kap-wl-add {
     display: flex;
     gap: 6px;
     align-items: center;
+    margin-top: auto;
 }
 
 .kap-widget-input {
@@ -2322,53 +2397,35 @@ body {
     background: var(--comp-bg-elevated, var(--bg-hover));
     color: var(--comp-text, var(--text-primary));
     border-radius: 8px;
-    padding: 6px 8px;
+    padding: 7px 9px;
     font-size: 12px;
 }
 
 .kap-widget-add-btn {
     border: none;
-    background: var(--accent, var(--primary));
+    background: var(--primary-color, var(--accent, #2563eb));
     color: #fff;
     border-radius: 8px;
-    padding: 6px 10px;
+    padding: 7px 12px;
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
 }
 
-.kap-widget-footer {
-    font-size: 11px;
-    color: var(--comp-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 600;
-    margin-top: auto;
+.module.small .kap-digest-count {
+    font-size: 28px;
 }
 
-.kap-widget .kap-empty {
-    color: var(--comp-text-muted);
-    padding: 0;
-    font-size: 14px;
+.module.small .kap-digest-stats {
+    gap: 4px;
 }
 
-.module.small .kap-widget {
-    align-items: center;
-    justify-content: center;
-    text-align: center;
+.module.small .kap-digest-stat-value {
+    font-size: 15px;
 }
 
-.module.small .kap-widget-chips {
-    justify-content: center;
-}
-
-.module.small .kap-widget-add {
-    width: 100%;
-}
-
-.module.small .kap-widget-footer {
-    text-align: center;
-    margin-top: 4px;
+.module.small .kap-wl-chips {
+    max-height: 88px;
 }
 
 @media (max-width: 700px) {
