@@ -549,9 +549,10 @@
                         <span class="stocks-paper-auto-dot"></span>
                         Auto ${autoOn ? 'on' : 'paused'}
                     </button>
-                    <div class="stocks-paper-news-chip${news.enabled ? ' is-on' : ''}">
+                    <button type="button" class="stocks-paper-news-btn${news.enabled ? ' is-on' : ''}" id="stocksPaperNewsBtn" aria-pressed="${news.enabled ? 'true' : 'false'}">
+                        <span class="stocks-paper-auto-dot"></span>
                         News RSS ${news.enabled ? 'on' : 'off'}
-                    </div>
+                    </button>
                     <div class="stocks-paper-reset-wrap">
                         <input type="number" id="stocksPaperCash" class="stocks-input stocks-input-sm" min="1000" step="1000" placeholder="Start ₺" value="${esc(p.startingCash != null ? p.startingCash : '')}" />
                         <button type="button" class="stocks-btn stocks-btn-ghost" id="stocksPaperResetBtn">Reset</button>
@@ -758,6 +759,20 @@
                         body: JSON.stringify({ enabled: next })
                     }).then((r) => r.json()).then((data) => {
                         if (data.paper) applyPaperState(data.paper);
+                    }).catch(() => {});
+                }
+                return;
+            }
+            if (t.id === 'stocksPaperNewsBtn') {
+                const next = !(paperState.news && paperState.news.enabled);
+                if (!send(manager, { type: 'stocks_news_enabled', enabled: next })) {
+                    fetch('/api/stocks/news/enabled', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: next })
+                    }).then((r) => r.json()).then((data) => {
+                        if (data.paper) applyPaperState(data.paper);
+                        else if (data.news) applyPaperState({ ...paperState, news: data.news });
                     }).catch(() => {});
                 }
                 return;

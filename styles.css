@@ -3368,6 +3368,37 @@ body.dark-mode .stocks-paper-glow {
     border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
 }
 
+.stocks-paper-news-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.stocks-paper-news-btn .stocks-paper-auto-dot {
+    background: var(--text-muted);
+}
+
+.stocks-paper-news-btn.is-on {
+    border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+    color: var(--primary-color);
+}
+
+.stocks-paper-news-btn.is-on .stocks-paper-auto-dot {
+    background: var(--primary-color);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary-color) 40%, transparent);
+    animation: stocks-pulse 2s ease infinite;
+}
+
 .stocks-paper-reset-wrap {
     margin-left: auto;
     display: flex;

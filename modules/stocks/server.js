@@ -355,6 +355,18 @@ function register(ctx) {
         res.json(newsPipeline.getStatus());
     });
 
+    app.post('/api/stocks/news/enabled', (req, res) => {
+        try {
+            const body = req.body || {};
+            const enabled = body.enabled != null ? !!body.enabled : true;
+            newsPipeline.setEnabled(enabled);
+            broadcastPaperState();
+            res.json({ ok: true, enabled, news: newsPipeline.getStatus(), paper: getPaperState() });
+        } catch (err) {
+            res.status(400).json({ error: err.message || String(err) });
+        }
+    });
+
     app.post('/api/stocks/news/poll', async (req, res) => {
         try {
             const result = await newsPipeline.pollOnce({
@@ -443,6 +455,12 @@ function register(ctx) {
                 }).then(() => broadcastPaperState()).catch((err) => {
                     logger.warn('Stocks', `WS news poll failed: ${err.message || err}`);
                 });
+                return true;
+            }
+            if (message.type === 'stocks_news_enabled') {
+                const enabled = message.enabled != null ? !!message.enabled : true;
+                newsPipeline.setEnabled(enabled);
+                broadcastPaperState();
                 return true;
             }
         } catch (err) {

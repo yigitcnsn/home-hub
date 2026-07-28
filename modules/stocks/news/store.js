@@ -7,6 +7,7 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data', 'stocks');
 const HEADLINES_FILE = path.join(DATA_DIR, 'news-headlines.json');
 const SEEN_FILE = path.join(DATA_DIR, 'news-seen.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'news-settings.json');
 
 const MAX_HEADLINES = Number(process.env.NEWS_RSS_MAX_HEADLINES || 200);
 const MAX_SEEN = Number(process.env.NEWS_RSS_MAX_SEEN || 1000);
@@ -30,6 +31,40 @@ function readJson(file, fallback) {
 function writeJson(file, data) {
     ensureDir();
     fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function envDefaultEnabled() {
+    return String(process.env.NEWS_RSS_ENABLED || '0') === '1';
+}
+
+function getSettings() {
+    const saved = readJson(SETTINGS_FILE, null);
+    if (saved && typeof saved.enabled === 'boolean') {
+        return {
+            enabled: saved.enabled,
+            updatedAt: saved.updatedAt || null
+        };
+    }
+    // First run: seed from env if set, otherwise off. UI can toggle afterward.
+    const seeded = {
+        enabled: envDefaultEnabled(),
+        updatedAt: new Date().toISOString()
+    };
+    writeJson(SETTINGS_FILE, seeded);
+    return seeded;
+}
+
+function setEnabled(enabled) {
+    const next = {
+        enabled: !!enabled,
+        updatedAt: new Date().toISOString()
+    };
+    writeJson(SETTINGS_FILE, next);
+    return next;
+}
+
+function isEnabled() {
+    return getSettings().enabled === true;
 }
 
 function getHeadlines() {
@@ -83,6 +118,9 @@ function isSeen(id) {
 }
 
 module.exports = {
+    getSettings,
+    setEnabled,
+    isEnabled,
     getHeadlines,
     upsertHeadlines,
     getSeen,

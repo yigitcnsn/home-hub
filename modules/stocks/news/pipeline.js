@@ -1,15 +1,13 @@
 /**
  * Investing RSS → Ollama classify → paper strategy (headlines only).
- * Disabled unless NEWS_RSS_ENABLED=1 (personal RSS use / ToS awareness).
+ * Toggle from UI (persisted). Optional NEWS_RSS_ENABLED seeds first run only.
  */
 const kapOllama = require('../../kap/ollama');
-const { config: paperConfig } = require('../paper/config');
 const strategy = require('../paper/strategy');
 const rss = require('./rss');
 const newsStore = require('./store');
 const { matchTickers } = require('./tickers');
 
-const ENABLED = String(process.env.NEWS_RSS_ENABLED || '0') === '1';
 const POLL_MS = Number(process.env.NEWS_RSS_POLL_MS || 15 * 60 * 1000);
 const MAX_PER_POLL = Number(process.env.NEWS_RSS_MAX_PER_POLL || 8);
 
@@ -17,24 +15,39 @@ let lastPollAt = null;
 let lastError = null;
 let polling = false;
 let classifying = false;
+let schedulerCtx = null;
 const classifyQueue = [];
 
 function isEnabled() {
-    return ENABLED;
+    return newsStore.isEnabled();
+}
+
+function setEnabled(enabled) {
+    const settings = newsStore.setEnabled(enabled);
+    if (settings.enabled && schedulerCtx) {
+        // Kick a poll soon after turning on
+        setTimeout(() => {
+            pollOnce({
+                onClassified: schedulerCtx.onNewsClassified
+            }).catch(() => {});
+        }, 500);
+    }
+    return settings;
 }
 
 function getStatus() {
+    const enabled = isEnabled();
     return {
-        enabled: ENABLED,
+        enabled,
         feeds: rss.DEFAULT_FEEDS,
         lastPollAt,
         lastError,
         polling,
         classifyQueue: classifyQueue.length,
         headlines: newsStore.getHeadlines().slice(0, 40),
-        disclaimer: ENABLED
+        disclaimer: enabled
             ? 'RSS headlines only (no full-article scrape). Personal research. Not investment advice.'
-            : 'News RSS disabled. Set NEWS_RSS_ENABLED=1 to poll Investing.com official RSS feeds.'
+            : 'News RSS off. Toggle it on from the Paper desk when you want Investing.com headlines.'
     };
 }
 
@@ -59,6 +72,9 @@ async function pumpClassify() {
     if (!next) return;
     classifying = true;
     try {
+        if (!isEnabled()) {
+            return;
+        }
         const health = await kapOllama.checkHealth();
         if (!health.online) {
             lastError = health.error || 'Ollama offline — news classify skipped';
@@ -143,7 +159,7 @@ async function pumpClassify() {
  * Poll RSS feeds, persist new headlines, enqueue classify for BIST matches.
  */
 async function pollOnce({ onClassified, quotesBySymbol } = {}) {
-    if (!ENABLED) {
+    if (!isEnabled()) {
         return { ok: false, skipped: 'disabled', status: getStatus() };
     }
     if (polling) {
@@ -195,23 +211,22 @@ async function pollOnce({ onClassified, quotesBySymbol } = {}) {
 }
 
 function startScheduler(ctx) {
-    if (!ENABLED) {
-        if (ctx && ctx.logger) {
-            ctx.logger.info('News', 'RSS disabled (NEWS_RSS_ENABLED!=1)');
-        }
-        return null;
-    }
+    schedulerCtx = ctx || null;
     if (POLL_MS <= 0) return null;
     if (ctx && ctx.logger) {
-        ctx.logger.info('News', `RSS enabled — poll every ${Math.round(POLL_MS / 1000)}s`);
+        ctx.logger.info(
+            'News',
+            `RSS scheduler ready (poll every ${Math.round(POLL_MS / 1000)}s, currently ${isEnabled() ? 'on' : 'off'})`
+        );
     }
-    // First poll shortly after boot
     setTimeout(() => {
+        if (!isEnabled()) return;
         pollOnce({
             onClassified: ctx && ctx.onNewsClassified
         }).catch(() => {});
     }, 8000);
     return setInterval(() => {
+        if (!isEnabled()) return;
         pollOnce({
             onClassified: ctx && ctx.onNewsClassified
         }).catch(() => {});
@@ -220,6 +235,7 @@ function startScheduler(ctx) {
 
 module.exports = {
     isEnabled,
+    setEnabled,
     getStatus,
     pollOnce,
     startScheduler,
