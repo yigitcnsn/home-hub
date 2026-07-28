@@ -86,11 +86,11 @@ function onClassification(record, quotesBySymbol = {}) {
 
     const signal = {
         id: paperStore.newId('sig'),
-        source: 'kap',
+        source: (record && record.source) || 'kap',
         stock: stock || null,
         sentiment,
         confidence: Number.isFinite(confidence) ? confidence : null,
-        summary: (record && record.summary) || '',
+        summary: (record && (record.summary || record.headline)) || '',
         reason: (record && record.reason) || '',
         disclosureId: (record && record.id) || null,
         sourceUrl: (record && record.sourceUrl) || null,

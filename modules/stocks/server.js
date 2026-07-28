@@ -7,6 +7,7 @@ const yahoo = require('./yahoo');
 const symbols = require('./symbols');
 const paper = require('./paper/engine');
 const strategy = require('./paper/strategy');
+const newsPipeline = require('./news/pipeline');
 
 const POLL_MS = Number(process.env.STOCKS_POLL_INTERVAL_MS || 60 * 1000);
 
@@ -50,7 +51,9 @@ function register(ctx) {
     }
 
     function getPaperState() {
-        return paper.getState(quotesBySymbol);
+        const state = paper.getState(quotesBySymbol);
+        state.news = newsPipeline.getStatus();
+        return state;
     }
 
     function broadcastState() {
@@ -123,6 +126,10 @@ function register(ctx) {
         } catch (err) {
             logger.warn('Stocks', `Paper KAP hook error: ${err.message || err}`);
         }
+    }
+
+    function handleNewsClassification(record) {
+        handleKapClassification(record);
     }
 
     if (typeof ctx.on === 'function') {
@@ -344,6 +351,23 @@ function register(ctx) {
         }
     });
 
+    app.get('/api/stocks/news', (req, res) => {
+        res.json(newsPipeline.getStatus());
+    });
+
+    app.post('/api/stocks/news/poll', async (req, res) => {
+        try {
+            const result = await newsPipeline.pollOnce({
+                onClassified: handleNewsClassification,
+                quotesBySymbol
+            });
+            broadcastPaperState();
+            res.json(result);
+        } catch (err) {
+            res.status(500).json({ error: err.message || String(err) });
+        }
+    });
+
     onClientConnected((ws) => {
         try {
             ws.send(JSON.stringify({ type: 'stocks_state', data: getState() }));
@@ -412,6 +436,15 @@ function register(ctx) {
                 broadcastPaperState();
                 return true;
             }
+            if (message.type === 'stocks_news_poll') {
+                newsPipeline.pollOnce({
+                    onClassified: handleNewsClassification,
+                    quotesBySymbol
+                }).then(() => broadcastPaperState()).catch((err) => {
+                    logger.warn('Stocks', `WS news poll failed: ${err.message || err}`);
+                });
+                return true;
+            }
         } catch (err) {
             logger.warn('Stocks', `WS handler error: ${err.message || err}`);
             return true;
@@ -427,6 +460,11 @@ function register(ctx) {
     setInterval(() => {
         refreshWatchlistQuotes({ force: false }).catch(() => {});
     }, POLL_MS);
+
+    newsPipeline.startScheduler({
+        logger,
+        onNewsClassified: handleNewsClassification
+    });
 
     logger.info('Stocks', `Registered (poll every ${Math.round(POLL_MS / 1000)}s, Yahoo Finance + paper trading)`);
 }
