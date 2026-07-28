@@ -6,6 +6,7 @@ const yahoo = require('../yahoo');
 const { config } = require('./config');
 const paperStore = require('./store');
 const matcher = require('./matcher');
+const signals = require('./signals');
 
 function assertBist(symbol) {
     const code = yahoo.canonicalize(symbol);
@@ -30,6 +31,7 @@ function markPortfolio(portfolio, quotesBySymbol) {
             symbol,
             qty: pos.qty,
             avgCost: pos.avgCost,
+            openedAt: pos.openedAt || null,
             mark,
             marketValue,
             unrealizedPnl: unrealized,
@@ -67,13 +69,22 @@ function getState(quotesBySymbol = {}) {
         openOrders: paperStore.getOpenOrders(),
         orders: paperStore.getOrders().slice(0, 100),
         fills: paperStore.getFills().slice(0, 100),
+        autoTrade: signals.getSettings().autoTrade,
+        signals: signals.getSignals().slice(0, 50),
         config: {
             startingCashTry: config.startingCashTry,
             minFillDelayMs: config.minFillDelayMs,
             halfSpread: config.halfSpread,
             feeRate: config.feeRate,
             dailyLimitPct: config.dailyLimitPct,
-            orderTtlMs: config.orderTtlMs
+            orderTtlMs: config.orderTtlMs,
+            confidenceMin: config.confidenceMin,
+            positionPct: config.positionPct,
+            maxSymbolPct: config.maxSymbolPct,
+            cooldownMs: config.cooldownMs,
+            takeProfitPct: config.takeProfitPct,
+            stopLossPct: config.stopLossPct,
+            maxHoldMs: config.maxHoldMs
         },
         disclaimer: 'Paper trading only. Not investment advice. Delayed Yahoo marks; soft daily-limit friction.'
     };
@@ -158,7 +169,18 @@ function symbolsOfInterest() {
     paperStore.getOpenOrders().forEach((o) => {
         if (o && o.symbol) set.add(o.symbol);
     });
+    try {
+        signals.getSignals().slice(0, 30).forEach((s) => {
+            if (s && s.action === 'buy_pending_quote' && s.stock) set.add(s.stock);
+        });
+    } catch (_) {
+        /* ignore */
+    }
     return [...set];
+}
+
+function setAutoTrade(enabled) {
+    return signals.setAutoTrade(enabled);
 }
 
 module.exports = {
@@ -168,5 +190,6 @@ module.exports = {
     reset,
     runMatch,
     symbolsOfInterest,
-    markPortfolio
+    markPortfolio,
+    setAutoTrade
 };

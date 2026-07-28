@@ -6,6 +6,7 @@ const store = require('./store');
 const yahoo = require('./yahoo');
 const symbols = require('./symbols');
 const paper = require('./paper/engine');
+const strategy = require('./paper/strategy');
 
 const POLL_MS = Number(process.env.STOCKS_POLL_INTERVAL_MS || 60 * 1000);
 
@@ -85,6 +86,8 @@ function register(ctx) {
     async function runPaperMatch({ broadcast = true } = {}) {
         try {
             await ensurePaperQuotes({ force: false });
+            strategy.flushPendingBuys(quotesBySymbol);
+            strategy.evaluateExits(quotesBySymbol);
             const result = paper.runMatch(quotesBySymbol);
             if (broadcast) broadcastPaperState();
             return result;
@@ -92,6 +95,38 @@ function register(ctx) {
             logger.warn('Stocks', `Paper match failed: ${err.message || err}`);
             return null;
         }
+    }
+
+    function handleKapClassification(record) {
+        try {
+            const stock = record && record.stock;
+            const run = async () => {
+                if (stock) {
+                    try {
+                        const quotes = await yahoo.getQuotes([stock], { force: false });
+                        mergeQuotes(quotes);
+                    } catch (_) {
+                        /* ignore */
+                    }
+                }
+                const out = strategy.onClassification(record, quotesBySymbol);
+                if (out && out.order) {
+                    logger.info('Stocks', `Paper auto order: ${out.order.side} ${out.order.symbol} (${out.signal && out.signal.detail})`);
+                } else if (out && out.skipped) {
+                    logger.info('Stocks', `Paper signal skipped: ${out.skipped}`);
+                }
+                broadcastPaperState();
+            };
+            run().catch((err) => {
+                logger.warn('Stocks', `Paper KAP hook failed: ${err.message || err}`);
+            });
+        } catch (err) {
+            logger.warn('Stocks', `Paper KAP hook error: ${err.message || err}`);
+        }
+    }
+
+    if (typeof ctx.on === 'function') {
+        ctx.on('kap_classified', handleKapClassification);
     }
 
     async function refreshWatchlistQuotes({ force = false, broadcast = true } = {}) {
@@ -297,6 +332,18 @@ function register(ctx) {
         }
     });
 
+    app.post('/api/stocks/paper/auto', (req, res) => {
+        try {
+            const body = req.body || {};
+            const enabled = body.enabled != null ? !!body.enabled : body.autoTrade != null ? !!body.autoTrade : true;
+            paper.setAutoTrade(enabled);
+            broadcastPaperState();
+            res.json({ ok: true, autoTrade: enabled, paper: getPaperState() });
+        } catch (err) {
+            res.status(400).json({ error: err.message || String(err) });
+        }
+    });
+
     onClientConnected((ws) => {
         try {
             ws.send(JSON.stringify({ type: 'stocks_state', data: getState() }));
@@ -355,6 +402,14 @@ function register(ctx) {
                 runPaperMatch({ broadcast: true }).catch((err) => {
                     logger.warn('Stocks', `WS paper match failed: ${err.message || err}`);
                 });
+                return true;
+            }
+            if (message.type === 'stocks_paper_auto') {
+                const enabled = message.enabled != null
+                    ? !!message.enabled
+                    : message.autoTrade != null ? !!message.autoTrade : true;
+                paper.setAutoTrade(enabled);
+                broadcastPaperState();
                 return true;
             }
         } catch (err) {

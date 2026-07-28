@@ -74,12 +74,16 @@ function applyFillToPortfolio(portfolio, { side, symbol, qty, price, fee }) {
     if (side === 'buy') {
         const cost = notional + fee;
         next.cash = roundMoney(next.cash - cost);
-        const prev = next.positions[symbol] || { qty: 0, avgCost: 0 };
+        const prev = next.positions[symbol] || { qty: 0, avgCost: 0, openedAt: null };
         const newQty = roundShares(prev.qty + qty);
         const newAvg = newQty > 0
             ? roundMoney(((prev.qty * prev.avgCost) + notional) / newQty)
             : 0;
-        next.positions[symbol] = { qty: newQty, avgCost: newAvg };
+        next.positions[symbol] = {
+            qty: newQty,
+            avgCost: newAvg,
+            openedAt: prev.openedAt || new Date().toISOString()
+        };
     } else {
         const proceeds = notional - fee;
         next.cash = roundMoney(next.cash + proceeds);

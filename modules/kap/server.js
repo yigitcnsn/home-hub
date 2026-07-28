@@ -123,7 +123,17 @@ function register(ctx) {
     function classifyTextForDisclosure(disclosure) {
         const subject = disclosure.subject || disclosure.title || '';
         const summary = disclosure.summary || '';
-        return `Konu: ${subject}\nÖzet: ${summary}`.trim();
+        const company = disclosure.company || '';
+        const type = disclosure.type || '';
+        const stock = disclosure.stock || '';
+        const parts = [
+            stock ? `Hisse: ${stock}` : '',
+            company ? `Şirket: ${company}` : '',
+            type ? `Tür: ${type}` : '',
+            subject ? `Konu: ${subject}` : '',
+            summary ? `Özet: ${summary}` : ''
+        ].filter(Boolean);
+        return parts.join('\n').trim();
     }
 
     function enqueueClassify(payload) {
@@ -201,6 +211,9 @@ function register(ctx) {
             job.error = null;
             lastError = null;
             logger.info('KAP', `Classify job ${job.id} done: ${record.sentiment}`);
+            if (typeof ctx.emit === 'function') {
+                ctx.emit('kap_classified', record);
+            }
         } catch (err) {
             job.status = 'error';
             job.error = err.message || String(err);

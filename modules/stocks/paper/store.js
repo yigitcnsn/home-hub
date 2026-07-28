@@ -89,6 +89,11 @@ function resetPortfolio(startingCash) {
     writeJson(PORTFOLIO_FILE, fresh);
     writeJson(ORDERS_FILE, []);
     writeJson(FILLS_FILE, []);
+    try {
+        require('./signals').resetStrategyState();
+    } catch (_) {
+        /* signals module optional at first boot */
+    }
     return fresh;
 }
 
