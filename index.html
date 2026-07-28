@@ -109,6 +109,13 @@
                 </div>
             </section>
 
+            <!-- Stocks module page -->
+            <section class="module-page stocks-view" id="stocksView" data-view-panel="stocks" hidden>
+                <div id="stocksViewBody">
+                    <div class="stocks-empty">Loading Stocks…</div>
+                </div>
+            </section>
+
             <!-- Activity Monitor module page -->
             <section class="module-page monitor-view" id="monitorView" data-view-panel="monitor" hidden>
                 <div id="monitorViewBody">
@@ -139,6 +146,7 @@
                         <option value="speed_test">Speed Test</option>
                         <option value="kap_digest">KAP Digest</option>
                         <option value="kap_watchlist">KAP Watchlist</option>
+                        <option value="stocks_watchlist">Stocks Watchlist</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -173,6 +181,7 @@
     <script src="modules/system/client.js"></script>
     <script src="modules/network/client.js"></script>
     <script src="modules/kap/client.js"></script>
+    <script src="modules/stocks/client.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/module-manager.js"></script>
     <script src="js/logging.js"></script>

@@ -6,3 +6,6 @@ logs/
 .DS_Store
 ssh
 package-lock.json
+
+
+.cursor/

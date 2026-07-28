@@ -5,11 +5,13 @@
 const activity = require('./activity/server');
 const network = require('./network/server');
 const kap = require('./kap/server');
+const stocks = require('./stocks/server');
 
 const modules = [
     activity,
     network,
-    kap
+    kap,
+    stocks
 ];
 
 function registerAll(ctx) {

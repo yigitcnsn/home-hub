@@ -26,6 +26,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 │  Home       │                                      │
 │  Logs       │   widgets  /  module page content    │
 │  KAP        │                                      │
+│  Stocks     │                                      │
 │  Monitor    │                                      │
 │  Network    │                                      │
 │             │                                      │
@@ -36,8 +37,8 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Logs · KAP · Monitor · Network |
-| **Home** | Widget grid: System Monitor, Speed Test, KAP Digest, KAP Watchlist |
+| **Sidebar** | App modules (pages): Home · Logs · KAP · Stocks · Monitor · Network |
+| **Home** | Widget grid: System Monitor, Speed Test, KAP Digest, KAP Watchlist, Stocks Watchlist |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
 New server features go in `modules/<name>/` (`server.js` + `client.js`). Core UI lives under `js/`.
@@ -55,6 +56,7 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload + Run on Home only
 - **KAP** — Borsa İstanbul disclosures: editable watchlist, hourly scrape, daily digest, Ollama sentiment (sidebar + Home widget)
+- **Stocks** — Yahoo Finance quotes (no API key): separate watchlist, BIST browse, simple charts; Home watchlist widget; ~60s poll
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
@@ -92,6 +94,17 @@ cd ~/home-hub && npm start
 ```
 
 Sidebar **KAP**: editable watchlist, daily digest, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Home widgets: **KAP Digest** (today’s counts) and **KAP Watchlist** (add/remove tickers). Watchlist persists under `data/kap/watchlist.json` (seeded from `KAP_WATCHLIST`). Auto-scrape runs once per hour.
+
+### Stocks module
+
+Yahoo Finance quotes (no API key). Watchlist is **separate** from KAP (`data/stocks/watchlist.json`, seeded from `STOCKS_WATCHLIST`). Sidebar **Stocks**: watchlist prices, BIST browse/search, detail chart. Home widget: **Stocks Watchlist**. Quotes refresh about every **60s**.
+
+```bash
+export STOCKS_WATCHLIST=THYAO,ASELS
+# optional: STOCKS_POLL_INTERVAL_MS=60000
+```
+
+> Not investment advice. Data is delayed / unofficial Yahoo endpoints.
 
 ---
 
@@ -151,6 +164,7 @@ flowchart LR
     D[modules/activity]
     E[modules/network]
     F[modules/kap]
+    F2[modules/stocks]
     G[lib/logger]
     H[(data/dashboard-state.json)]
   end
@@ -160,6 +174,7 @@ flowchart LR
   B --> D
   B --> E
   B --> F
+  B --> F2
   B --> G
   B --> H
   G --> I[(logs/home-hub.log)]
@@ -183,6 +198,7 @@ flowchart LR
 | **Speed Test** | Compact down / up + Run |
 | **KAP Digest** | Today’s filing count + good / bad / other |
 | **KAP Watchlist** | Tickers with sentiment; add / remove |
+| **Stocks Watchlist** | Yahoo prices + change %; add / remove |
 
 **Sizes:** Small `1×1` (circular) · Medium `2×1` · Large `2×2`  
 System Monitor always spans the full row.
@@ -198,7 +214,7 @@ home-hub/
 ├── script.js                  # Boots ModuleManager only
 ├── server.js                  # Express + WebSocket + system stats
 ├── start.sh                   # Launch / --bg / --watch supervisor
-├── .env.example               # KAP + Ollama + watch interval
+├── .env.example               # KAP + Stocks + Ollama + watch interval
 ├── CONTRACT.md                # KAP ↔ Ollama / pi-llm
 ├── js/                        # Client core (mixins)
 │   ├── module-manager.js      # CRUD, nav, DnD, theme, clock
@@ -214,11 +230,12 @@ home-hub/
 │   └── build-id.js
 ├── modules/
 │   ├── index.js               # Server module registry
-│   ├── activity/              # Logs page
-│   ├── system/                # Activity Monitor page (client)
-│   ├── network/               # Analyzer page + Speed Test widget
-│   └── kap/                   # KAP scrape / classify / store
-├── data/                      # Runtime (gitignored): dashboard-state, kap/, flags
+│   ├── activity/              # Activity Monitor page
+│   ├── system/                # System Monitor widget registration
+│   ├── network/               # Network page + Speed Test widget
+│   ├── kap/                   # KAP scrape / classify / store
+│   └── stocks/                # Yahoo quotes / watchlist / charts
+├── data/                      # Runtime (gitignored): dashboard-state, kap/, stocks/, flags
 └── logs/                      # Runtime (gitignored): home-hub.log, system-metrics.log
 ```
 
@@ -236,6 +253,8 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `KAP_WATCHLIST` | Comma-separated tickers (e.g. `THYAO,ASELS`) |
 | `KAP_PROMPT_PATH` | Sentiment prompt file |
 | `KAP_POLL_INTERVAL_MS` | Scheduled scrape interval (default **1 hour** / `3600000`) |
+| `STOCKS_WATCHLIST` | Seed tickers for Stocks module (e.g. `THYAO,ASELS`) — separate from KAP |
+| `STOCKS_POLL_INTERVAL_MS` | Quote refresh interval (default **60s** / `60000`) |
 | `HOMEHUB_WATCH_SECONDS` | Watch-mode fetch interval (default `60`) |
 | `PORT` | HTTP port (default `3000`) |
 
@@ -260,6 +279,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `POST` | `/api/kap/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
 | `POST` | `/api/kap/scrape` | `{ mode: 'watchlist' \| 'general' }` |
 | `POST` | `/api/kap/classify` | Paste text or `disclosureId` |
+| `GET` | `/api/stocks` | Stocks state (watchlist + quotes) |
+| `POST` | `/api/stocks/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
+| `GET` | `/api/stocks/quote` | `?symbols=THYAO,ASELS` |
+| `GET` | `/api/stocks/search` | `?q=` BIST browse / direct symbol |
+| `GET` | `/api/stocks/chart` | `?symbol=THYAO&range=1mo` OHLCV |
+| `POST` | `/api/stocks/refresh` | Force watchlist quote refresh |
 
 </details>
 
@@ -276,6 +301,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `logs_snapshot` / `log_entry` | Log stream |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
 | `kap_state` | KAP updates |
+| `stocks_state` | Stocks watchlist + quotes |
 | `ping` | Keep-alive |
 
 **Client → server**
@@ -290,6 +316,8 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `refresh_network_snapshot` | Refresh interfaces / LAN / Wi‑Fi |
 | `kap_scrape` / `kap_classify` | KAP jobs |
 | `kap_watchlist_add` / `kap_watchlist_remove` | Edit watchlist |
+| `stocks_watchlist_add` / `stocks_watchlist_remove` | Edit Stocks watchlist |
+| `stocks_refresh` | Force Yahoo quote refresh |
 
 </details>
 
