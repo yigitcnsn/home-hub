@@ -118,6 +118,30 @@
         return postWatchlist('remove', { code });
     }
 
+    function loadBrowseQuotes(codes) {
+        const list = (codes || []).filter(Boolean).slice(0, 30);
+        if (!list.length) return Promise.resolve();
+        const missing = list.filter((code) => {
+            const q = quoteFor(code);
+            return !q || q.price == null;
+        });
+        if (!missing.length) {
+            renderPage();
+            return Promise.resolve();
+        }
+        return fetch(`/api/stocks/quote?symbols=${encodeURIComponent(missing.join(','))}`)
+            .then((r) => r.json())
+            .then((data) => {
+                const quotes = data.quotes || [];
+                state.quotesBySymbol = state.quotesBySymbol || {};
+                quotes.forEach((q) => {
+                    if (q && q.symbol) state.quotesBySymbol[q.symbol] = q;
+                });
+                renderPage();
+            })
+            .catch(() => {});
+    }
+
     function loadSearch(q) {
         const query = String(q || '').trim();
         searchQuery = query;
@@ -126,6 +150,7 @@
             .then((data) => {
                 searchResults = data.results || [];
                 renderPage();
+                return loadBrowseQuotes(searchResults.map((item) => item.code));
             })
             .catch(() => {
                 searchResults = [];
@@ -242,11 +267,15 @@
     function browseSection() {
         const items = (searchResults || []).map((item) => {
             const watched = (state.watchlist || []).includes(item.code);
+            const q = quoteFor(item.code);
+            const chg = formatChange(q);
             return `
                 <div class="stocks-browse-row" data-stocks-select="${esc(item.code)}">
                     <div class="stocks-browse-main">
                         <span class="stocks-wl-code">${esc(item.code)}</span>
                         <span class="stocks-browse-name">${esc(item.name || '')}</span>
+                        <span class="stocks-wl-price">${esc(formatPrice(q))}</span>
+                        <span class="stocks-wl-change ${changeClass(q)}">${esc(chg || '…')}</span>
                     </div>
                     <button type="button" class="kap-mini-btn" data-stocks-add="${esc(item.code)}" ${watched ? 'disabled' : ''}>
                         ${watched ? 'Watching' : 'Add'}
@@ -488,7 +517,12 @@
     }
 
     function applyState(incoming) {
+        const prevQuotes = state.quotesBySymbol || {};
         state = { ...state, ...incoming };
+        state.quotesBySymbol = {
+            ...prevQuotes,
+            ...(incoming.quotesBySymbol || {})
+        };
         renderPage();
         syncWidgets();
     }
