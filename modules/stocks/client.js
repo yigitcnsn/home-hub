@@ -51,13 +51,14 @@
         });
     }
 
-    function formatPrice(q) {
+    function formatPrice(q, { compact = false } = {}) {
         if (!q || q.price == null || Number.isNaN(Number(q.price))) return '—';
         const n = Number(q.price);
-        const cur = q.currency || '';
         const formatted = n >= 1000
             ? n.toLocaleString(undefined, { maximumFractionDigits: 2 })
             : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (compact) return formatted;
+        const cur = q.currency || '';
         return cur ? `${formatted} ${cur}` : formatted;
     }
 
@@ -74,6 +75,21 @@
         if (n > 0) return 'is-up';
         if (n < 0) return 'is-down';
         return 'is-flat';
+    }
+
+    function changeBadge(q) {
+        const chg = formatChange(q);
+        if (!chg) return '<span class="stocks-chg stocks-chg-pending">…</span>';
+        return `<span class="stocks-chg ${changeClass(q)}">${esc(chg)}</span>`;
+    }
+
+    function marketLabel(q) {
+        const s = String((q && q.marketState) || '').toUpperCase();
+        if (s === 'REGULAR' || s === 'OPEN') return { text: 'Market open', cls: 'is-live' };
+        if (s === 'PRE' || s === 'PREPRE') return { text: 'Pre-market', cls: 'is-session' };
+        if (s === 'POST' || s === 'POSTPOST') return { text: 'After hours', cls: 'is-session' };
+        if (s) return { text: 'Market closed', cls: 'is-closed' };
+        return { text: 'Delayed feed', cls: 'is-session' };
     }
 
     function quoteFor(code) {
@@ -202,62 +218,103 @@
         if (bars.length < 2) {
             return '<div class="stocks-empty">Not enough history for a chart</div>';
         }
-        const w = 640;
-        const h = 220;
-        const pad = { t: 12, r: 12, b: 24, l: 48 };
+        const w = 720;
+        const h = 260;
+        const pad = { t: 16, r: 16, b: 28, l: 52 };
         const prices = bars.map((b) => b.c);
         let min = Math.min(...prices);
         let max = Math.max(...prices);
-        if (min === max) {
-            min -= 1;
-            max += 1;
-        }
+        const padY = (max - min) * 0.08 || 1;
+        min -= padY;
+        max += padY;
         const innerW = w - pad.l - pad.r;
         const innerH = h - pad.t - pad.b;
-        const points = bars.map((b, i) => {
+        const coords = bars.map((b, i) => {
             const x = pad.l + (i / (bars.length - 1)) * innerW;
             const y = pad.t + (1 - (b.c - min) / (max - min)) * innerH;
-            return `${x.toFixed(1)},${y.toFixed(1)}`;
-        }).join(' ');
-        const first = bars[0].c;
-        const last = bars[bars.length - 1].c;
-        const up = last >= first;
-        const stroke = up ? 'var(--success)' : 'var(--danger)';
+            return { x, y };
+        });
+        const linePoints = coords.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        const first = coords[0];
+        const last = coords[coords.length - 1];
+        const areaPoints = [
+            `${first.x.toFixed(1)},${(pad.t + innerH).toFixed(1)}`,
+            linePoints,
+            `${last.x.toFixed(1)},${(pad.t + innerH).toFixed(1)}`
+        ].join(' ');
+        const up = bars[bars.length - 1].c >= bars[0].c;
+        const tone = up ? 'up' : 'down';
+        const mid = (min + max) / 2;
+        const yMid = pad.t + (1 - (mid - min) / (max - min)) * innerH;
         return `
-            <svg class="stocks-chart-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Price chart">
-                <line class="stocks-chart-grid" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h - pad.b}" />
-                <line class="stocks-chart-grid" x1="${pad.l}" y1="${h - pad.b}" x2="${w - pad.r}" y2="${h - pad.b}" />
-                <text class="stocks-chart-label" x="4" y="${pad.t + 4}">${esc(max.toFixed(2))}</text>
-                <text class="stocks-chart-label" x="4" y="${h - pad.b}">${esc(min.toFixed(2))}</text>
-                <polyline fill="none" stroke="${stroke}" stroke-width="2" points="${points}" />
+            <svg class="stocks-chart-svg stocks-chart-${tone}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Price chart">
+                <defs>
+                    <linearGradient id="stocksFill${tone}" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" class="stocks-chart-fill-top" />
+                        <stop offset="100%" class="stocks-chart-fill-bottom" />
+                    </linearGradient>
+                </defs>
+                <line class="stocks-chart-grid" x1="${pad.l}" y1="${pad.t}" x2="${w - pad.r}" y2="${pad.t}" />
+                <line class="stocks-chart-grid" x1="${pad.l}" y1="${yMid.toFixed(1)}" x2="${w - pad.r}" y2="${yMid.toFixed(1)}" />
+                <line class="stocks-chart-grid" x1="${pad.l}" y1="${pad.t + innerH}" x2="${w - pad.r}" y2="${pad.t + innerH}" />
+                <polygon class="stocks-chart-area" fill="url(#stocksFill${tone})" points="${areaPoints}" />
+                <polyline class="stocks-chart-line" fill="none" points="${linePoints}" />
+                <circle class="stocks-chart-dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" />
+                <text class="stocks-chart-label" x="8" y="${pad.t + 6}">${esc(max.toFixed(2))}</text>
+                <text class="stocks-chart-label" x="8" y="${yMid.toFixed(1)}">${esc(mid.toFixed(2))}</text>
+                <text class="stocks-chart-label" x="8" y="${pad.t + innerH}">${esc(min.toFixed(2))}</text>
             </svg>
         `;
     }
 
     function watchlistSection() {
-        const rows = (state.watchlist || []).map((code) => {
+        const codes = state.watchlist || [];
+        let up = 0;
+        let down = 0;
+        codes.forEach((code) => {
             const q = quoteFor(code);
-            const chg = formatChange(q);
+            if (!q || q.changePercent == null) return;
+            if (q.changePercent > 0) up += 1;
+            else if (q.changePercent < 0) down += 1;
+        });
+
+        const rows = codes.map((code) => {
+            const q = quoteFor(code);
+            const selected = selectedSymbol === code ? ' is-selected' : '';
             return `
-                <div class="stocks-wl-row" data-stocks-select="${esc(code)}">
-                    <div class="stocks-wl-main">
+                <div class="stocks-row stocks-wl-row${selected}" data-stocks-select="${esc(code)}">
+                    <div class="stocks-row-left">
                         <span class="stocks-wl-code">${esc(code)}</span>
-                        <span class="stocks-wl-price">${esc(formatPrice(q))}</span>
-                        <span class="stocks-wl-change ${changeClass(q)}">${esc(chg)}</span>
+                        <span class="stocks-row-sub">${esc((q && q.shortName) || 'BIST')}</span>
                     </div>
-                    <button type="button" class="kap-mini-btn stocks-wl-remove" data-stocks-remove="${esc(code)}">Remove</button>
+                    <div class="stocks-row-right">
+                        <span class="stocks-wl-price">${esc(formatPrice(q, { compact: true }))}</span>
+                        ${changeBadge(q)}
+                        <button type="button" class="stocks-icon-btn" data-stocks-remove="${esc(code)}" title="Remove" aria-label="Remove ${esc(code)}">×</button>
+                    </div>
                 </div>
             `;
-        }).join('') || '<div class="stocks-empty">Watchlist is empty — add tickers below or from Browse</div>';
+        }).join('') || `
+            <div class="stocks-empty-panel">
+                <div class="stocks-empty-title">No tickers yet</div>
+                <div class="stocks-empty-copy">Add symbols below or pick from Browse.</div>
+            </div>
+        `;
 
         return `
-            <section class="stocks-section">
-                <h3 class="stocks-section-title">Watchlist</h3>
+            <section class="stocks-section stocks-panel">
+                <div class="stocks-section-head">
+                    <h3 class="stocks-section-title">Watchlist</h3>
+                    <div class="stocks-section-meta">
+                        <span>${codes.length} symbol${codes.length === 1 ? '' : 's'}</span>
+                        ${codes.length ? `<span class="stocks-mini-up">${up}↑</span><span class="stocks-mini-down">${down}↓</span>` : ''}
+                    </div>
+                </div>
                 <div class="stocks-wl-rows">${rows}</div>
                 <div class="stocks-watchlist-edit">
-                    <input type="text" id="stocksWatchlistInput" class="kap-input" placeholder="Add tickers e.g. THYAO, ASELS" maxlength="64" autocomplete="off" />
-                    <button type="button" class="network-run-btn" id="stocksWatchlistAddBtn">Add</button>
-                    <button type="button" class="network-run-btn stocks-secondary-btn" id="stocksRefreshBtn">Refresh</button>
+                    <input type="text" id="stocksWatchlistInput" class="stocks-input" placeholder="Add THYAO, ASELS…" maxlength="64" autocomplete="off" />
+                    <button type="button" class="stocks-btn" id="stocksWatchlistAddBtn">Add</button>
+                    <button type="button" class="stocks-btn stocks-btn-ghost" id="stocksRefreshBtn" title="Refresh quotes">↻</button>
                 </div>
                 <div class="stocks-meta-line">Updated ${esc(formatWhen(state.lastRefreshAt))}${state.refreshing ? ' · refreshing…' : ''}</div>
             </section>
@@ -268,27 +325,32 @@
         const items = (searchResults || []).map((item) => {
             const watched = (state.watchlist || []).includes(item.code);
             const q = quoteFor(item.code);
-            const chg = formatChange(q);
+            const selected = selectedSymbol === item.code ? ' is-selected' : '';
             return `
-                <div class="stocks-browse-row" data-stocks-select="${esc(item.code)}">
-                    <div class="stocks-browse-main">
+                <div class="stocks-row stocks-browse-row${selected}" data-stocks-select="${esc(item.code)}">
+                    <div class="stocks-row-left">
                         <span class="stocks-wl-code">${esc(item.code)}</span>
-                        <span class="stocks-browse-name">${esc(item.name || '')}</span>
-                        <span class="stocks-wl-price">${esc(formatPrice(q))}</span>
-                        <span class="stocks-wl-change ${changeClass(q)}">${esc(chg || '…')}</span>
+                        <span class="stocks-row-sub">${esc(item.name || '')}</span>
                     </div>
-                    <button type="button" class="kap-mini-btn" data-stocks-add="${esc(item.code)}" ${watched ? 'disabled' : ''}>
-                        ${watched ? 'Watching' : 'Add'}
-                    </button>
+                    <div class="stocks-row-right">
+                        <span class="stocks-wl-price">${esc(formatPrice(q, { compact: true }))}</span>
+                        ${changeBadge(q)}
+                        <button type="button" class="stocks-btn stocks-btn-tiny" data-stocks-add="${esc(item.code)}" ${watched ? 'disabled' : ''}>
+                            ${watched ? '✓' : '+'}
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('') || '<div class="stocks-empty">No matches</div>';
 
         return `
-            <section class="stocks-section">
-                <h3 class="stocks-section-title">Browse</h3>
-                <div class="stocks-watchlist-edit">
-                    <input type="text" id="stocksSearchInput" class="kap-input" placeholder="Search BIST e.g. THYAO or Garanti" maxlength="48" autocomplete="off" value="${esc(searchQuery)}" />
+            <section class="stocks-section stocks-panel">
+                <div class="stocks-section-head">
+                    <h3 class="stocks-section-title">Browse</h3>
+                    <div class="stocks-section-meta">BIST</div>
+                </div>
+                <div class="stocks-search-wrap">
+                    <input type="text" id="stocksSearchInput" class="stocks-input" placeholder="Search code or name…" maxlength="48" autocomplete="off" value="${esc(searchQuery)}" />
                 </div>
                 <div class="stocks-browse-list">${items}</div>
             </section>
@@ -298,39 +360,51 @@
     function detailSection() {
         if (!selectedSymbol) {
             return `
-                <section class="stocks-section stocks-detail">
-                    <h3 class="stocks-section-title">Detail</h3>
-                    <div class="stocks-empty">Select a symbol from Watchlist or Browse</div>
+                <section class="stocks-section stocks-panel stocks-detail stocks-detail-empty">
+                    <div class="stocks-detail-placeholder">
+                        <div class="stocks-detail-placeholder-mark">↗</div>
+                        <div class="stocks-empty-title">Pick a symbol</div>
+                        <div class="stocks-empty-copy">Select from your watchlist or browse BIST to open the chart.</div>
+                    </div>
                 </section>
             `;
         }
         const q = quoteFor(selectedSymbol) || (chartData && chartData.meta) || {};
         const watched = (state.watchlist || []).includes(selectedSymbol);
+        const market = marketLabel(q);
         const rangeTabs = CHART_RANGES.map((r) => `
             <button type="button" class="stocks-range-btn${chartRange === r.id ? ' is-active' : ''}" data-stocks-range="${esc(r.id)}">${esc(r.label)}</button>
         `).join('');
 
-        let chartBody = '<div class="stocks-empty">Loading chart…</div>';
-        if (chartLoading) chartBody = '<div class="stocks-empty">Loading chart…</div>';
+        let chartBody = '<div class="stocks-chart-loading"><span></span><span></span><span></span></div>';
+        if (chartLoading) chartBody = '<div class="stocks-chart-loading"><span></span><span></span><span></span></div>';
         else if (chartError) chartBody = `<div class="stocks-banner stocks-banner-error">${esc(chartError)}</div>`;
         else if (chartData) chartBody = buildSvgChart(chartData);
 
+        const absChange = (q.change != null && !Number.isNaN(Number(q.change)))
+            ? `${Number(q.change) > 0 ? '+' : ''}${Number(q.change).toFixed(2)}`
+            : '';
+
         return `
-            <section class="stocks-section stocks-detail">
+            <section class="stocks-section stocks-panel stocks-detail">
                 <div class="stocks-detail-head">
-                    <div>
-                        <h3 class="stocks-section-title">${esc(selectedSymbol)}</h3>
-                        <div class="stocks-detail-name">${esc(q.shortName || '')}</div>
+                    <div class="stocks-detail-identity">
+                        <div class="stocks-detail-code">${esc(selectedSymbol)}</div>
+                        <div class="stocks-detail-name">${esc(q.shortName || itemName(selectedSymbol) || '')}</div>
+                        <div class="stocks-session ${esc(market.cls)}"><span class="stocks-session-dot"></span>${esc(market.text)}</div>
                     </div>
-                    <div class="stocks-detail-quote">
+                    <div class="stocks-detail-quote ${changeClass(q)}">
                         <div class="stocks-detail-price">${esc(formatPrice(q))}</div>
-                        <div class="stocks-wl-change ${changeClass(q)}">${esc(formatChange(q))}</div>
+                        <div class="stocks-detail-delta">
+                            ${absChange ? `<span class="stocks-detail-abs">${esc(absChange)}</span>` : ''}
+                            ${changeBadge(q)}
+                        </div>
                     </div>
                 </div>
                 <div class="stocks-range-tabs">${rangeTabs}</div>
                 <div class="stocks-chart-wrap">${chartBody}</div>
                 <div class="stocks-detail-actions">
-                    <button type="button" class="network-run-btn" data-stocks-add="${esc(selectedSymbol)}" ${watched ? 'disabled' : ''}>
+                    <button type="button" class="stocks-btn" data-stocks-add="${esc(selectedSymbol)}" ${watched ? 'disabled' : ''}>
                         ${watched ? 'On watchlist' : 'Add to watchlist'}
                     </button>
                 </div>
@@ -338,33 +412,60 @@
         `;
     }
 
+    function itemName(code) {
+        const hit = (searchResults || []).find((r) => r.code === code);
+        return hit ? hit.name : '';
+    }
+
     function renderPage() {
         const root = document.getElementById('stocksViewBody');
         if (!root) return;
+        const active = document.activeElement;
+        const focusId = active && (active.id === 'stocksSearchInput' || active.id === 'stocksWatchlistInput')
+            ? active.id
+            : null;
+        const selStart = focusId ? active.selectionStart : null;
+        const selEnd = focusId ? active.selectionEnd : null;
+
         const err = state.lastError
             ? `<div class="stocks-banner stocks-banner-error">${esc(state.lastError)}</div>`
             : '';
         root.innerHTML = `
             <div class="stocks-page">
-                <div class="stocks-top">
-                    <div>
-                        <div class="stocks-kicker">Yahoo Finance · delayed</div>
+                <header class="stocks-hero">
+                    <div class="stocks-hero-copy">
+                        <div class="stocks-kicker">Borsa İstanbul · Yahoo delayed</div>
                         <h2 class="stocks-title">Stocks</h2>
+                        <p class="stocks-disclaimer">${esc(state.disclaimer || '')}</p>
                     </div>
-                </div>
+                    <div class="stocks-hero-status${state.refreshing ? ' is-refreshing' : ''}">
+                        <span class="stocks-live-dot"></span>
+                        <span>${state.refreshing ? 'Refreshing' : 'Live poll'}</span>
+                        <span class="stocks-hero-time">${esc(formatWhen(state.lastRefreshAt))}</span>
+                    </div>
+                </header>
                 ${err}
-                <p class="stocks-disclaimer">${esc(state.disclaimer || '')}</p>
                 <div class="stocks-layout">
-                    <div class="stocks-col">
+                    <div class="stocks-col stocks-col-side">
                         ${watchlistSection()}
                         ${browseSection()}
                     </div>
-                    <div class="stocks-col">
+                    <div class="stocks-col stocks-col-main">
                         ${detailSection()}
                     </div>
                 </div>
             </div>
         `;
+
+        if (focusId) {
+            const el = document.getElementById(focusId);
+            if (el) {
+                el.focus();
+                if (typeof el.setSelectionRange === 'function' && selStart != null) {
+                    try { el.setSelectionRange(selStart, selEnd); } catch (_) { /* ignore */ }
+                }
+            }
+        }
     }
 
     function bindPage(manager) {
@@ -577,9 +678,9 @@
             return `
                 <div class="stocks-widget-row">
                     <span class="stocks-wl-code">${esc(code)}</span>
-                    <span class="stocks-wl-price">${esc(formatPrice(q))}</span>
-                    <span class="stocks-wl-change ${changeClass(q)}">${esc(formatChange(q))}</span>
-                    <button type="button" class="kap-chip-remove" data-stocks-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>
+                    <span class="stocks-wl-price">${esc(formatPrice(q, { compact: true }))}</span>
+                    ${changeBadge(q)}
+                    <button type="button" class="stocks-icon-btn" data-stocks-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>
                 </div>
             `;
         }).join('') || '<div class="stocks-empty">Add a ticker</div>';
@@ -587,9 +688,9 @@
         return `
             <div class="stocks-watchlist-widget">
                 <div class="stocks-widget-rows">${rows}</div>
-                <div class="kap-wl-add">
-                    <input type="text" class="kap-widget-input" data-stocks-add-input placeholder="THYAO" maxlength="12" autocomplete="off" draggable="false" />
-                    <button type="button" class="kap-widget-add-btn" data-stocks-add-btn>Add</button>
+                <div class="stocks-widget-add">
+                    <input type="text" class="stocks-input stocks-input-sm" data-stocks-add-input placeholder="THYAO" maxlength="12" autocomplete="off" draggable="false" />
+                    <button type="button" class="stocks-btn stocks-btn-tiny" data-stocks-add-btn>+</button>
                 </div>
             </div>
         `;
