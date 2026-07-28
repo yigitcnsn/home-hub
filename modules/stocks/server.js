@@ -5,6 +5,7 @@
 const store = require('./store');
 const yahoo = require('./yahoo');
 const symbols = require('./symbols');
+const paper = require('./paper/engine');
 
 const POLL_MS = Number(process.env.STOCKS_POLL_INTERVAL_MS || 60 * 1000);
 
@@ -47,6 +48,10 @@ function register(ctx) {
         };
     }
 
+    function getPaperState() {
+        return paper.getState(quotesBySymbol);
+    }
+
     function broadcastState() {
         broadcastToAll({
             type: 'stocks_state',
@@ -54,34 +59,67 @@ function register(ctx) {
         });
     }
 
+    function broadcastPaperState() {
+        broadcastToAll({
+            type: 'stocks_paper_state',
+            data: getPaperState()
+        });
+    }
+
+    function mergeQuotes(list) {
+        (list || []).forEach((q) => {
+            if (q && q.symbol && q.price != null) quotesBySymbol[q.symbol] = q;
+        });
+    }
+
+    async function ensurePaperQuotes({ force = false } = {}) {
+        const needed = paper.symbolsOfInterest().filter((code) => {
+            const q = quotesBySymbol[code];
+            return !q || q.price == null;
+        });
+        if (!needed.length) return;
+        const results = await yahoo.getQuotes(needed, { force });
+        mergeQuotes(results);
+    }
+
+    async function runPaperMatch({ broadcast = true } = {}) {
+        try {
+            await ensurePaperQuotes({ force: false });
+            const result = paper.runMatch(quotesBySymbol);
+            if (broadcast) broadcastPaperState();
+            return result;
+        } catch (err) {
+            logger.warn('Stocks', `Paper match failed: ${err.message || err}`);
+            return null;
+        }
+    }
+
     async function refreshWatchlistQuotes({ force = false, broadcast = true } = {}) {
         if (refreshing) return getState();
         refreshing = true;
         try {
             const watchlist = store.getWatchlist();
-            if (!watchlist.length) {
-                quotesBySymbol = {};
-                lastRefreshAt = new Date().toISOString();
-                lastError = null;
-                if (broadcast) broadcastState();
-                return getState();
-            }
-            const results = await yahoo.getQuotes(watchlist, { force });
-            const next = { ...quotesBySymbol };
-            let err = null;
-            results.forEach((q) => {
-                if (!q || !q.symbol) return;
-                next[q.symbol] = q;
-                if (q.error) err = q.error;
-            });
-            quotesBySymbol = next;
-            lastRefreshAt = new Date().toISOString();
-            lastError = err;
-            if (err) {
-                logger.warn('Stocks', `Quote refresh partial/error: ${err}`);
+            if (watchlist.length) {
+                const results = await yahoo.getQuotes(watchlist, { force });
+                const next = { ...quotesBySymbol };
+                let err = null;
+                results.forEach((q) => {
+                    if (!q || !q.symbol) return;
+                    next[q.symbol] = q;
+                    if (q.error) err = q.error;
+                });
+                quotesBySymbol = next;
+                lastError = err;
+                if (err) {
+                    logger.warn('Stocks', `Quote refresh partial/error: ${err}`);
+                } else {
+                    logger.info('Stocks', `Refreshed ${results.length} quote(s)`);
+                }
             } else {
-                logger.info('Stocks', `Refreshed ${results.length} quote(s)`);
+                lastError = null;
             }
+            lastRefreshAt = new Date().toISOString();
+            await runPaperMatch({ broadcast: true });
             if (broadcast) broadcastState();
             return getState();
         } catch (err) {
@@ -198,9 +236,71 @@ function register(ctx) {
         res.json(state);
     });
 
+    app.get('/api/stocks/paper', (req, res) => {
+        res.json(getPaperState());
+    });
+
+    app.post('/api/stocks/paper/order', async (req, res) => {
+        try {
+            const body = req.body || {};
+            const order = paper.placeOrder({
+                side: body.side,
+                symbol: body.symbol || body.code,
+                qty: body.qty,
+                type: body.type,
+                limitPrice: body.limitPrice,
+                source: 'manual'
+            });
+            // Prefetch quote for the symbol so marks / future fills work.
+            try {
+                const quotes = await yahoo.getQuotes([order.symbol], { force: false });
+                mergeQuotes(quotes);
+            } catch (_) {
+                /* ignore */
+            }
+            broadcastPaperState();
+            res.status(201).json({ ok: true, order, paper: getPaperState() });
+        } catch (err) {
+            res.status(400).json({ error: err.message || String(err) });
+        }
+    });
+
+    app.post('/api/stocks/paper/cancel', (req, res) => {
+        try {
+            const body = req.body || {};
+            const order = paper.cancelOrder(body.orderId || body.id);
+            broadcastPaperState();
+            res.json({ ok: true, order, paper: getPaperState() });
+        } catch (err) {
+            res.status(400).json({ error: err.message || String(err) });
+        }
+    });
+
+    app.post('/api/stocks/paper/reset', (req, res) => {
+        try {
+            const body = req.body || {};
+            const cash = body.startingCash != null ? Number(body.startingCash) : undefined;
+            paper.reset(cash);
+            broadcastPaperState();
+            res.json({ ok: true, paper: getPaperState() });
+        } catch (err) {
+            res.status(400).json({ error: err.message || String(err) });
+        }
+    });
+
+    app.post('/api/stocks/paper/match', async (req, res) => {
+        try {
+            const result = await runPaperMatch({ broadcast: true });
+            res.json({ ok: true, matched: !!(result && result.changed), fills: (result && result.fills) || [], paper: getPaperState() });
+        } catch (err) {
+            res.status(500).json({ error: err.message || String(err) });
+        }
+    });
+
     onClientConnected((ws) => {
         try {
             ws.send(JSON.stringify({ type: 'stocks_state', data: getState() }));
+            ws.send(JSON.stringify({ type: 'stocks_paper_state', data: getPaperState() }));
         } catch (_) {
             /* ignore */
         }
@@ -225,6 +325,38 @@ function register(ctx) {
                 });
                 return true;
             }
+            if (message.type === 'stocks_paper_order') {
+                const order = paper.placeOrder({
+                    side: message.side,
+                    symbol: message.symbol || message.code,
+                    qty: message.qty,
+                    type: message.type,
+                    limitPrice: message.limitPrice,
+                    source: 'manual'
+                });
+                yahoo.getQuotes([order.symbol], { force: false }).then((quotes) => {
+                    mergeQuotes(quotes);
+                    broadcastPaperState();
+                }).catch(() => broadcastPaperState());
+                return true;
+            }
+            if (message.type === 'stocks_paper_cancel') {
+                paper.cancelOrder(message.orderId || message.id);
+                broadcastPaperState();
+                return true;
+            }
+            if (message.type === 'stocks_paper_reset') {
+                const cash = message.startingCash != null ? Number(message.startingCash) : undefined;
+                paper.reset(cash);
+                broadcastPaperState();
+                return true;
+            }
+            if (message.type === 'stocks_paper_match') {
+                runPaperMatch({ broadcast: true }).catch((err) => {
+                    logger.warn('Stocks', `WS paper match failed: ${err.message || err}`);
+                });
+                return true;
+            }
         } catch (err) {
             logger.warn('Stocks', `WS handler error: ${err.message || err}`);
             return true;
@@ -241,7 +373,7 @@ function register(ctx) {
         refreshWatchlistQuotes({ force: false }).catch(() => {});
     }, POLL_MS);
 
-    logger.info('Stocks', `Registered (poll every ${Math.round(POLL_MS / 1000)}s, Yahoo Finance)`);
+    logger.info('Stocks', `Registered (poll every ${Math.round(POLL_MS / 1000)}s, Yahoo Finance + paper trading)`);
 }
 
 module.exports = {
