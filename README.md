@@ -25,7 +25,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 ├─────────────┼──────────────────────────────────────┤
 │  Home       │                                      │
 │  Logs       │   widgets  /  module page content    │
-│  KAP        │                                      │
+│  Stocks AI  │                                      │
 │  Stocks     │                                      │
 │  Monitor    │                                      │
 │  Network    │                                      │
@@ -37,8 +37,8 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Logs · KAP · Stocks · Monitor · Network |
-| **Home** | Widget grid: System Monitor, Speed Test, KAP Digest, KAP Watchlist, Stocks Watchlist |
+| **Sidebar** | App modules (pages): Home · Logs · Stocks AI · Stocks · Monitor · Network |
+| **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
 New server features go in `modules/<name>/` (`server.js` + `client.js`). Core UI lives under `js/`.
@@ -55,7 +55,7 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Logs** — live server + client log stream with All / Info / Warn / Error filters and Clear info
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload + Run on Home only
-- **KAP** — Borsa İstanbul disclosures: editable watchlist, hourly scrape, daily digest, Ollama sentiment (sidebar + Home widget)
+- **Stocks AI** — Borsa İstanbul disclosures: editable watchlist, hourly scrape, daily digest, Ollama sentiment (sidebar + Home widget)
 - **Stocks** — Yahoo Finance quotes (no API key): separate watchlist, BIST browse, simple charts; Home watchlist widget; ~60s poll
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
@@ -80,7 +80,7 @@ Snapshot refreshes about every **20s**. Full test runs **hourly**, or on demand 
 > Home **Speed Test** widget = download / upload + **Run** only  
 > (`Add Widget` → Speed Test)
 
-### KAP module
+### Stocks AI module
 
 On the Pi:
 
@@ -93,7 +93,7 @@ export KAP_LANGUAGE=tr
 cd ~/home-hub && npm start
 ```
 
-Sidebar **KAP**: editable watchlist, daily digest, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Home widgets: **KAP Digest** (today’s counts) and **KAP Watchlist** (add/remove tickers). Watchlist persists under `data/kap/watchlist.json` (seeded from `KAP_WATCHLIST`). Auto-scrape runs once per hour.
+Sidebar **Stocks AI**: editable watchlist, daily digest, latest disclosures, scrape (watchlist / general), paste→classify, sentiment badges. Home widgets: **Stocks AI Digest** (today’s counts) and **Stocks AI Watchlist** (add/remove tickers). Watchlist persists under `data/stocksai/watchlist.json` (seeded from `KAP_WATCHLIST`). Auto-scrape runs once per hour.
 
 ### Stocks module
 
@@ -163,7 +163,7 @@ flowchart LR
     C[System stats]
     D[modules/activity]
     E[modules/network]
-    F[modules/kap]
+    F[modules/stocksai]
     F2[modules/stocks]
     G[lib/logger]
     H[(data/dashboard-state.json)]
@@ -196,8 +196,8 @@ flowchart LR
 |:-----|:------|
 | **System Monitor** | Persistent — Fitness rings; always on Home |
 | **Speed Test** | Compact down / up + Run |
-| **KAP Digest** | Today’s filing count + good / bad / other |
-| **KAP Watchlist** | Tickers with sentiment; add / remove |
+| **Stocks AI Digest** | Today’s filing count + good / bad / other |
+| **Stocks AI Watchlist** | Tickers with sentiment; add / remove |
 | **Stocks Watchlist** | Yahoo prices + change %; add / remove |
 
 **Sizes:** Small `1×1` (circular) · Medium `2×1` · Large `2×2`  
@@ -273,12 +273,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `POST` | `/api/logs/client` | Ingest client log |
 | `POST` | `/api/logs/clear-info` | Remove info-level logs |
 | `GET` | `/api/network` | Analyzer state + snapshot |
-| `GET` | `/api/kap` | KAP state |
-| `GET` | `/api/kap/disclosures` | Watchlist + disclosures |
-| `GET` | `/api/kap/jobs/:id` | Classify / scrape job status |
-| `POST` | `/api/kap/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
-| `POST` | `/api/kap/scrape` | `{ mode: 'watchlist' \| 'general' }` |
-| `POST` | `/api/kap/classify` | Paste text or `disclosureId` |
+| `GET` | `/api/stocksai` | KAP state |
+| `GET` | `/api/stocksai/disclosures` | Watchlist + disclosures |
+| `GET` | `/api/stocksai/jobs/:id` | Classify / scrape job status |
+| `POST` | `/api/stocksai/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
+| `POST` | `/api/stocksai/scrape` | `{ mode: 'watchlist' \| 'general' }` |
+| `POST` | `/api/stocksai/classify` | Paste text or `disclosureId` |
 | `GET` | `/api/stocks` | Stocks state (watchlist + quotes) |
 | `POST` | `/api/stocks/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
 | `GET` | `/api/stocks/quote` | `?symbols=THYAO,ASELS` |
@@ -300,7 +300,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `full_state` / `instance_update` | Widget layout & instance sync |
 | `logs_snapshot` / `log_entry` | Log stream |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
-| `kap_state` | KAP updates |
+| `stocksai_state` | KAP updates |
 | `stocks_state` | Stocks watchlist + quotes |
 | `ping` | Keep-alive |
 
@@ -314,8 +314,8 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `pong` | Ping reply |
 | `run_network_test` | Full network analysis |
 | `refresh_network_snapshot` | Refresh interfaces / LAN / Wi‑Fi |
-| `kap_scrape` / `kap_classify` | KAP jobs |
-| `kap_watchlist_add` / `kap_watchlist_remove` | Edit watchlist |
+| `stocksai_scrape` / `stocksai_classify` | KAP jobs |
+| `stocksai_watchlist_add` / `stocksai_watchlist_remove` | Edit watchlist |
 | `stocks_watchlist_add` / `stocks_watchlist_remove` | Edit Stocks watchlist |
 | `stocks_refresh` | Force Yahoo quote refresh |
 

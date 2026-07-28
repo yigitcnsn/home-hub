@@ -2,7 +2,7 @@
  * Investing RSS → Ollama classify → paper strategy (headlines only).
  * Toggle from UI (persisted). Optional NEWS_RSS_ENABLED seeds first run only.
  */
-const kapOllama = require('../../kap/ollama');
+const ollama = require('../../stocksai/ollama');
 const strategy = require('../paper/strategy');
 const rss = require('./rss');
 const newsStore = require('./store');
@@ -75,7 +75,7 @@ async function pumpClassify() {
         if (!isEnabled()) {
             return;
         }
-        const health = await kapOllama.checkHealth();
+        const health = await ollama.checkHealth();
         if (!health.online) {
             lastError = health.error || 'Ollama offline — news classify skipped';
             newsStore.upsertHeadlines([{
@@ -90,13 +90,13 @@ async function pumpClassify() {
         for (const stock of next.stocks) {
             let modelOut;
             try {
-                modelOut = await kapOllama.classifyKap({
+                modelOut = await ollama.classifyKap({
                     stock,
                     text: buildClassifyText(next.item, stock)
                 });
             } catch (err) {
                 try {
-                    modelOut = await kapOllama.classifyKap({
+                    modelOut = await ollama.classifyKap({
                         stock,
                         text: buildClassifyText(next.item, stock)
                     });
@@ -121,7 +121,7 @@ async function pumpClassify() {
                 date: next.item.publishedAt || new Date().toISOString(),
                 sourceUrl: next.item.link || null,
                 language: 'tr',
-                model: kapOllama.DEFAULT_MODEL,
+                model: ollama.DEFAULT_MODEL,
                 classifiedAt: new Date().toISOString(),
                 source: 'investing_rss',
                 headline: next.item.title

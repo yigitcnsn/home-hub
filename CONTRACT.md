@@ -33,13 +33,13 @@ No model runtime / weights in home-hub.
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Root URL only (no `/v1`) |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | Configurable; UI picker optional later |
 | `KAP_LANGUAGE` | `tr` | v1 scrapes Turkish KAP (`/tr`) |
-| `KAP_WATCHLIST` | _(empty)_ | Seed for `data/kap/watchlist.json` (UI can edit after) |
+| `KAP_WATCHLIST` | _(empty)_ | Seed for `data/stocksai/watchlist.json` (UI can edit after) |
 | `KAP_POLL_INTERVAL_MS` | `3600000` (1 hour) | Scheduled scrape |
 | `KAP_PROMPT_PATH` | `../pi-llm/prompts/kap_sentiment.txt` | Relative to home-hub on `ev` |
 
 ## Module UX
 
-- Module id: `kap`
+- Module id: `stocksai`
 - Sidebar page + optional Home widget
 - **First UI:** watchlist + latest disclosures with sentiment badges
 - **Secondary:** paste text → classify (learning / debug)
@@ -96,10 +96,10 @@ Browser talks only to home-hub, never to Ollama directly.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/api/kap/disclosures` | Watchlist + latest |
-| `POST` | `/api/kap/classify` | Enqueue classify job |
-| `GET` | `/api/kap/jobs/:id` | Job status |
-| `POST` | `/api/kap/scrape` | Manual scrape run |
+| `GET` | `/api/stocksai/disclosures` | Watchlist + latest |
+| `POST` | `/api/stocksai/classify` | Enqueue classify job |
+| `GET` | `/api/stocksai/jobs/:id` | Job status |
+| `POST` | `/api/stocksai/scrape` | Manual scrape run |
 
 Exact paths may be adjusted at implement time; behavior stays as above.
 

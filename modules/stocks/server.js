@@ -133,7 +133,8 @@ function register(ctx) {
     }
 
     if (typeof ctx.on === 'function') {
-        ctx.on('kap_classified', handleKapClassification);
+        ctx.on('stocksai_classified', handleKapClassification);
+        ctx.on('kap_classified', handleKapClassification); // legacy
     }
 
     async function refreshWatchlistQuotes({ force = false, broadcast = true } = {}) {

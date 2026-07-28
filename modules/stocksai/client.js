@@ -1,8 +1,8 @@
 /**
- * KAP module (browser) — watchlist editor, daily digest, scrape/classify.
+ * Stocks AI module (browser) — watchlist editor, daily digest, scrape/classify.
  */
 (function () {
-    const VIEW = 'kap';
+    const VIEW = 'stocksai';
     let state = {
         watchlist: [],
         disclosures: [],
@@ -51,7 +51,7 @@
     function badge(sentiment) {
         const s = (sentiment || 'pending').toLowerCase();
         const label = s === 'good' || s === 'bad' || s === 'neutral' ? s : 'pending';
-        return `<span class="kap-badge kap-badge-${esc(label)}">${esc(label)}</span>`;
+        return `<span class="stocksai-badge stocksai-badge-${esc(label)}">${esc(label)}</span>`;
     }
 
     function digestLine(digest) {
@@ -73,24 +73,24 @@
             const latest = (state.disclosures || []).find((d) => d.stock === code);
             const sent = latest && latest.classification ? latest.classification.sentiment : null;
             return `
-                <div class="kap-wl-row">
-                    <div class="kap-wl-row-main">
-                        <span class="kap-wl-row-code">${esc(code)}</span>
+                <div class="stocksai-wl-row">
+                    <div class="stocksai-wl-row-main">
+                        <span class="stocksai-wl-row-code">${esc(code)}</span>
                         ${badge(sent)}
                     </div>
-                    <button type="button" class="kap-mini-btn kap-wl-remove-btn" data-kap-remove="${esc(code)}">Remove</button>
+                    <button type="button" class="stocksai-mini-btn stocksai-wl-remove-btn" data-stocksai-remove="${esc(code)}">Remove</button>
                 </div>
             `;
-        }).join('') || '<div class="kap-empty">Watchlist is empty</div>';
+        }).join('') || '<div class="stocksai-empty">Watchlist is empty</div>';
 
         return `
-            <div class="kap-wl-editor">
-                <div class="kap-wl-rows">${rows}</div>
-                <div class="kap-watchlist-edit">
-                    <input type="text" id="kapWatchlistInput" class="kap-input" placeholder="Add tickers e.g. THYAO, ASELS" maxlength="64" autocomplete="off" />
-                    <button type="button" class="network-run-btn" id="kapWatchlistAddBtn">Add</button>
+            <div class="stocksai-wl-editor">
+                <div class="stocksai-wl-rows">${rows}</div>
+                <div class="stocksai-watchlist-edit">
+                    <input type="text" id="stocksaiWatchlistInput" class="stocksai-input" placeholder="Add tickers e.g. THYAO, ASELS" maxlength="64" autocomplete="off" />
+                    <button type="button" class="network-run-btn" id="stocksaiWatchlistAddBtn">Add</button>
                 </div>
-                <div class="kap-meta-line">Saved on the Pi · comma or space separated · last scrape ${esc(formatWhen(state.lastScrapeAt))}</div>
+                <div class="stocksai-meta-line">Saved on the Pi · comma or space separated · last scrape ${esc(formatWhen(state.lastScrapeAt))}</div>
             </div>
         `;
     }
@@ -98,26 +98,26 @@
     function disclosureRows() {
         const rows = state.disclosures || [];
         if (!rows.length) {
-            return '<div class="kap-empty">No disclosures yet — click Scrape or wait for the hourly scan</div>';
+            return '<div class="stocksai-empty">No disclosures yet — click Scrape or wait for the hourly scan</div>';
         }
         return rows.slice(0, 40).map((d) => {
             const c = d.classification;
             const conf = c && typeof c.confidence === 'number' ? `${Math.round(c.confidence * 100)}%` : '—';
             return `
-                <div class="kap-row">
-                    <div class="kap-row-main">
-                        <div class="kap-row-top">
+                <div class="stocksai-row">
+                    <div class="stocksai-row-main">
+                        <div class="stocksai-row-top">
                             <strong>${esc(d.stock)}</strong>
                             ${badge(c && c.sentiment)}
-                            <span class="kap-row-time">${esc(formatWhen(d.date))}</span>
+                            <span class="stocksai-row-time">${esc(formatWhen(d.date))}</span>
                         </div>
-                        <div class="kap-row-subject">${esc(d.subject || '—')}</div>
-                        <div class="kap-row-summary">${esc((c && c.summary) || d.summary || '')}</div>
-                        ${c && c.reason ? `<details class="kap-reason"><summary>Reason · ${esc(conf)}</summary><p>${esc(c.reason)}</p></details>` : ''}
+                        <div class="stocksai-row-subject">${esc(d.subject || '—')}</div>
+                        <div class="stocksai-row-summary">${esc((c && c.summary) || d.summary || '')}</div>
+                        ${c && c.reason ? `<details class="stocksai-reason"><summary>Reason · ${esc(conf)}</summary><p>${esc(c.reason)}</p></details>` : ''}
                     </div>
-                    <div class="kap-row-actions">
-                        ${d.sourceUrl ? `<a class="kap-link" href="${esc(d.sourceUrl)}" target="_blank" rel="noopener">KAP</a>` : ''}
-                        <button type="button" class="kap-mini-btn" data-kap-classify-id="${esc(d.id)}" ${state.eclipse ? 'disabled' : ''}>${state.eclipse ? 'Offline' : 'Classify'}</button>
+                    <div class="stocksai-row-actions">
+                        ${d.sourceUrl ? `<a class="stocksai-link" href="${esc(d.sourceUrl)}" target="_blank" rel="noopener">KAP</a>` : ''}
+                        <button type="button" class="stocksai-mini-btn" data-stocksai-classify-id="${esc(d.id)}" ${state.eclipse ? 'disabled' : ''}>${state.eclipse ? 'Offline' : 'Classify'}</button>
                     </div>
                 </div>
             `;
@@ -126,13 +126,13 @@
 
     function jobLine() {
         if (state.eclipse) {
-            return '<div class="kap-banner kap-banner-eclipse">Eclipse · oracle offline</div>';
+            return '<div class="stocksai-banner stocksai-banner-eclipse">Eclipse · oracle offline</div>';
         }
         if (state.lastError) {
-            return `<div class="kap-banner kap-banner-error">${esc(state.lastError)}</div>`;
+            return `<div class="stocksai-banner stocksai-banner-error">${esc(state.lastError)}</div>`;
         }
         if (state.running || state.queueLength > 0) {
-            return `<div class="kap-banner">Queue: ${esc(String(state.queueLength))} pending · ${state.running ? 'running' : 'idle'}</div>`;
+            return `<div class="stocksai-banner">Queue: ${esc(String(state.queueLength))} pending · ${state.running ? 'running' : 'idle'}</div>`;
         }
         return '';
     }
@@ -144,42 +144,42 @@
             const stocks = (h.stocks || []).join(', ') || '—';
             const c = h.lastClassification;
             return `
-                <div class="kap-row stocksai-news-row">
-                    <div class="kap-row-main">
-                        <div class="kap-row-top">
+                <div class="stocksai-row stocksai-news-row">
+                    <div class="stocksai-row-main">
+                        <div class="stocksai-row-top">
                             <strong>${esc(stocks)}</strong>
                             ${c ? badge(c.sentiment) : badge('pending')}
-                            <span class="kap-row-time">${esc(formatWhen(h.publishedAt || h.updatedAt))}</span>
+                            <span class="stocksai-row-time">${esc(formatWhen(h.publishedAt || h.updatedAt))}</span>
                         </div>
-                        <div class="kap-row-subject">${esc(h.title || '—')}</div>
-                        <div class="kap-row-summary">${esc((c && c.summary) || h.description || '')}</div>
+                        <div class="stocksai-row-subject">${esc(h.title || '—')}</div>
+                        <div class="stocksai-row-summary">${esc((c && c.summary) || h.description || '')}</div>
                     </div>
-                    <div class="kap-row-actions">
-                        ${h.link ? `<a class="kap-link" href="${esc(h.link)}" target="_blank" rel="noopener">Open</a>` : ''}
+                    <div class="stocksai-row-actions">
+                        ${h.link ? `<a class="stocksai-link" href="${esc(h.link)}" target="_blank" rel="noopener">Open</a>` : ''}
                     </div>
                 </div>
             `;
-        }).join('') || '<div class="kap-empty">No headlines yet — turn News RSS on, then Poll now</div>';
+        }).join('') || '<div class="stocksai-empty">No headlines yet — turn News RSS on, then Poll now</div>';
 
         return `
-            <section class="kap-section stocksai-panel">
+            <section class="stocksai-section stocksai-panel">
                 <div class="stocksai-section-head">
                     <h3 class="network-section-title">News RSS</h3>
                     <div class="stocksai-section-actions">
-                        <button type="button" class="kap-mini-btn${enabled ? ' is-on' : ''}" id="stocksAiNewsToggle">
+                        <button type="button" class="stocksai-mini-btn${enabled ? ' is-on' : ''}" id="stocksAiNewsToggle">
                             ${enabled ? 'On' : 'Off'}
                         </button>
                         <button type="button" class="network-secondary-btn" id="stocksAiNewsPollBtn" ${enabled ? '' : 'disabled'}>Poll now</button>
                     </div>
                 </div>
-                <div class="kap-meta-line">
+                <div class="stocksai-meta-line">
                     Investing.com headlines only · last poll ${esc(formatWhen(newsState.lastPollAt))}
                     ${newsState.polling ? ' · polling…' : ''}
                     ${newsState.classifyQueue ? ` · classify queue ${esc(String(newsState.classifyQueue))}` : ''}
                 </div>
-                ${newsState.lastError ? `<div class="kap-banner kap-banner-error">${esc(newsState.lastError)}</div>` : ''}
-                <p class="kap-disclaimer">${esc(newsState.disclaimer || '')}</p>
-                <div class="kap-list">${rows}</div>
+                ${newsState.lastError ? `<div class="stocksai-banner stocksai-banner-error">${esc(newsState.lastError)}</div>` : ''}
+                <p class="stocksai-disclaimer">${esc(newsState.disclaimer || '')}</p>
+                <div class="stocksai-list">${rows}</div>
             </section>
         `;
     }
@@ -188,70 +188,70 @@
         const rows = (aiSignals || []).slice(0, 20).map((s) => {
             const action = s.action || 'none';
             return `
-                <div class="kap-row">
-                    <div class="kap-row-main">
-                        <div class="kap-row-top">
+                <div class="stocksai-row">
+                    <div class="stocksai-row-main">
+                        <div class="stocksai-row-top">
                             <strong>${esc(s.stock || '—')}</strong>
                             ${badge(s.sentiment || action)}
                             <span class="stocksai-source">${esc(s.source || '')}</span>
-                            <span class="kap-row-time">${esc(formatWhen(s.at))}</span>
+                            <span class="stocksai-row-time">${esc(formatWhen(s.at))}</span>
                         </div>
-                        <div class="kap-row-summary">${esc(s.detail || s.summary || s.reason || '')}</div>
+                        <div class="stocksai-row-summary">${esc(s.detail || s.summary || s.reason || '')}</div>
                     </div>
                 </div>
             `;
-        }).join('') || '<div class="kap-empty">No AI trade signals yet — classify a filing or enable News RSS</div>';
+        }).join('') || '<div class="stocksai-empty">No AI trade signals yet — classify a filing or enable News RSS</div>';
 
         return `
-            <section class="kap-section stocksai-panel">
+            <section class="stocksai-section stocksai-panel">
                 <h3 class="network-section-title">AI → paper signals</h3>
-                <div class="kap-meta-line">What the model decided for the paper desk (buys / sells / skips)</div>
-                <div class="kap-list">${rows}</div>
+                <div class="stocksai-meta-line">What the model decided for the paper desk (buys / sells / skips)</div>
+                <div class="stocksai-list">${rows}</div>
             </section>
         `;
     }
 
     function renderPage() {
-        const root = document.getElementById('kapViewBody');
+        const root = document.getElementById('stocksaiViewBody');
         if (!root) return;
 
         root.innerHTML = `
-            <div class="kap-page">
-                <div class="kap-top">
+            <div class="stocksai-page">
+                <div class="stocksai-top">
                     <div>
-                        <div class="kap-kicker">Ollama · KAP · News</div>
-                        <div class="kap-title">Stocks AI</div>
+                        <div class="stocksai-kicker">Ollama · KAP · News</div>
+                        <div class="stocksai-title">Stocks AI</div>
                     </div>
-                    <div class="kap-actions">
-                        <button type="button" class="network-secondary-btn" id="kapScrapeWatchlistBtn">Scrape KAP watchlist</button>
-                        <button type="button" class="network-run-btn" id="kapScrapeGeneralBtn">KAP general scan</button>
+                    <div class="stocksai-actions">
+                        <button type="button" class="network-secondary-btn" id="stocksaiScrapeWatchlistBtn">Scrape KAP watchlist</button>
+                        <button type="button" class="network-run-btn" id="stocksaiScrapeGeneralBtn">KAP general scan</button>
                     </div>
                 </div>
 
                 ${jobLine()}
 
-                <p class="kap-disclaimer">${esc(state.disclaimer)}</p>
-                <div class="kap-digest-banner">${esc(digestLine(state.digest))}</div>
+                <p class="stocksai-disclaimer">${esc(state.disclaimer)}</p>
+                <div class="stocksai-digest-banner">${esc(digestLine(state.digest))}</div>
 
                 ${newsSection()}
                 ${signalsSection()}
 
-                <section class="kap-section">
+                <section class="stocksai-section">
                     <h3 class="network-section-title">KAP watchlist</h3>
                     ${watchlistEditor()}
                 </section>
 
-                <section class="kap-section">
+                <section class="stocksai-section">
                     <h3 class="network-section-title">Latest KAP filings</h3>
-                    <div class="kap-list">${disclosureRows()}</div>
+                    <div class="stocksai-list">${disclosureRows()}</div>
                 </section>
 
-                <section class="kap-section">
+                <section class="stocksai-section">
                     <h3 class="network-section-title">Paste → classify</h3>
-                    <div class="kap-paste">
-                        <input type="text" id="kapPasteStock" class="kap-input" placeholder="Stock e.g. THYAO" maxlength="12" ${state.eclipse ? 'disabled' : ''} />
-                        <textarea id="kapPasteText" class="kap-textarea" rows="4" placeholder="Konu: ...&#10;Özet: ..." ${state.eclipse ? 'disabled' : ''}></textarea>
-                        <button type="button" class="network-run-btn" id="kapPasteBtn" ${state.eclipse ? 'disabled' : ''}>${state.eclipse ? 'Oracle offline' : 'Classify text'}</button>
+                    <div class="stocksai-paste">
+                        <input type="text" id="stocksaiPasteStock" class="stocksai-input" placeholder="Stock e.g. THYAO" maxlength="12" ${state.eclipse ? 'disabled' : ''} />
+                        <textarea id="stocksaiPasteText" class="stocksai-textarea" rows="4" placeholder="Konu: ...&#10;Özet: ..." ${state.eclipse ? 'disabled' : ''}></textarea>
+                        <button type="button" class="network-run-btn" id="stocksaiPasteBtn" ${state.eclipse ? 'disabled' : ''}>${state.eclipse ? 'Oracle offline' : 'Classify text'}</button>
                     </div>
                 </section>
             </div>
@@ -267,7 +267,7 @@
     }
 
     function postWatchlist(action, payload) {
-        return fetch('/api/kap/watchlist', {
+        return fetch('/api/stocksai/watchlist', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, ...payload })
@@ -313,26 +313,26 @@
     }
 
     function bindPage(manager) {
-        const view = document.getElementById('kapView');
+        const view = document.getElementById('stocksaiView');
         if (!view || pageBound) return;
         pageBound = true;
 
         view.addEventListener('click', (e) => {
-            const removeBtn = e.target.closest('[data-kap-remove]');
+            const removeBtn = e.target.closest('[data-stocksai-remove]');
             if (removeBtn) {
                 e.preventDefault();
-                removeWatchlistCode(manager, removeBtn.getAttribute('data-kap-remove'));
+                removeWatchlistCode(manager, removeBtn.getAttribute('data-stocksai-remove'));
                 return;
             }
-            if (e.target.closest('#kapWatchlistAddBtn')) {
-                const input = document.getElementById('kapWatchlistInput');
+            if (e.target.closest('#stocksaiWatchlistAddBtn')) {
+                const input = document.getElementById('stocksaiWatchlistInput');
                 addWatchlistCode(manager, input && input.value);
                 if (input) input.value = '';
                 return;
             }
-            if (e.target.closest('#kapScrapeGeneralBtn')) {
-                if (!send(manager, { type: 'kap_scrape', mode: 'general' })) {
-                    fetch('/api/kap/scrape', {
+            if (e.target.closest('#stocksaiScrapeGeneralBtn')) {
+                if (!send(manager, { type: 'stocksai_scrape', mode: 'general' })) {
+                    fetch('/api/stocksai/scrape', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ mode: 'general' })
@@ -340,9 +340,9 @@
                 }
                 return;
             }
-            if (e.target.closest('#kapScrapeWatchlistBtn')) {
-                if (!send(manager, { type: 'kap_scrape', mode: 'watchlist' })) {
-                    fetch('/api/kap/scrape', {
+            if (e.target.closest('#stocksaiScrapeWatchlistBtn')) {
+                if (!send(manager, { type: 'stocksai_scrape', mode: 'watchlist' })) {
+                    fetch('/api/stocksai/scrape', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ mode: 'watchlist' })
@@ -350,19 +350,19 @@
                 }
                 return;
             }
-            if (e.target.closest('#kapPasteBtn')) {
-                const stock = (document.getElementById('kapPasteStock') || {}).value || '';
-                const text = (document.getElementById('kapPasteText') || {}).value || '';
+            if (e.target.closest('#stocksaiPasteBtn')) {
+                const stock = (document.getElementById('stocksaiPasteStock') || {}).value || '';
+                const text = (document.getElementById('stocksaiPasteText') || {}).value || '';
                 if (!stock.trim() || !text.trim()) {
                     if (manager && typeof manager.showAlert === 'function') {
-                        manager.showAlert('Stock and text required', 'KAP');
+                        manager.showAlert('Stock and text required', 'Stocks AI');
                     } else {
                         alert('Stock and text required');
                     }
                     return;
                 }
-                if (!send(manager, { type: 'kap_classify', stock: stock.trim(), text: text.trim() })) {
-                    fetch('/api/kap/classify', {
+                if (!send(manager, { type: 'stocksai_classify', stock: stock.trim(), text: text.trim() })) {
+                    fetch('/api/stocksai/classify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ stock: stock.trim(), text: text.trim() })
@@ -370,11 +370,11 @@
                 }
                 return;
             }
-            const classifyBtn = e.target.closest('[data-kap-classify-id]');
+            const classifyBtn = e.target.closest('[data-stocksai-classify-id]');
             if (classifyBtn) {
-                const disclosureId = classifyBtn.getAttribute('data-kap-classify-id');
-                if (!send(manager, { type: 'kap_classify', disclosureId })) {
-                    fetch('/api/kap/classify', {
+                const disclosureId = classifyBtn.getAttribute('data-stocksai-classify-id');
+                if (!send(manager, { type: 'stocksai_classify', disclosureId })) {
+                    fetch('/api/stocksai/classify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ disclosureId })
@@ -411,7 +411,7 @@
 
         view.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
-            if (e.target && e.target.id === 'kapWatchlistInput') {
+            if (e.target && e.target.id === 'stocksaiWatchlistInput') {
                 e.preventDefault();
                 addWatchlistCode(manager, e.target.value);
                 e.target.value = '';
@@ -425,19 +425,19 @@
         widgetBound = true;
 
         grid.addEventListener('click', (e) => {
-            const removeBtn = e.target.closest('.kap-watchlist-widget [data-kap-remove]');
+            const removeBtn = e.target.closest('.stocksai-watchlist-widget [data-stocksai-remove]');
             if (removeBtn) {
                 e.preventDefault();
                 e.stopPropagation();
-                removeWatchlistCode(manager, removeBtn.getAttribute('data-kap-remove'));
+                removeWatchlistCode(manager, removeBtn.getAttribute('data-stocksai-remove'));
                 return;
             }
-            const addBtn = e.target.closest('[data-kap-add-btn]');
+            const addBtn = e.target.closest('[data-stocksai-add-btn]');
             if (addBtn) {
                 e.preventDefault();
                 e.stopPropagation();
-                const wrap = addBtn.closest('.kap-watchlist-widget');
-                const input = wrap && wrap.querySelector('[data-kap-add-input]');
+                const wrap = addBtn.closest('.stocksai-watchlist-widget');
+                const input = wrap && wrap.querySelector('[data-stocksai-add-input]');
                 addWatchlistCode(manager, input && input.value);
                 if (input) input.value = '';
             }
@@ -445,7 +445,7 @@
 
         grid.addEventListener('keydown', (e) => {
             if (e.key !== 'Enter') return;
-            if (!e.target || !e.target.matches('[data-kap-add-input]')) return;
+            if (!e.target || !e.target.matches('[data-stocksai-add-input]')) return;
             e.preventDefault();
             e.stopPropagation();
             addWatchlistCode(manager, e.target.value);
@@ -453,17 +453,17 @@
         });
 
         grid.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.kap-watchlist-widget input, .kap-watchlist-widget button')) {
+            if (e.target.closest('.stocksai-watchlist-widget input, .stocksai-watchlist-widget button')) {
                 e.stopPropagation();
             }
         });
     }
 
     function isKapWidgetKey(key) {
-        return key === 'kap' ||
-            key === 'kap_digest' ||
-            key === 'kap_watchlist' ||
-            key.startsWith('kap_');
+        return key === 'stocksai' || key === 'kap' ||
+            key === 'stocksai_digest' || key === 'kap_digest' ||
+            key === 'stocksai_watchlist' || key === 'kap_watchlist' ||
+            key.startsWith('stocksai_') || key.startsWith('kap_');
     }
 
     function digestPayload() {
@@ -495,10 +495,10 @@
         const instances = window.moduleManager.moduleInstances || {};
         Object.keys(instances).forEach((key) => {
             if (!isKapWidgetKey(key)) return;
-            if (key === 'kap_watchlist' || key.startsWith('kap_watchlist')) {
+            if (key === 'stocksai_watchlist' || key.startsWith('stocksai_watchlist') || key === 'kap_watchlist' || key.startsWith('kap_watchlist')) {
                 instances[key] = watchlistPayload();
             } else {
-                // kap_digest, legacy `kap`, and other kap_* keys
+                // stocksai_digest, legacy kap_* keys
                 instances[key] = digestPayload();
             }
         });
@@ -508,12 +508,20 @@
     function migrateLegacyWidgets(manager) {
         if (!manager || !Array.isArray(manager.modules)) return;
         let changed = false;
+        const mapType = {
+            kap: 'stocksai_digest',
+            kap_digest: 'stocksai_digest',
+            kap_watchlist: 'stocksai_watchlist',
+            stocksai: 'stocksai_digest'
+        };
 
         manager.modules.forEach((m) => {
-            if (!m || m.type !== 'kap') return;
-            m.type = 'kap_digest';
+            if (!m || !mapType[m.type]) return;
+            const nextType = mapType[m.type];
+            if (m.type === nextType) return;
+            m.type = nextType;
             const oldKey = m.instanceKey;
-            m.instanceKey = manager.getInstanceKey('kap_digest');
+            m.instanceKey = manager.getInstanceKey(nextType);
             if (oldKey && manager.moduleInstances[oldKey] && !manager.moduleInstances[m.instanceKey]) {
                 manager.moduleInstances[m.instanceKey] = manager.moduleInstances[oldKey];
                 delete manager.moduleInstances[oldKey];
@@ -566,7 +574,7 @@
         bindPage(manager);
         bindWidget(manager);
         renderPage();
-        fetch('/api/kap')
+        fetch('/api/stocksai')
             .then((r) => r.json())
             .then((data) => applyState(data))
             .catch(() => {});
@@ -574,7 +582,7 @@
     }
 
     function handleMessage(manager, message) {
-        if (message.type === 'kap_state' && message.data) {
+        if (message.type === 'stocksai_state' && message.data) {
             applyState(message.data);
             return true;
         }
@@ -625,27 +633,27 @@
                 : (busy ? 'Classifying…' : (data && data.lastScrapeAt ? formatWhen(data.lastScrapeAt) : 'Hourly scan')));
 
         return `
-            <div class="kap-digest-widget${eclipse ? ' kap-eclipse' : ''}">
-                ${eclipse ? '<div class="kap-eclipse-label">Oracle offline</div>' : ''}
-                <div class="kap-digest-hero">
-                    <span class="kap-digest-count">${esc(String(count))}</span>
-                    <span class="kap-digest-label">today</span>
+            <div class="stocksai-digest-widget${eclipse ? ' stocksai-eclipse' : ''}">
+                ${eclipse ? '<div class="stocksai-eclipse-label">Oracle offline</div>' : ''}
+                <div class="stocksai-digest-hero">
+                    <span class="stocksai-digest-count">${esc(String(count))}</span>
+                    <span class="stocksai-digest-label">today</span>
                 </div>
-                <div class="kap-digest-stats">
-                    <div class="kap-digest-stat is-good">
-                        <span class="kap-digest-stat-value">${esc(String(good))}</span>
-                        <span class="kap-digest-stat-label">Good</span>
+                <div class="stocksai-digest-stats">
+                    <div class="stocksai-digest-stat is-good">
+                        <span class="stocksai-digest-stat-value">${esc(String(good))}</span>
+                        <span class="stocksai-digest-stat-label">Good</span>
                     </div>
-                    <div class="kap-digest-stat is-bad">
-                        <span class="kap-digest-stat-value">${esc(String(bad))}</span>
-                        <span class="kap-digest-stat-label">Bad</span>
+                    <div class="stocksai-digest-stat is-bad">
+                        <span class="stocksai-digest-stat-value">${esc(String(bad))}</span>
+                        <span class="stocksai-digest-stat-label">Bad</span>
                     </div>
-                    <div class="kap-digest-stat is-neutral">
-                        <span class="kap-digest-stat-value">${esc(String(neutral + pending))}</span>
-                        <span class="kap-digest-stat-label">${pending && !neutral ? 'Pending' : 'Other'}</span>
+                    <div class="stocksai-digest-stat is-neutral">
+                        <span class="stocksai-digest-stat-value">${esc(String(neutral + pending))}</span>
+                        <span class="stocksai-digest-stat-label">${pending && !neutral ? 'Pending' : 'Other'}</span>
                     </div>
                 </div>
-                <div class="kap-digest-footer">${esc(footer)}</div>
+                <div class="stocksai-digest-footer">${esc(footer)}</div>
             </div>
         `;
     }
@@ -658,30 +666,30 @@
             const latest = list.find((d) => d.stock === code);
             const sent = latest && latest.classification ? latest.classification.sentiment : null;
             return `
-                <div class="kap-wl-chip">
-                    <span class="kap-wl-code">${esc(code)}</span>
+                <div class="stocksai-wl-chip">
+                    <span class="stocksai-wl-code">${esc(code)}</span>
                     ${badge(sent)}
-                    <button type="button" class="kap-chip-remove" data-kap-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>
+                    <button type="button" class="stocksai-chip-remove" data-stocksai-remove="${esc(code)}" title="Remove ${esc(code)}" aria-label="Remove ${esc(code)}">×</button>
                 </div>
             `;
-        }).join('') || '<div class="kap-empty">Add a ticker</div>';
+        }).join('') || '<div class="stocksai-empty">Add a ticker</div>';
 
         return `
-            <div class="kap-watchlist-widget${eclipse ? ' kap-eclipse' : ''}">
-                ${eclipse ? '<div class="kap-eclipse-label">Oracle offline</div>' : ''}
-                <div class="kap-wl-chips">${chips}</div>
-                <div class="kap-wl-add">
-                    <input type="text" class="kap-widget-input" data-kap-add-input placeholder="THYAO" maxlength="12" autocomplete="off" draggable="false" />
-                    <button type="button" class="kap-widget-add-btn" data-kap-add-btn>Add</button>
+            <div class="stocksai-watchlist-widget${eclipse ? ' stocksai-eclipse' : ''}">
+                ${eclipse ? '<div class="stocksai-eclipse-label">Oracle offline</div>' : ''}
+                <div class="stocksai-wl-chips">${chips}</div>
+                <div class="stocksai-wl-add">
+                    <input type="text" class="stocksai-widget-input" data-stocksai-add-input placeholder="THYAO" maxlength="12" autocomplete="off" draggable="false" />
+                    <button type="button" class="stocksai-widget-add-btn" data-stocksai-add-btn>Add</button>
                 </div>
             </div>
         `;
     }
 
     window.HomeHubModules = window.HomeHubModules || {};
-    window.HomeHubModules.kap = {
-        id: 'kap',
-        type: 'kap',
+    window.HomeHubModules.stocksai = {
+        id: 'stocksai',
+        type: 'stocksai',
         label: 'Stocks AI',
         nav: true,
         view: VIEW,
@@ -693,9 +701,9 @@
         handleMessage
     };
 
-    window.HomeHubModules.kap_digest = {
-        id: 'kap_digest',
-        type: 'kap_digest',
+    window.HomeHubModules.stocksai_digest = {
+        id: 'stocksai_digest',
+        type: 'stocksai_digest',
         label: 'Stocks AI Digest',
         nav: false,
         persistent: false,
@@ -705,9 +713,9 @@
         handleMessage: null
     };
 
-    window.HomeHubModules.kap_watchlist = {
-        id: 'kap_watchlist',
-        type: 'kap_watchlist',
+    window.HomeHubModules.stocksai_watchlist = {
+        id: 'stocksai_watchlist',
+        type: 'stocksai_watchlist',
         label: 'Stocks AI Watchlist',
         nav: false,
         persistent: false,

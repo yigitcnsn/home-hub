@@ -1,5 +1,5 @@
 /**
- * KAP module (server) — scrape watchlist disclosures, queue Ollama classify, persist.
+ * Stocks AI module (server) — KAP disclosures + Ollama classify — scrape watchlist disclosures, queue Ollama classify, persist.
  */
 const store = require('./store');
 const scrape = require('./scrape');
@@ -98,9 +98,9 @@ function register(ctx) {
         oracleError = health.online ? null : (health.error || 'Ollama unreachable');
         if (broadcast && prev !== oracleOnline) {
             if (!oracleOnline) {
-                logger.warn('KAP', `Eclipse: oracle offline (${oracleError})`);
+                logger.warn('StocksAI', `Eclipse: oracle offline (${oracleError})`);
             } else {
-                logger.info('KAP', 'Eclipse lifted: oracle online');
+                logger.info('StocksAI', 'Eclipse lifted: oracle online');
             }
             broadcastState();
         }
@@ -115,7 +115,7 @@ function register(ctx) {
 
     function broadcastState() {
         broadcastToAll({
-            type: 'kap_state',
+            type: 'stocksai_state',
             data: getState()
         });
     }
@@ -168,7 +168,7 @@ function register(ctx) {
         job.startedAt = new Date().toISOString();
         persistJobs();
         broadcastState();
-        logger.info('KAP', `Classify job ${job.id} started for ${job.stock}`);
+        logger.info('StocksAI', `Classify job ${job.id} started for ${job.stock}`);
 
         try {
             let modelOut;
@@ -179,7 +179,7 @@ function register(ctx) {
                 });
             } catch (err) {
                 // One silent retry per contract
-                logger.warn('KAP', `Classify retry after: ${err.message || err}`);
+                logger.warn('StocksAI', `Classify retry after: ${err.message || err}`);
                 modelOut = await ollama.classifyKap({
                     stock: job.stock,
                     text: job.text
@@ -210,16 +210,16 @@ function register(ctx) {
             job.finishedAt = new Date().toISOString();
             job.error = null;
             lastError = null;
-            logger.info('KAP', `Classify job ${job.id} done: ${record.sentiment}`);
+            logger.info('StocksAI', `Classify job ${job.id} done: ${record.sentiment}`);
             if (typeof ctx.emit === 'function') {
-                ctx.emit('kap_classified', record);
+                ctx.emit('stocksai_classified', record);
             }
         } catch (err) {
             job.status = 'error';
             job.error = err.message || String(err);
             job.finishedAt = new Date().toISOString();
             lastError = job.error;
-            logger.error('KAP', `Classify job ${job.id} failed: ${job.error}`);
+            logger.error('StocksAI', `Classify job ${job.id} failed: ${job.error}`);
             // Likely connectivity — flip Eclipse if Ollama is gone
             refreshOracle(true).catch(() => {});
         }
@@ -281,18 +281,18 @@ function register(ctx) {
         return { ...result, added, total: list.length };
     }
 
-    app.get('/api/kap', (req, res) => {
+    app.get('/api/stocksai', (req, res) => {
         res.json(getState());
     });
 
-    app.get('/api/kap/disclosures', (req, res) => {
+    app.get('/api/stocksai/disclosures', (req, res) => {
         res.json({
             watchlist: store.getWatchlist(),
             disclosures: getState().disclosures
         });
     });
 
-    app.post('/api/kap/watchlist', (req, res) => {
+    app.post('/api/stocksai/watchlist', (req, res) => {
         try {
             const body = req.body || {};
             const action = String(body.action || '').toLowerCase();
@@ -313,7 +313,7 @@ function register(ctx) {
         }
     });
 
-    app.get('/api/kap/jobs/:id', (req, res) => {
+    app.get('/api/stocksai/jobs/:id', (req, res) => {
         const job = jobsById.get(req.params.id);
         if (!job) {
             res.status(404).json({ error: 'Job not found' });
@@ -322,7 +322,7 @@ function register(ctx) {
         res.json(job);
     });
 
-    app.post('/api/kap/scrape', async (req, res) => {
+    app.post('/api/stocksai/scrape', async (req, res) => {
         try {
             const mode = (req.body && req.body.mode) === 'general' ? 'general' : 'watchlist';
             const out = await scrapeNow({
@@ -332,13 +332,13 @@ function register(ctx) {
             res.json({ ok: true, ...out, state: getState() });
         } catch (err) {
             lastError = err.message || String(err);
-            logger.error('KAP', `Scrape failed: ${lastError}`);
+            logger.error('StocksAI', `Scrape failed: ${lastError}`);
             broadcastState();
             res.status(500).json({ ok: false, error: lastError });
         }
     });
 
-    app.post('/api/kap/classify', (req, res) => {
+    app.post('/api/stocksai/classify', (req, res) => {
         const body = req.body || {};
         const stock = String(body.stock || '').trim().toUpperCase();
         const text = String(body.text || '').trim();
@@ -380,33 +380,38 @@ function register(ctx) {
 
     onClientConnected((ws) => {
         ws.send(JSON.stringify({
-            type: 'kap_state',
+            type: 'stocksai_state',
             data: getState()
         }));
     });
 
     onClientMessage((ws, data) => {
-        if (data.type === 'kap_watchlist_add') {
+        if (!data || !data.type) return false;
+        // Legacy kap_* WebSocket types
+        if (String(data.type).startsWith('kap_')) {
+            data = { ...data, type: String(data.type).replace(/^kap_/, 'stocksai_') };
+        }
+        if (data.type === 'stocksai_watchlist_add') {
             updateWatchlist(() => store.addWatchlistCode(data.code));
             return true;
         }
-        if (data.type === 'kap_watchlist_remove') {
+        if (data.type === 'stocksai_watchlist_remove') {
             updateWatchlist(() => store.removeWatchlistCode(data.code));
             return true;
         }
-        if (data.type === 'kap_scrape') {
+        if (data.type === 'stocksai_scrape') {
             const mode = data.mode === 'general' ? 'general' : 'watchlist';
             scrapeNow({
                 mode,
                 autoClassify: mode === 'watchlist'
             }).catch((err) => {
                 lastError = err.message || String(err);
-                logger.error('KAP', `WS scrape failed: ${lastError}`);
+                logger.error('StocksAI', `WS scrape failed: ${lastError}`);
                 broadcastState();
             });
             return true;
         }
-        if (data.type === 'kap_classify') {
+        if (data.type === 'stocksai_classify') {
             const stock = String(data.stock || '').trim().toUpperCase();
             const text = String(data.text || '').trim();
             const disclosureId = data.disclosureId ? String(data.disclosureId) : null;
@@ -431,14 +436,14 @@ function register(ctx) {
 
     function scheduleScrape() {
         if (!(POLL_MS > 0)) {
-            logger.info('KAP', 'Scheduled scrape disabled (KAP_POLL_INTERVAL_MS <= 0)');
+            logger.info('StocksAI', 'Scheduled scrape disabled (KAP_POLL_INTERVAL_MS <= 0)');
             return;
         }
 
         const run = () => {
             const mode = store.getWatchlist().length ? 'watchlist' : 'general';
             scrapeNow({ mode, autoClassify: mode === 'watchlist' }).catch((err) => {
-                logger.warn('KAP', `Scheduled scrape failed: ${err.message || err}`);
+                logger.warn('StocksAI', `Scheduled scrape failed: ${err.message || err}`);
             });
         };
 
@@ -446,7 +451,7 @@ function register(ctx) {
             run();
         }, 8000);
         setInterval(run, POLL_MS);
-        logger.info('KAP', `Scheduled scrape every ${Math.round(POLL_MS / 60000)} min`);
+        logger.info('StocksAI', `Scheduled scrape every ${Math.round(POLL_MS / 60000)} min`);
     }
 
     scheduleScrape();
@@ -454,7 +459,7 @@ function register(ctx) {
     function scheduleOracleWatch() {
         const tick = () => {
             refreshOracle(true).catch((err) => {
-                logger.warn('KAP', `Oracle health check failed: ${err.message || err}`);
+                logger.warn('StocksAI', `Oracle health check failed: ${err.message || err}`);
             });
         };
         // Immediate probe so widgets know eclipse state on boot
@@ -464,11 +469,11 @@ function register(ctx) {
 
     scheduleOracleWatch();
 
-    logger.info('KAP', `KAP module registered (model=${ollama.DEFAULT_MODEL}, prompt=${ollama.resolvePromptPath()})`);
+    logger.info('StocksAI', `Module registered (model=${ollama.DEFAULT_MODEL}, prompt=${ollama.resolvePromptPath()})`);
 }
 
 module.exports = {
-    id: 'kap',
-    name: 'KAP',
+    id: 'stocksai',
+    name: 'Stocks AI',
     register
 };

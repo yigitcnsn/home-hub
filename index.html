@@ -102,10 +102,10 @@
                 </div>
             </section>
 
-            <!-- Stocks AI (KAP + news + signals) -->
-            <section class="module-page kap-view" id="kapView" data-view-panel="kap" hidden>
-                <div id="kapViewBody">
-                    <div class="kap-empty">Loading Stocks AI…</div>
+            <!-- Stocks AI (KAP disclosures + news + signals) -->
+            <section class="module-page stocksai-view" id="stocksaiView" data-view-panel="stocksai" hidden>
+                <div id="stocksaiViewBody">
+                    <div class="stocksai-empty">Loading Stocks AI…</div>
                 </div>
             </section>
 
@@ -144,8 +144,8 @@
                     <label for="moduleType">Widget Type</label>
                     <select id="moduleType">
                         <option value="speed_test">Speed Test</option>
-                        <option value="kap_digest">Stocks AI Digest</option>
-                        <option value="kap_watchlist">Stocks AI Watchlist</option>
+                        <option value="stocksai_digest">Stocks AI Digest</option>
+                        <option value="stocksai_watchlist">Stocks AI Watchlist</option>
                         <option value="stocks_watchlist">Stocks Watchlist</option>
                     </select>
                 </div>
@@ -180,7 +180,7 @@
     <script src="modules/activity/client.js"></script>
     <script src="modules/system/client.js"></script>
     <script src="modules/network/client.js"></script>
-    <script src="modules/kap/client.js"></script>
+    <script src="modules/stocksai/client.js"></script>
     <script src="modules/stocks/client.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/module-manager.js"></script>

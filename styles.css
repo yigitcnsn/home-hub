@@ -2064,18 +2064,18 @@ body {
 }
 
 /* KAP page */
-.kap-view {
+.stocksai-view {
     min-height: 60vh;
 }
 
-.kap-page {
+.stocksai-page {
     display: flex;
     flex-direction: column;
     gap: 16px;
     padding-bottom: 24px;
 }
 
-.kap-top {
+.stocksai-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
@@ -2083,7 +2083,7 @@ body {
     flex-wrap: wrap;
 }
 
-.kap-kicker {
+.stocksai-kicker {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -2092,19 +2092,19 @@ body {
     margin-bottom: 4px;
 }
 
-.kap-title {
+.stocksai-title {
     font-size: 22px;
     font-weight: 700;
     color: var(--text-primary);
 }
 
-.kap-actions {
+.stocksai-actions {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
 }
 
-.kap-banner {
+.stocksai-banner {
     border: 1px solid var(--border-color);
     background: var(--bg-hover);
     border-radius: 10px;
@@ -2113,33 +2113,33 @@ body {
     color: var(--text-secondary);
 }
 
-.kap-banner-error {
+.stocksai-banner-error {
     border-color: var(--danger);
     color: var(--danger);
 }
 
-.kap-banner-eclipse {
+.stocksai-banner-eclipse {
     border-color: rgba(100, 116, 139, 0.45);
     color: var(--text-secondary);
     letter-spacing: 0.04em;
     font-weight: 600;
 }
 
-.kap-section {
+.stocksai-section {
     border: 1px solid var(--border-color);
     border-radius: 12px;
     background: var(--bg-card);
     padding: 12px 14px;
 }
 
-.kap-watchlist {
+.stocksai-watchlist {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
 }
 
-.kap-chip,
-.kap-chip-inline {
+.stocksai-chip,
+.stocksai-chip-inline {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -2150,12 +2150,12 @@ body {
     font-size: 12px;
 }
 
-.kap-chip-code {
+.stocksai-chip-code {
     font-weight: 700;
     color: var(--text-primary);
 }
 
-.kap-chip-remove {
+.stocksai-chip-remove {
     border: none;
     background: transparent;
     color: var(--text-muted);
@@ -2165,42 +2165,42 @@ body {
     padding: 0 2px;
 }
 
-.kap-chip-remove:hover {
+.stocksai-chip-remove:hover {
     color: var(--danger);
 }
 
-.kap-digest-banner {
+.stocksai-digest-banner {
     font-size: 13px;
     font-weight: 600;
     color: var(--text-secondary);
     margin: 0 0 8px;
 }
 
-.kap-watchlist-edit {
+.stocksai-watchlist-edit {
     display: flex;
     gap: 8px;
     margin-top: 10px;
     align-items: center;
 }
 
-.kap-watchlist-edit .kap-input {
+.stocksai-watchlist-edit .stocksai-input {
     flex: 1;
     min-width: 0;
 }
 
-.kap-wl-editor {
+.stocksai-wl-editor {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
-.kap-wl-rows {
+.stocksai-wl-rows {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
 
-.kap-wl-row {
+.stocksai-wl-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2211,25 +2211,25 @@ body {
     background: var(--bg-hover);
 }
 
-.kap-wl-row-main {
+.stocksai-wl-row-main {
     display: flex;
     align-items: center;
     gap: 8px;
     min-width: 0;
 }
 
-.kap-wl-row-code {
+.stocksai-wl-row-code {
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--text-primary);
 }
 
-.kap-wl-remove-btn {
+.stocksai-wl-remove-btn {
     flex-shrink: 0;
 }
 
-.kap-badge {
+.stocksai-badge {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -2238,12 +2238,12 @@ body {
     padding: 2px 8px;
 }
 
-.kap-badge-good { background: rgba(5, 150, 105, 0.15); color: var(--success); }
-.kap-badge-bad { background: rgba(220, 38, 38, 0.15); color: var(--danger); }
-.kap-badge-neutral { background: rgba(100, 116, 139, 0.15); color: var(--text-secondary); }
-.kap-badge-pending { background: rgba(217, 119, 6, 0.15); color: var(--warning); }
+.stocksai-badge-good { background: rgba(5, 150, 105, 0.15); color: var(--success); }
+.stocksai-badge-bad { background: rgba(220, 38, 38, 0.15); color: var(--danger); }
+.stocksai-badge-neutral { background: rgba(100, 116, 139, 0.15); color: var(--text-secondary); }
+.stocksai-badge-pending { background: rgba(217, 119, 6, 0.15); color: var(--warning); }
 
-.kap-mini-btn.is-on {
+.stocksai-mini-btn.is-on {
     border-color: color-mix(in srgb, var(--success) 45%, var(--border-color));
     background: color-mix(in srgb, var(--success) 14%, transparent);
     color: var(--success);
@@ -2279,23 +2279,23 @@ body {
     letter-spacing: 0.04em;
 }
 
-.stocksai-news-row .kap-row-subject {
+.stocksai-news-row .stocksai-row-subject {
     font-weight: 600;
 }
 
-.kap-meta-line {
+.stocksai-meta-line {
     margin-top: 10px;
     font-size: 11px;
     color: var(--text-muted);
 }
 
-.kap-list {
+.stocksai-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
-.kap-row {
+.stocksai-row {
     display: flex;
     justify-content: space-between;
     gap: 12px;
@@ -2303,11 +2303,11 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.kap-row:last-child {
+.stocksai-row:last-child {
     border-bottom: none;
 }
 
-.kap-row-top {
+.stocksai-row-top {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2315,43 +2315,43 @@ body {
     margin-bottom: 4px;
 }
 
-.kap-row-time {
+.stocksai-row-time {
     font-size: 11px;
     color: var(--text-muted);
 }
 
-.kap-row-subject {
+.stocksai-row-subject {
     font-size: 13px;
     font-weight: 600;
     color: var(--text-primary);
 }
 
-.kap-row-summary {
+.stocksai-row-summary {
     font-size: 12px;
     color: var(--text-secondary);
     margin-top: 4px;
 }
 
-.kap-reason {
+.stocksai-reason {
     margin-top: 6px;
     font-size: 12px;
     color: var(--text-muted);
 }
 
-.kap-reason p {
+.stocksai-reason p {
     margin-top: 6px;
     color: var(--text-secondary);
 }
 
-.kap-row-actions {
+.stocksai-row-actions {
     display: flex;
     flex-direction: column;
     gap: 6px;
     align-items: flex-end;
 }
 
-.kap-link,
-.kap-mini-btn {
+.stocksai-link,
+.stocksai-mini-btn {
     font-size: 11px;
     font-weight: 600;
     color: var(--primary-color);
@@ -2361,14 +2361,14 @@ body {
     text-decoration: none;
 }
 
-.kap-paste {
+.stocksai-paste {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.kap-input,
-.kap-textarea {
+.stocksai-input,
+.stocksai-textarea {
     width: 100%;
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -2379,14 +2379,14 @@ body {
     font-family: inherit;
 }
 
-.kap-empty {
+.stocksai-empty {
     font-size: 12px;
     color: var(--text-muted);
     padding: 8px 0;
 }
 
 /* KAP Digest widget */
-.kap-digest-widget {
+.stocksai-digest-widget {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -2394,13 +2394,13 @@ body {
     min-width: 0;
 }
 
-.kap-digest-hero {
+.stocksai-digest-hero {
     display: flex;
     align-items: baseline;
     gap: 8px;
 }
 
-.kap-digest-count {
+.stocksai-digest-count {
     font-size: 36px;
     font-weight: 700;
     line-height: 1;
@@ -2408,7 +2408,7 @@ body {
     color: var(--comp-text, var(--text-primary));
 }
 
-.kap-digest-label {
+.stocksai-digest-label {
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
@@ -2416,27 +2416,27 @@ body {
     color: var(--comp-text-muted, var(--text-muted));
 }
 
-.kap-digest-stats {
+.stocksai-digest-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 
-.kap-digest-stat {
+.stocksai-digest-stat {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
 
-.kap-digest-stat-value {
+.stocksai-digest-stat-value {
     font-size: 18px;
     font-weight: 700;
     line-height: 1.1;
     color: var(--comp-text, var(--text-primary));
 }
 
-.kap-digest-stat-label {
+.stocksai-digest-stat-label {
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
@@ -2444,11 +2444,11 @@ body {
     color: var(--comp-text-muted, var(--text-muted));
 }
 
-.kap-digest-stat.is-good .kap-digest-stat-value { color: var(--success); }
-.kap-digest-stat.is-bad .kap-digest-stat-value { color: var(--danger); }
-.kap-digest-stat.is-neutral .kap-digest-stat-value { color: var(--text-secondary); }
+.stocksai-digest-stat.is-good .stocksai-digest-stat-value { color: var(--success); }
+.stocksai-digest-stat.is-bad .stocksai-digest-stat-value { color: var(--danger); }
+.stocksai-digest-stat.is-neutral .stocksai-digest-stat-value { color: var(--text-secondary); }
 
-.kap-digest-footer {
+.stocksai-digest-footer {
     margin-top: auto;
     font-size: 11px;
     font-weight: 600;
@@ -2458,7 +2458,7 @@ body {
 }
 
 /* KAP Watchlist widget */
-.kap-watchlist-widget {
+.stocksai-watchlist-widget {
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -2466,7 +2466,7 @@ body {
     min-width: 0;
 }
 
-.kap-wl-chips {
+.stocksai-wl-chips {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -2475,7 +2475,7 @@ body {
     overflow: auto;
 }
 
-.kap-wl-chip {
+.stocksai-wl-chip {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2484,7 +2484,7 @@ body {
     background: var(--comp-bg-elevated, var(--bg-hover));
 }
 
-.kap-wl-code {
+.stocksai-wl-code {
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -2492,14 +2492,14 @@ body {
     margin-right: auto;
 }
 
-.kap-wl-add {
+.stocksai-wl-add {
     display: flex;
     gap: 6px;
     align-items: center;
     margin-top: auto;
 }
 
-.kap-widget-input {
+.stocksai-widget-input {
     flex: 1;
     min-width: 0;
     border: 1px solid var(--comp-border, var(--border-color));
@@ -2510,7 +2510,7 @@ body {
     font-size: 12px;
 }
 
-.kap-widget-add-btn {
+.stocksai-widget-add-btn {
     border: none;
     background: var(--primary-color, var(--accent, #2563eb));
     color: #fff;
@@ -2521,29 +2521,29 @@ body {
     cursor: pointer;
 }
 
-.module.small .kap-digest-count {
+.module.small .stocksai-digest-count {
     font-size: 28px;
 }
 
-.module.small .kap-digest-stats {
+.module.small .stocksai-digest-stats {
     gap: 4px;
 }
 
-.module.small .kap-digest-stat-value {
+.module.small .stocksai-digest-stat-value {
     font-size: 15px;
 }
 
-.module.small .kap-wl-chips {
+.module.small .stocksai-wl-chips {
     max-height: 88px;
 }
 
 /* Eclipse — Ollama / oracle offline */
-.kap-eclipse {
+.stocksai-eclipse {
     filter: grayscale(1);
     opacity: 0.88;
 }
 
-.kap-eclipse-label {
+.stocksai-eclipse-label {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
@@ -2551,29 +2551,29 @@ body {
     color: var(--comp-text-muted, var(--text-muted));
 }
 
-.kap-eclipse .kap-digest-stat.is-good .kap-digest-stat-value,
-.kap-eclipse .kap-digest-stat.is-bad .kap-digest-stat-value,
-.kap-eclipse .kap-digest-stat.is-neutral .kap-digest-stat-value {
+.stocksai-eclipse .stocksai-digest-stat.is-good .stocksai-digest-stat-value,
+.stocksai-eclipse .stocksai-digest-stat.is-bad .stocksai-digest-stat-value,
+.stocksai-eclipse .stocksai-digest-stat.is-neutral .stocksai-digest-stat-value {
     color: var(--comp-text, var(--text-primary));
 }
 
-.kap-eclipse .kap-badge {
+.stocksai-eclipse .stocksai-badge {
     background: rgba(100, 116, 139, 0.18);
     color: var(--text-secondary);
 }
 
-.kap-mini-btn:disabled,
+.stocksai-mini-btn:disabled,
 .network-run-btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
 }
 
 @media (max-width: 700px) {
-    .kap-row {
+    .stocksai-row {
         flex-direction: column;
     }
 
-    .kap-row-actions {
+    .stocksai-row-actions {
         flex-direction: row;
         align-items: center;
     }

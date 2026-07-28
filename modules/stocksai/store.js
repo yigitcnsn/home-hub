@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'kap');
+const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'stocksai');
+const LEGACY_DATA_DIR = path.join(__dirname, '..', '..', 'data', 'kap');
 const DISCLOSURES_FILE = path.join(DATA_DIR, 'disclosures.json');
 const CLASSIFICATIONS_FILE = path.join(DATA_DIR, 'classifications.json');
 const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
@@ -10,6 +11,20 @@ const WATCHLIST_FILE = path.join(DATA_DIR, 'watchlist.json');
 function ensureDir() {
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
+        // One-time move from legacy data/kap if present
+        if (fs.existsSync(LEGACY_DATA_DIR)) {
+            try {
+                for (const name of fs.readdirSync(LEGACY_DATA_DIR)) {
+                    const src = path.join(LEGACY_DATA_DIR, name);
+                    const dest = path.join(DATA_DIR, name);
+                    if (!fs.existsSync(dest)) {
+                        fs.renameSync(src, dest);
+                    }
+                }
+            } catch (_) {
+                /* ignore migration errors */
+            }
+        }
     }
 }
 

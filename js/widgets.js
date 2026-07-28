@@ -112,6 +112,9 @@
             const defaults = {
                 system: 'System Monitor',
                 speed_test: 'Speed Test',
+                stocksai_digest: 'Stocks AI Digest',
+                stocksai_watchlist: 'Stocks AI Watchlist',
+                // legacy labels
                 kap_digest: 'Stocks AI Digest',
                 kap_watchlist: 'Stocks AI Watchlist'
             };
