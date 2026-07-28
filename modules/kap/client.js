@@ -17,6 +17,16 @@
         eclipse: false,
         disclaimer: 'Not investment advice. For personal research only.'
     };
+    let newsState = {
+        enabled: false,
+        lastPollAt: null,
+        lastError: null,
+        polling: false,
+        classifyQueue: 0,
+        headlines: [],
+        disclaimer: ''
+    };
+    let aiSignals = [];
     let pageBound = false;
     let widgetBound = false;
 
@@ -127,6 +137,80 @@
         return '';
     }
 
+    function newsSection() {
+        const enabled = !!newsState.enabled;
+        const headlines = (newsState.headlines || []).slice(0, 12);
+        const rows = headlines.map((h) => {
+            const stocks = (h.stocks || []).join(', ') || '—';
+            const c = h.lastClassification;
+            return `
+                <div class="kap-row stocksai-news-row">
+                    <div class="kap-row-main">
+                        <div class="kap-row-top">
+                            <strong>${esc(stocks)}</strong>
+                            ${c ? badge(c.sentiment) : badge('pending')}
+                            <span class="kap-row-time">${esc(formatWhen(h.publishedAt || h.updatedAt))}</span>
+                        </div>
+                        <div class="kap-row-subject">${esc(h.title || '—')}</div>
+                        <div class="kap-row-summary">${esc((c && c.summary) || h.description || '')}</div>
+                    </div>
+                    <div class="kap-row-actions">
+                        ${h.link ? `<a class="kap-link" href="${esc(h.link)}" target="_blank" rel="noopener">Open</a>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('') || '<div class="kap-empty">No headlines yet — turn News RSS on, then Poll now</div>';
+
+        return `
+            <section class="kap-section stocksai-panel">
+                <div class="stocksai-section-head">
+                    <h3 class="network-section-title">News RSS</h3>
+                    <div class="stocksai-section-actions">
+                        <button type="button" class="kap-mini-btn${enabled ? ' is-on' : ''}" id="stocksAiNewsToggle">
+                            ${enabled ? 'On' : 'Off'}
+                        </button>
+                        <button type="button" class="network-secondary-btn" id="stocksAiNewsPollBtn" ${enabled ? '' : 'disabled'}>Poll now</button>
+                    </div>
+                </div>
+                <div class="kap-meta-line">
+                    Investing.com headlines only · last poll ${esc(formatWhen(newsState.lastPollAt))}
+                    ${newsState.polling ? ' · polling…' : ''}
+                    ${newsState.classifyQueue ? ` · classify queue ${esc(String(newsState.classifyQueue))}` : ''}
+                </div>
+                ${newsState.lastError ? `<div class="kap-banner kap-banner-error">${esc(newsState.lastError)}</div>` : ''}
+                <p class="kap-disclaimer">${esc(newsState.disclaimer || '')}</p>
+                <div class="kap-list">${rows}</div>
+            </section>
+        `;
+    }
+
+    function signalsSection() {
+        const rows = (aiSignals || []).slice(0, 20).map((s) => {
+            const action = s.action || 'none';
+            return `
+                <div class="kap-row">
+                    <div class="kap-row-main">
+                        <div class="kap-row-top">
+                            <strong>${esc(s.stock || '—')}</strong>
+                            ${badge(s.sentiment || action)}
+                            <span class="stocksai-source">${esc(s.source || '')}</span>
+                            <span class="kap-row-time">${esc(formatWhen(s.at))}</span>
+                        </div>
+                        <div class="kap-row-summary">${esc(s.detail || s.summary || s.reason || '')}</div>
+                    </div>
+                </div>
+            `;
+        }).join('') || '<div class="kap-empty">No AI trade signals yet — classify a filing or enable News RSS</div>';
+
+        return `
+            <section class="kap-section stocksai-panel">
+                <h3 class="network-section-title">AI → paper signals</h3>
+                <div class="kap-meta-line">What the model decided for the paper desk (buys / sells / skips)</div>
+                <div class="kap-list">${rows}</div>
+            </section>
+        `;
+    }
+
     function renderPage() {
         const root = document.getElementById('kapViewBody');
         if (!root) return;
@@ -135,12 +219,12 @@
             <div class="kap-page">
                 <div class="kap-top">
                     <div>
-                        <div class="kap-kicker">Disclosures</div>
-                        <div class="kap-title">KAP</div>
+                        <div class="kap-kicker">Ollama · KAP · News</div>
+                        <div class="kap-title">Stocks AI</div>
                     </div>
                     <div class="kap-actions">
-                        <button type="button" class="network-secondary-btn" id="kapScrapeWatchlistBtn">Scrape watchlist</button>
-                        <button type="button" class="network-run-btn" id="kapScrapeGeneralBtn">General scan</button>
+                        <button type="button" class="network-secondary-btn" id="kapScrapeWatchlistBtn">Scrape KAP watchlist</button>
+                        <button type="button" class="network-run-btn" id="kapScrapeGeneralBtn">KAP general scan</button>
                     </div>
                 </div>
 
@@ -149,13 +233,16 @@
                 <p class="kap-disclaimer">${esc(state.disclaimer)}</p>
                 <div class="kap-digest-banner">${esc(digestLine(state.digest))}</div>
 
+                ${newsSection()}
+                ${signalsSection()}
+
                 <section class="kap-section">
-                    <h3 class="network-section-title">Watchlist</h3>
+                    <h3 class="network-section-title">KAP watchlist</h3>
                     ${watchlistEditor()}
                 </section>
 
                 <section class="kap-section">
-                    <h3 class="network-section-title">Latest</h3>
+                    <h3 class="network-section-title">Latest KAP filings</h3>
                     <div class="kap-list">${disclosureRows()}</div>
                 </section>
 
@@ -293,6 +380,32 @@
                         body: JSON.stringify({ disclosureId })
                     }).catch(() => {});
                 }
+                return;
+            }
+            if (e.target.closest('#stocksAiNewsToggle')) {
+                const next = !newsState.enabled;
+                if (!send(manager, { type: 'stocks_news_enabled', enabled: next })) {
+                    fetch('/api/stocks/news/enabled', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: next })
+                    }).then((r) => r.json()).then((data) => {
+                        if (data.news) applyNewsState(data.news);
+                        else if (data.paper && data.paper.news) applyNewsState(data.paper.news);
+                    }).catch(() => {});
+                }
+                return;
+            }
+            if (e.target.closest('#stocksAiNewsPollBtn')) {
+                if (!send(manager, { type: 'stocks_news_poll' })) {
+                    fetch('/api/stocks/news/poll', { method: 'POST' })
+                        .then((r) => r.json())
+                        .then((data) => {
+                            if (data.status) applyNewsState(data.status);
+                            fetchAiActivity();
+                        })
+                        .catch(() => {});
+                }
             }
         });
 
@@ -420,6 +533,34 @@
         syncKapWidgets();
     }
 
+    function applyNewsState(incoming) {
+        if (!incoming || typeof incoming !== 'object') return;
+        newsState = { ...newsState, ...incoming };
+        renderPage();
+    }
+
+    function applyPaperSignals(incoming) {
+        if (!incoming || typeof incoming !== 'object') return;
+        if (Array.isArray(incoming.signals)) {
+            aiSignals = incoming.signals;
+        }
+        if (incoming.news) {
+            newsState = { ...newsState, ...incoming.news };
+        }
+        renderPage();
+    }
+
+    function fetchAiActivity() {
+        fetch('/api/stocks/news')
+            .then((r) => r.json())
+            .then((data) => applyNewsState(data))
+            .catch(() => {});
+        fetch('/api/stocks/paper')
+            .then((r) => r.json())
+            .then((data) => applyPaperSignals(data))
+            .catch(() => {});
+    }
+
     function ensure(manager) {
         migrateLegacyWidgets(manager);
         bindPage(manager);
@@ -429,11 +570,16 @@
             .then((r) => r.json())
             .then((data) => applyState(data))
             .catch(() => {});
+        fetchAiActivity();
     }
 
     function handleMessage(manager, message) {
         if (message.type === 'kap_state' && message.data) {
             applyState(message.data);
+            return true;
+        }
+        if (message.type === 'stocks_paper_state' && message.data) {
+            applyPaperSignals(message.data);
             return true;
         }
         return false;
@@ -536,10 +682,10 @@
     window.HomeHubModules.kap = {
         id: 'kap',
         type: 'kap',
-        label: 'KAP',
+        label: 'Stocks AI',
         nav: true,
         view: VIEW,
-        navLabel: 'KAP',
+        navLabel: 'Stocks AI',
         persistent: false,
         getSampleData: null,
         render: null,
@@ -550,7 +696,7 @@
     window.HomeHubModules.kap_digest = {
         id: 'kap_digest',
         type: 'kap_digest',
-        label: 'KAP Digest',
+        label: 'Stocks AI Digest',
         nav: false,
         persistent: false,
         getSampleData: getDigestSampleData,
@@ -562,7 +708,7 @@
     window.HomeHubModules.kap_watchlist = {
         id: 'kap_watchlist',
         type: 'kap_watchlist',
-        label: 'KAP Watchlist',
+        label: 'Stocks AI Watchlist',
         nav: false,
         persistent: false,
         getSampleData: getWatchlistSampleData,

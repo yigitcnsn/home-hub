@@ -2243,6 +2243,46 @@ body {
 .kap-badge-neutral { background: rgba(100, 116, 139, 0.15); color: var(--text-secondary); }
 .kap-badge-pending { background: rgba(217, 119, 6, 0.15); color: var(--warning); }
 
+.kap-mini-btn.is-on {
+    border-color: color-mix(in srgb, var(--success) 45%, var(--border-color));
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    color: var(--success);
+}
+
+.stocksai-panel {
+    padding-top: 4px;
+}
+
+.stocksai-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.stocksai-section-head .network-section-title {
+    margin: 0;
+}
+
+.stocksai-section-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stocksai-source {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.stocksai-news-row .kap-row-subject {
+    font-weight: 600;
+}
+
 .kap-meta-line {
     margin-top: 10px;
     font-size: 11px;
