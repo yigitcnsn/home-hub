@@ -106,7 +106,7 @@ function onClassification(record, quotesBySymbol = {}) {
     }
 
     if (!stock || !isBistCode(stock)) {
-        signal.detail = 'not a curated BIST symbol';
+        signal.detail = 'not a BIST 100 symbol';
         signals.appendSignal(signal);
         return { signal, order: null, skipped: signal.detail };
     }

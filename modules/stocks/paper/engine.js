@@ -11,7 +11,7 @@ const signals = require('./signals');
 function assertBist(symbol) {
     const code = yahoo.canonicalize(symbol);
     if (!code || !isBistCode(code)) {
-        throw new Error('Paper trading is BIST-only (symbol not in curated BIST list)');
+        throw new Error('Paper trading is BIST-only (symbol not in BIST 100 list)');
     }
     return code;
 }
