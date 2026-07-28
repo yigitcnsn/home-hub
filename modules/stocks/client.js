@@ -22,6 +22,18 @@
         disclaimer: 'Not investment advice. Quotes from Yahoo Finance (delayed).'
     };
 
+    let paperState = {
+        portfolio: null,
+        openOrders: [],
+        orders: [],
+        fills: [],
+        signals: [],
+        autoTrade: true,
+        news: null,
+        config: null,
+        disclaimer: ''
+    };
+
     let selectedSymbol = null;
     let chartRange = '1mo';
     let chartData = null;
@@ -81,6 +93,29 @@
         const chg = formatChange(q);
         if (!chg) return '<span class="stocks-chg stocks-chg-pending">…</span>';
         return `<span class="stocks-chg ${changeClass(q)}">${esc(chg)}</span>`;
+    }
+
+    function formatMoney(n, { signed = false } = {}) {
+        if (n == null || Number.isNaN(Number(n))) return '—';
+        const v = Number(n);
+        const formatted = v.toLocaleString('tr-TR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        const prefix = signed && v > 0 ? '+' : '';
+        return `${prefix}${formatted} ₺`;
+    }
+
+    function pnlTone(n) {
+        if (n == null || Number.isNaN(Number(n))) return '';
+        if (Number(n) > 0) return 'is-up';
+        if (Number(n) < 0) return 'is-down';
+        return 'is-flat';
+    }
+
+    function sentimentBadge(sentiment) {
+        const s = String(sentiment || 'pending').toLowerCase();
+        return `<span class="stocks-paper-badge stocks-paper-badge-${esc(s)}">${esc(s)}</span>`;
     }
 
     function marketLabel(q) {
@@ -417,13 +452,173 @@
         return hit ? hit.name : '';
     }
 
+    function paperSection() {
+        const p = paperState.portfolio || {};
+        const autoOn = paperState.autoTrade !== false;
+        const news = paperState.news || {};
+        const positions = p.positions || [];
+        const openOrders = paperState.openOrders || [];
+        const fills = (paperState.fills || []).slice(0, 8);
+        const signals = (paperState.signals || []).slice(0, 8);
+        const returnPct = p.returnPct != null
+            ? `${Number(p.returnPct) > 0 ? '+' : ''}${Number(p.returnPct).toFixed(2)}%`
+            : '—';
+
+        const posRows = positions.map((pos) => `
+            <div class="stocks-paper-row">
+                <div class="stocks-paper-row-main">
+                    <span class="stocks-wl-code">${esc(pos.symbol)}</span>
+                    <span class="stocks-row-sub">${esc(Number(pos.qty).toFixed(2))} @ ${esc(formatMoney(pos.avgCost))}</span>
+                </div>
+                <div class="stocks-paper-row-side">
+                    <span class="stocks-wl-price">${esc(formatMoney(pos.marketValue))}</span>
+                    <span class="stocks-chg ${pnlTone(pos.unrealizedPnl)}">${esc(formatMoney(pos.unrealizedPnl, { signed: true }))}</span>
+                </div>
+            </div>
+        `).join('') || '<div class="stocks-empty-copy">No open positions</div>';
+
+        const orderRows = openOrders.map((o) => `
+            <div class="stocks-paper-row">
+                <div class="stocks-paper-row-main">
+                    <span class="stocks-paper-side stocks-paper-side-${esc(o.side)}">${esc(o.side)}</span>
+                    <span class="stocks-wl-code">${esc(o.symbol)}</span>
+                    <span class="stocks-row-sub">${esc(o.type)} · ${esc(Number(o.filledQty || 0).toFixed(2))}/${esc(Number(o.qty).toFixed(2))}</span>
+                </div>
+                <button type="button" class="stocks-btn stocks-btn-tiny stocks-btn-ghost" data-paper-cancel="${esc(o.id)}">Cancel</button>
+            </div>
+        `).join('') || '<div class="stocks-empty-copy">No open orders</div>';
+
+        const fillRows = fills.map((f) => `
+            <div class="stocks-paper-activity-row">
+                <span class="stocks-paper-side stocks-paper-side-${esc(f.side)}">${esc(f.side)}</span>
+                <span class="stocks-wl-code">${esc(f.symbol)}</span>
+                <span class="stocks-row-sub">${esc(Number(f.qty).toFixed(2))} @ ${esc(formatMoney(f.price))}</span>
+                <span class="stocks-paper-activity-time">${esc(formatWhen(f.filledAt))}</span>
+            </div>
+        `).join('') || '<div class="stocks-empty-copy">No fills yet</div>';
+
+        const signalRows = signals.map((s) => `
+            <div class="stocks-paper-activity-row">
+                ${sentimentBadge(s.sentiment || s.action)}
+                <span class="stocks-wl-code">${esc(s.stock || '—')}</span>
+                <span class="stocks-row-sub">${esc(s.detail || s.summary || s.source || '')}</span>
+                <span class="stocks-paper-activity-time">${esc(formatWhen(s.at))}</span>
+            </div>
+        `).join('') || '<div class="stocks-empty-copy">Waiting for KAP / news signals</div>';
+
+        return `
+            <section class="stocks-paper" aria-label="Paper trading">
+                <div class="stocks-paper-glow" aria-hidden="true"></div>
+                <header class="stocks-paper-head">
+                    <div class="stocks-paper-head-copy">
+                        <div class="stocks-kicker">Simulation · BIST only</div>
+                        <h3 class="stocks-paper-title">Paper desk</h3>
+                        <p class="stocks-paper-lead">${esc(paperState.disclaimer || 'Virtual cash. Delayed fills. Soft ±10% limit friction.')}</p>
+                    </div>
+                    <div class="stocks-paper-equity ${pnlTone(p.totalPnl)}">
+                        <div class="stocks-paper-equity-label">Equity</div>
+                        <div class="stocks-paper-equity-value">${esc(formatMoney(p.equity))}</div>
+                        <div class="stocks-paper-equity-delta">
+                            <span>${esc(formatMoney(p.totalPnl, { signed: true }))}</span>
+                            <span class="stocks-paper-return">${esc(returnPct)}</span>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="stocks-paper-metrics">
+                    <div class="stocks-paper-metric">
+                        <span class="stocks-paper-metric-label">Cash</span>
+                        <span class="stocks-paper-metric-value">${esc(formatMoney(p.cash))}</span>
+                    </div>
+                    <div class="stocks-paper-metric">
+                        <span class="stocks-paper-metric-label">Positions</span>
+                        <span class="stocks-paper-metric-value">${esc(formatMoney(p.positionsValue))}</span>
+                    </div>
+                    <div class="stocks-paper-metric">
+                        <span class="stocks-paper-metric-label">Realized</span>
+                        <span class="stocks-paper-metric-value ${pnlTone(p.realizedPnl)}">${esc(formatMoney(p.realizedPnl, { signed: true }))}</span>
+                    </div>
+                    <div class="stocks-paper-metric">
+                        <span class="stocks-paper-metric-label">Unrealized</span>
+                        <span class="stocks-paper-metric-value ${pnlTone(p.unrealizedPnl)}">${esc(formatMoney(p.unrealizedPnl, { signed: true }))}</span>
+                    </div>
+                </div>
+
+                <div class="stocks-paper-toolbar">
+                    <button type="button" class="stocks-paper-auto${autoOn ? ' is-on' : ''}" id="stocksPaperAutoBtn" aria-pressed="${autoOn ? 'true' : 'false'}">
+                        <span class="stocks-paper-auto-dot"></span>
+                        Auto ${autoOn ? 'on' : 'paused'}
+                    </button>
+                    <div class="stocks-paper-news-chip${news.enabled ? ' is-on' : ''}">
+                        News RSS ${news.enabled ? 'on' : 'off'}
+                    </div>
+                    <div class="stocks-paper-reset-wrap">
+                        <input type="number" id="stocksPaperCash" class="stocks-input stocks-input-sm" min="1000" step="1000" placeholder="Start ₺" value="${esc(p.startingCash != null ? p.startingCash : '')}" />
+                        <button type="button" class="stocks-btn stocks-btn-ghost" id="stocksPaperResetBtn">Reset</button>
+                    </div>
+                </div>
+
+                <div class="stocks-paper-grid">
+                    <div class="stocks-paper-card">
+                        <div class="stocks-section-head">
+                            <h4 class="stocks-section-title">Holdings</h4>
+                            <div class="stocks-section-meta">${positions.length}</div>
+                        </div>
+                        <div class="stocks-paper-list">${posRows}</div>
+                    </div>
+                    <div class="stocks-paper-card">
+                        <div class="stocks-section-head">
+                            <h4 class="stocks-section-title">Open orders</h4>
+                            <div class="stocks-section-meta">${openOrders.length}</div>
+                        </div>
+                        <div class="stocks-paper-list">${orderRows}</div>
+                    </div>
+                    <div class="stocks-paper-card stocks-paper-ticket">
+                        <div class="stocks-section-head">
+                            <h4 class="stocks-section-title">Manual order</h4>
+                            <div class="stocks-section-meta">Market · delayed fill</div>
+                        </div>
+                        <div class="stocks-paper-ticket-form">
+                            <input type="text" id="stocksPaperSymbol" class="stocks-input" placeholder="Symbol e.g. THYAO" maxlength="12" autocomplete="off" value="${esc(selectedSymbol || '')}" />
+                            <input type="number" id="stocksPaperQty" class="stocks-input" placeholder="Qty" min="0.01" step="0.01" />
+                            <div class="stocks-paper-ticket-actions">
+                                <button type="button" class="stocks-btn stocks-paper-buy" id="stocksPaperBuyBtn">Buy</button>
+                                <button type="button" class="stocks-btn stocks-paper-sell" id="stocksPaperSellBtn">Sell</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stocks-paper-activity">
+                    <div class="stocks-paper-card">
+                        <div class="stocks-section-head">
+                            <h4 class="stocks-section-title">Signals</h4>
+                        </div>
+                        <div class="stocks-paper-activity-list">${signalRows}</div>
+                    </div>
+                    <div class="stocks-paper-card">
+                        <div class="stocks-section-head">
+                            <h4 class="stocks-section-title">Fills</h4>
+                        </div>
+                        <div class="stocks-paper-activity-list">${fillRows}</div>
+                    </div>
+                </div>
+            </section>
+        `;
+    }
+
     function renderPage() {
         const root = document.getElementById('stocksViewBody');
         if (!root) return;
         const active = document.activeElement;
-        const focusId = active && (active.id === 'stocksSearchInput' || active.id === 'stocksWatchlistInput')
-            ? active.id
-            : null;
+        const focusIds = new Set([
+            'stocksSearchInput',
+            'stocksWatchlistInput',
+            'stocksPaperSymbol',
+            'stocksPaperQty',
+            'stocksPaperCash'
+        ]);
+        const focusId = active && focusIds.has(active.id) ? active.id : null;
         const selStart = focusId ? active.selectionStart : null;
         const selEnd = focusId ? active.selectionEnd : null;
 
@@ -454,6 +649,7 @@
                         ${detailSection()}
                     </div>
                 </div>
+                ${paperSection()}
             </div>
         `;
 
@@ -513,6 +709,22 @@
             if (select) {
                 const code = select.getAttribute('data-stocks-select');
                 if (code) selectSymbol(code);
+                return;
+            }
+
+            const cancel = t.closest('[data-paper-cancel]');
+            if (cancel) {
+                ev.preventDefault();
+                const orderId = cancel.getAttribute('data-paper-cancel');
+                if (!send(manager, { type: 'stocks_paper_cancel', orderId })) {
+                    fetch('/api/stocks/paper/cancel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ orderId })
+                    }).then((r) => r.json()).then((data) => {
+                        if (data.paper) applyPaperState(data.paper);
+                    }).catch(() => {});
+                }
             }
         });
 
@@ -529,10 +741,55 @@
                         fetch('/api/stocks/refresh', { method: 'POST' }).catch(() => {});
                     }
                 }).catch(() => {});
+                return;
             }
             if (t.id === 'stocksRefreshBtn') {
                 if (!send(manager, { type: 'stocks_refresh' })) {
                     fetch('/api/stocks/refresh', { method: 'POST' }).catch(() => {});
+                }
+                return;
+            }
+            if (t.id === 'stocksPaperAutoBtn') {
+                const next = !(paperState.autoTrade !== false);
+                if (!send(manager, { type: 'stocks_paper_auto', enabled: next })) {
+                    fetch('/api/stocks/paper/auto', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: next })
+                    }).then((r) => r.json()).then((data) => {
+                        if (data.paper) applyPaperState(data.paper);
+                    }).catch(() => {});
+                }
+                return;
+            }
+            if (t.id === 'stocksPaperBuyBtn' || t.id === 'stocksPaperSellBtn') {
+                const side = t.id === 'stocksPaperBuyBtn' ? 'buy' : 'sell';
+                const symbolEl = document.getElementById('stocksPaperSymbol');
+                const qtyEl = document.getElementById('stocksPaperQty');
+                const symbol = (symbolEl && symbolEl.value) || '';
+                const qty = qtyEl && qtyEl.value;
+                placePaperOrder(manager, { side, symbol, qty });
+                return;
+            }
+            if (t.id === 'stocksPaperResetBtn') {
+                const cashEl = document.getElementById('stocksPaperCash');
+                const startingCash = cashEl && cashEl.value ? Number(cashEl.value) : undefined;
+                const run = () => {
+                    if (!send(manager, { type: 'stocks_paper_reset', startingCash })) {
+                        fetch('/api/stocks/paper/reset', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ startingCash })
+                        }).then((r) => r.json()).then((data) => {
+                            if (data.paper) applyPaperState(data.paper);
+                        }).catch(() => {});
+                    }
+                };
+                if (manager && typeof manager.showConfirm === 'function') {
+                    manager.showConfirm('Reset paper portfolio? Open orders and fills will be cleared.', 'Reset paper')
+                        .then((ok) => { if (ok) run(); });
+                } else {
+                    run();
                 }
             }
         });
@@ -617,6 +874,38 @@
         window.moduleManager.renderModules();
     }
 
+    function placePaperOrder(manager, { side, symbol, qty }) {
+        const payload = {
+            side,
+            symbol: String(symbol || '').trim(),
+            qty: Number(qty),
+            type: 'market'
+        };
+        if (!payload.symbol || !(payload.qty > 0)) return;
+        if (!send(manager, { type: 'stocks_paper_order', ...payload })) {
+            fetch('/api/stocks/paper/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then((r) => r.json()).then((data) => {
+                if (data.paper) applyPaperState(data.paper);
+            }).catch(() => {});
+        }
+    }
+
+    function applyPaperState(incoming) {
+        if (!incoming || typeof incoming !== 'object') return;
+        paperState = { ...paperState, ...incoming };
+        renderPage();
+    }
+
+    function fetchPaperState() {
+        return fetch('/api/stocks/paper')
+            .then((r) => r.json())
+            .then((data) => applyPaperState(data))
+            .catch(() => {});
+    }
+
     function applyState(incoming) {
         const prevQuotes = state.quotesBySymbol || {};
         state = { ...state, ...incoming };
@@ -639,6 +928,7 @@
                 state.lastError = err.message || String(err);
                 renderPage();
             });
+        fetchPaperState();
         if (!searchResults.length) {
             loadSearch('');
         }
@@ -647,6 +937,10 @@
     function handleMessage(manager, message) {
         if (message.type === 'stocks_state' && message.data) {
             applyState(message.data);
+            return true;
+        }
+        if (message.type === 'stocks_paper_state' && message.data) {
+            applyPaperState(message.data);
             return true;
         }
         return false;
