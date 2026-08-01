@@ -312,27 +312,11 @@ function handleMessage(ws, data) {
     switch (data.type) {
         case 'instance_update':
             logger.info('Sync', `Instance update: ${data.instanceKey}`);
-
-            // Update server state
-            if (!dashboardState.instances) {
-                dashboardState.instances = {};
+            try {
+                applyInstanceUpdate(data.instanceKey, data.data, { broadcast: true, sender: ws });
+            } catch (err) {
+                logger.warn('Sync', `Instance update ignored: ${err.message || err}`);
             }
-            if (!dashboardState.instances[data.instanceKey]) {
-                dashboardState.instances[data.instanceKey] = {};
-            }
-
-            // Merge the update data
-            Object.assign(dashboardState.instances[data.instanceKey], data.data);
-            dashboardState.lastUpdated = Date.now();
-            saveDashboardState();
-
-            // Broadcast to all other clients
-            broadcastToOthers(ws, {
-                type: 'instance_update',
-                instanceKey: data.instanceKey,
-                data: data.data,
-                timestamp: data.timestamp
-            });
             break;
 
         case 'full_state_sync':
