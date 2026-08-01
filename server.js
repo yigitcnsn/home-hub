@@ -123,6 +123,58 @@ app.get('/api/dashboard/state', (req, res) => {
     res.json(getDashboardStatePublic());
 });
 
+/**
+ * Merge an incoming dashboard layout with persisted state.
+ * @returns {{ action: 'keep_local'|'noop'|'accepted', state: object }}
+ */
+function mergeDashboardState(incoming, { broadcast = false, sender = null } = {}) {
+    const incomingModules = Array.isArray(incoming && incoming.modules) ? incoming.modules : [];
+    const localCount = Array.isArray(dashboardState.modules) ? dashboardState.modules.length : 0;
+    const incomingTs = typeof (incoming && incoming.lastUpdated) === 'number'
+        ? incoming.lastUpdated
+        : (typeof (incoming && incoming.timestamp) === 'number' ? incoming.timestamp : Date.now());
+    const localTs = typeof dashboardState.lastUpdated === 'number' ? dashboardState.lastUpdated : 0;
+
+    if (incomingModules.length === 0 && localCount > 0) {
+        return { action: 'keep_local', state: getDashboardStatePublic() };
+    }
+
+    if (incomingModules.length > 0 && localCount > 0 && localTs > incomingTs) {
+        return { action: 'keep_local', state: getDashboardStatePublic() };
+    }
+
+    if (incomingModules.length === 0 && localCount === 0) {
+        return { action: 'noop', state: getDashboardStatePublic() };
+    }
+
+    dashboardState = {
+        modules: incomingModules,
+        instances: incoming && incoming.instances && typeof incoming.instances === 'object'
+            ? incoming.instances
+            : {},
+        lastUpdated: Date.now()
+    };
+    saveDashboardState(true);
+
+    const publicState = getDashboardStatePublic();
+    if (broadcast) {
+        const message = { type: 'full_state', state: publicState };
+        if (sender) broadcastToOthers(sender, message);
+        else broadcastToAll(message);
+    }
+    return { action: 'accepted', state: publicState };
+}
+
+app.post('/api/dashboard/state', (req, res) => {
+    try {
+        const result = mergeDashboardState(req.body || {}, { broadcast: true });
+        res.json({ ok: true, ...result });
+    } catch (err) {
+        logger.error('Sync', `HTTP state sync failed: ${err.message}`);
+        res.status(500).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
 // Connected clients
 const clients = new Set();
 const clientConnectedHandlers = [];
