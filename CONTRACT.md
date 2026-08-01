@@ -31,7 +31,7 @@ No model runtime / weights in home-hub.
 | Variable | Default | Notes |
 |----------|---------|--------|
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Root URL only (no `/v1`) |
-| `OLLAMA_MODEL` | `qwen2.5:3b` | Configurable; UI picker optional later |
+| `OLLAMA_MODEL` | `qwen2.5:3b` | Seed default; runtime picker on AI Info (persisted under `data/aiinfo/`) |
 | `KAP_LANGUAGE` | `tr` | v1 scrapes Turkish KAP (`/tr`) |
 | `KAP_WATCHLIST` | _(empty)_ | Seed for `data/stocksai/watchlist.json` (UI can edit after) |
 | `KAP_POLL_INTERVAL_MS` | `3600000` (1 hour) | Scheduled scrape |
