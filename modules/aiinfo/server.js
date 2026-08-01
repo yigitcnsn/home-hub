@@ -6,12 +6,12 @@ const REFRESH_MS = Number(process.env.AIINFO_POLL_MS || 30000);
  * AI information — configured Ollama model + context / token window.
  */
 function register(ctx) {
-    const { app, logger, broadcastToAll, onClientConnected, onClientMessage } = ctx;
+    const { app, logger, broadcastToAll, onClientConnected, onClientMessage, notify, emit } = ctx;
 
     let state = {
         online: false,
         baseUrl: ollama.DEFAULT_BASE,
-        model: ollama.DEFAULT_MODEL,
+        model: ollama.getActiveModel(),
         models: [],
         contextLength: null,
         parameterSize: null,
@@ -55,6 +55,7 @@ function register(ctx) {
                 state.quantization = null;
                 state.format = null;
             } else {
+                state.model = ollama.getActiveModel();
                 const info = await ollama.getModelInfo({
                     baseUrl: state.baseUrl,
                     model: state.model
