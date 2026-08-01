@@ -24,17 +24,14 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 │  Home Hub   │  page title · clock · theme · sync   │
 ├─────────────┼──────────────────────────────────────┤
 │  Home       │                                      │
-│  Notifications│ widgets  /  module page content    │
+│  Notify     │   widgets  /  module page content    │
 │  Logs       │                                      │
 │  Stocks AI  │                                      │
 │  Stocks     │                                      │
 │  Monitor    │                                      │
 │  Network    │                                      │
 │  AI Info    │                                      │
-│  + Add      │                                      │
-│    Widget   │                                      │
-└─────────────�  Network    │                                      │
-│  AI Info    │                                      │
+│             │                                      │
 │  + Add      │                                      │
 │    Widget   │                                      │
 └─────────────┴──────────────────────────────────────┘
