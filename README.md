@@ -325,6 +325,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `GET` | `/api/stocks/search` | `?q=` BIST browse / direct symbol |
 | `GET` | `/api/stocks/chart` | `?symbol=THYAO&range=1mo` OHLCV |
 | `POST` | `/api/stocks/refresh` | Force watchlist quote refresh |
+| `GET` | `/api/stocks/paper` | Paper desk portfolio / orders / fills |
+| `POST` | `/api/stocks/paper/order` | Place paper order |
+| `POST` | `/api/stocks/paper/cancel` | Cancel paper order |
+| `POST` | `/api/stocks/paper/reset` | Reset paper portfolio |
+| `POST` | `/api/stocks/paper/auto` | Toggle auto strategy |
+| `POST` | `/api/stocks/news` | Toggle / status for Investing.com RSS |
 
 </details>
 
