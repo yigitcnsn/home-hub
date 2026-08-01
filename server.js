@@ -299,55 +299,17 @@ function handleMessage(ws, data) {
 
         case 'full_state_sync':
             logger.info('Sync', 'Full state sync received');
-
-            // Update server state with client's full state
             if (data.state) {
-                const incomingModules = Array.isArray(data.state.modules) ? data.state.modules : [];
-                const localCount = Array.isArray(dashboardState.modules) ? dashboardState.modules.length : 0;
-                const incomingTs = typeof data.state.lastUpdated === 'number'
-                    ? data.state.lastUpdated
-                    : (typeof data.state.timestamp === 'number' ? data.state.timestamp : Date.now());
-                const localTs = typeof dashboardState.lastUpdated === 'number' ? dashboardState.lastUpdated : 0;
-
-                // Empty client: restore from disk/RAM if we have a layout
-                if (incomingModules.length === 0 && localCount > 0) {
-                    logger.info('Sync', 'Client empty; sending persisted modules back');
+                const result = mergeDashboardState(data.state, { broadcast: true, sender: ws });
+                if (result.action === 'keep_local') {
+                    logger.info('Sync', 'Sending persisted modules back to client');
                     ws.send(JSON.stringify({
                         type: 'full_state',
-                        state: dashboardState
+                        state: result.state
                     }));
-                    break;
+                } else if (result.action === 'accepted') {
+                    logger.info('Sync', `Updated state with ${result.state.modules.length} modules`);
                 }
-
-                // Both sides have layouts: keep the newer one
-                if (incomingModules.length > 0 && localCount > 0 && localTs > incomingTs) {
-                    logger.info('Sync', 'Persisted state is newer; sending it to client');
-                    ws.send(JSON.stringify({
-                        type: 'full_state',
-                        state: dashboardState
-                    }));
-                    break;
-                }
-
-                if (incomingModules.length === 0 && localCount === 0) {
-                    break;
-                }
-
-                dashboardState = {
-                    modules: incomingModules,
-                    instances: data.state.instances && typeof data.state.instances === 'object'
-                        ? data.state.instances
-                        : {},
-                    lastUpdated: Date.now()
-                };
-                saveDashboardState(true);
-                logger.info('Sync', `Updated state with ${incomingModules.length} modules`);
-
-                // Broadcast full state to all other clients
-                broadcastToOthers(ws, {
-                    type: 'full_state',
-                    state: dashboardState
-                });
             }
             break;
 
