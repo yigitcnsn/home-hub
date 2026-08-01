@@ -37,7 +37,7 @@ function rootUrl(baseUrl) {
 
 /**
  * Lightweight reachability check (Ollama /api/tags).
- * @returns {Promise<{ online: boolean, checkedAt: string, error?: string }>}
+ * @returns {Promise<{ online: boolean, checkedAt: string, models?: string[], error?: string }>}
  */
 async function checkHealth(opts = {}) {
     const baseUrl = opts.baseUrl || DEFAULT_BASE;
@@ -58,12 +58,109 @@ async function checkHealth(opts = {}) {
                 error: `Ollama HTTP ${res.status}`
             };
         }
-        return { online: true, checkedAt };
+        const data = await res.json().catch(() => ({}));
+        const models = Array.isArray(data.models)
+            ? data.models.map((m) => m && (m.name || m.model)).filter(Boolean)
+            : [];
+        return { online: true, checkedAt, models };
     } catch (err) {
         const message = err && err.name === 'AbortError'
             ? 'Ollama health check timed out'
             : (err && err.message) || String(err);
         return { online: false, checkedAt, error: message };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function parseNumCtxFromParameters(parameters) {
+    if (!parameters || typeof parameters !== 'string') return null;
+    const match = parameters.match(/(?:^|\n)\s*num_ctx\s+(\d+)/i);
+    if (!match) return null;
+    const n = Number(match[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function parseContextFromModelInfo(modelInfo) {
+    if (!modelInfo || typeof modelInfo !== 'object') return null;
+    const preferred = [
+        'llama.context_length',
+        'qwen2.context_length',
+        'qwen3.context_length',
+        'gemma.context_length',
+        'mistral.context_length',
+        'general.context_length'
+    ];
+    for (const key of preferred) {
+        const n = Number(modelInfo[key]);
+        if (Number.isFinite(n) && n > 0) return n;
+    }
+    for (const [key, value] of Object.entries(modelInfo)) {
+        if (!/context_length$/i.test(key)) continue;
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+}
+
+/**
+ * Fetch model metadata from Ollama /api/show (context / token window).
+ * @returns {Promise<object>}
+ */
+async function getModelInfo(opts = {}) {
+    const baseUrl = opts.baseUrl || DEFAULT_BASE;
+    const model = opts.model || DEFAULT_MODEL;
+    const timeoutMs = Number(opts.timeoutMs) || 8000;
+    const checkedAt = new Date().toISOString();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const res = await fetch(`${rootUrl(baseUrl)}/api/show`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: model }),
+            signal: controller.signal
+        });
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            return {
+                ok: false,
+                model,
+                checkedAt,
+                error: `Ollama HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ''}`
+            };
+        }
+        const data = await res.json();
+        const details = data.details || {};
+        const modelInfo = data.model_info || data.modelinfo || {};
+        const contextFromInfo = parseContextFromModelInfo(modelInfo);
+        const contextFromParams = parseNumCtxFromParameters(data.parameters);
+        const contextLength = contextFromInfo || contextFromParams || null;
+
+        return {
+            ok: true,
+            model,
+            checkedAt,
+            contextLength,
+            parameterSize: details.parameter_size || null,
+            family: details.family || details.families || null,
+            quantization: details.quantization_level || null,
+            format: details.format || null,
+            parameters: typeof data.parameters === 'string' ? data.parameters : null,
+            error: null
+        };
+    } catch (err) {
+        const message = err && err.name === 'AbortError'
+            ? 'Ollama model info timed out'
+            : (err && err.message) || String(err);
+        return {
+            ok: false,
+            model,
+            checkedAt,
+            contextLength: null,
+            error: message
+        };
     } finally {
         clearTimeout(timer);
     }
@@ -140,6 +237,7 @@ async function classifyKap(opts) {
 module.exports = {
     classifyKap,
     checkHealth,
+    getModelInfo,
     loadSystemPrompt,
     resolvePromptPath,
     chatCompletionsUrl,
