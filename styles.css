@@ -4236,9 +4236,6 @@ body.dark-mode .stocks-paper-glow {
     font-size: 12px;
     color: var(--text-secondary);
     background: var(--bg-secondary, var(--bg-hover));
-}
-
-.aiinfo-model-list li {
     cursor: pointer;
 }
 
