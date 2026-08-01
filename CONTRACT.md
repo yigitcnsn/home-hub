@@ -90,18 +90,19 @@ Merged stored record = model fields + home-hub fields above.
 
 `id`, `date`, `stock`, `company`, `type`, `subject`/`title`, `summary`, `sourceUrl`, `language`
 
-## Planned home-hub API (wrapper)
+## home-hub API (wrapper)
 
 Browser talks only to home-hub, never to Ollama directly.
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET` | `/api/stocksai` | Full Stocks AI state |
 | `GET` | `/api/stocksai/disclosures` | Watchlist + latest |
 | `POST` | `/api/stocksai/classify` | Enqueue classify job |
 | `GET` | `/api/stocksai/jobs/:id` | Job status |
 | `POST` | `/api/stocksai/scrape` | Manual scrape run |
-
-Exact paths may be adjusted at implement time; behavior stays as above.
+| `GET` | `/api/aiinfo` | Active model + context / token window |
+| `POST` | `/api/aiinfo/model` | Select active Ollama model |
 
 ## pi-llm references
 
