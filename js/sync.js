@@ -270,6 +270,27 @@ Object.assign(ModuleManager.prototype, {
             return;
         }
 
+        if (this._pollingMode) {
+            fetch('/api/dashboard/instance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ instanceKey, data })
+            })
+                .then((res) => res.json())
+                .then((result) => {
+                    if (result && result.state && result.state.lastUpdated) {
+                        this._lastPolledUpdated = result.state.lastUpdated;
+                    }
+                    this.syncEnabled = true;
+                    this.updateSyncStatus('connected', 'Poll');
+                    this.showSyncPulse();
+                })
+                .catch((err) => {
+                    console.warn('[syncInstanceData] HTTP sync failed:', err.message || err);
+                });
+            return;
+        }
+
         console.warn('[syncInstanceData] Cannot sync — WebSocket not ready');
     },
 
@@ -289,7 +310,9 @@ Object.assign(ModuleManager.prototype, {
         if (iconEl) iconEl.textContent = icon;
 
         const titles = {
-            connected: 'Sync: Connected - Real-time updates active',
+            connected: icon === 'Poll'
+                ? 'Sync: Connected - HTTP polling fallback'
+                : 'Sync: Connected - Real-time updates active',
             connecting: 'Sync: Connecting...',
             disconnected: 'Sync: Disconnected - Changes won\'t sync'
         };
