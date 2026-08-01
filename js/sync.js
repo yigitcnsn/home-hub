@@ -85,13 +85,44 @@ Object.assign(ModuleManager.prototype, {
     },
 
     initPollingSync() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+        this._pollingMode = true;
+        this._lastPolledUpdated = typeof this._lastPolledUpdated === 'number'
+            ? this._lastPolledUpdated
+            : 0;
         this.syncEnabled = true;
         this.updateSyncStatus('connecting', '...');
-        this.pollingInterval = setInterval(() => this.checkForUpdates(), 30000);
+        this.checkForUpdates();
+        this.sendFullState();
+        this.pollingInterval = setInterval(() => this.checkForUpdates(), 5000);
     },
 
     checkForUpdates() {
-        // Placeholder for polling fallback
+        return fetch('/api/dashboard/state')
+            .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then((state) => {
+                const remoteTs = typeof state.lastUpdated === 'number' ? state.lastUpdated : 0;
+                if (remoteTs > (this._lastPolledUpdated || 0)) {
+                    this.applyFullState(state);
+                    this._lastPolledUpdated = remoteTs;
+                    this.showSyncPulse();
+                } else if (!this._lastPolledUpdated && remoteTs) {
+                    this._lastPolledUpdated = remoteTs;
+                }
+                this.syncEnabled = true;
+                this.updateSyncStatus('connected', 'Poll');
+            })
+            .catch((err) => {
+                this.syncEnabled = false;
+                this.updateSyncStatus('disconnected', 'Off');
+                console.warn('[Sync] Polling failed:', err.message || err);
+            });
     },
 
     handleSyncMessage(message) {
