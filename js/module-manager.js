@@ -490,6 +490,16 @@ class ModuleManager {
                         </span>`
                     );
                 }
+                if (mod.view === 'notifications') {
+                    btn.insertAdjacentHTML(
+                        'beforeend',
+                        `<span class="logs-nav-badges" id="notifNavBadges">
+                            <span class="logs-nav-count" id="notifNavUnread" title="Unread" hidden>0</span>
+                            <span class="logs-nav-count logs-nav-warn" id="notifNavWarn" title="Warn" hidden>0</span>
+                            <span class="logs-nav-count logs-nav-error" id="notifNavError" title="Error" hidden>0</span>
+                        </span>`
+                    );
+                }
                 nav.appendChild(btn);
             });
     }
