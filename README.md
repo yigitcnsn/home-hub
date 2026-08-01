@@ -54,12 +54,16 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Home widgets** — Apple Watch–style complications (circular small / modular medium & large); add, edit, resize, drag to reorder (type + size only — no custom names)
 - **System Monitor** — pinned Fitness rings (CPU · Mem · Disk) with temperature at the center; live stats every 5s
 - **Activity Monitor** — sidebar page with large history charts + metrics table (deep view; Home keeps the compact rings)
+- **Notifications** — global info / warn / error inbox + toasts (not a mirror of Logs); modules push via `ctx.notify`
 - **Logs** — live server + client log stream with All / Info / Warn / Error filters and Clear info
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload + Run on Home only
 - **Stocks AI** — Borsa İstanbul disclosures: editable watchlist, hourly scrape, daily digest, Ollama sentiment (sidebar + Home widget)
 - **Stocks** — Yahoo Finance quotes (no API key): separate watchlist, BIST browse, simple charts; Home watchlist widget; ~60s poll
-- **Light & dark theme**, fullscreen, multi-device sync over WebSocket
+- **Paper desk** — BIST-only virtual portfolio under Stocks (orders, fills, mark-to-market); optional auto strategy from KAP / news sentiment
+- **News RSS** — Investing.com headlines → Ollama classify → paper signals (toggle on Paper desk)
+- **AI Info** — configured Ollama model, online status, context / token window; model picker; Home widgets
+- **Light & dark theme**, fullscreen, multi-device sync over WebSocket (HTTP polling fallback if WS unavailable)
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
 - **Client → server logging** — UI errors land in Logs / `logs/home-hub.log`
