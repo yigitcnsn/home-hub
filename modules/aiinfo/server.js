@@ -103,6 +103,37 @@ function register(ctx) {
         }
     });
 
+    async function selectModel(name) {
+        const result = ollama.setActiveModel(name);
+        state.model = result.model;
+        if (result.changed && typeof emit === 'function') {
+            emit('ollama_model_changed', { model: result.model });
+        }
+        if (result.changed && typeof notify === 'function') {
+            notify({
+                level: 'info',
+                source: 'AI Info',
+                title: 'Ollama model updated',
+                body: `Now using ${result.model}`
+            });
+        }
+        return refresh({ broadcast: true });
+    }
+
+    app.post('/api/aiinfo/model', async (req, res) => {
+        try {
+            const model = String((req.body && req.body.model) || '').trim();
+            if (!model) {
+                res.status(400).json({ ok: false, error: 'model required' });
+                return;
+            }
+            const data = await selectModel(model);
+            res.json({ ok: true, ...data });
+        } catch (err) {
+            res.status(400).json({ ok: false, error: err.message || String(err) });
+        }
+    });
+
     onClientConnected((ws) => {
         try {
             ws.send(JSON.stringify({
@@ -115,13 +146,24 @@ function register(ctx) {
     });
 
     onClientMessage((ws, data) => {
-        if (!data || data.type !== 'aiinfo_refresh') return false;
-        refresh({ broadcast: true }).catch((err) => {
-            if (logger) {
-                logger.warn('AIInfo', `Manual refresh failed: ${err.message || err}`);
-            }
-        });
-        return true;
+        if (!data || typeof data.type !== 'string') return false;
+        if (data.type === 'aiinfo_refresh') {
+            refresh({ broadcast: true }).catch((err) => {
+                if (logger) {
+                    logger.warn('AIInfo', `Manual refresh failed: ${err.message || err}`);
+                }
+            });
+            return true;
+        }
+        if (data.type === 'aiinfo_set_model') {
+            selectModel(data.model).catch((err) => {
+                if (logger) {
+                    logger.warn('AIInfo', `Set model failed: ${err.message || err}`);
+                }
+            });
+            return true;
+        }
+        return false;
     });
 
     setTimeout(() => {
