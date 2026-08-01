@@ -274,13 +274,17 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | Variable | Purpose |
 |:---------|:--------|
 | `OLLAMA_BASE_URL` | Ollama API (default `http://127.0.0.1:11434`) |
-| `OLLAMA_MODEL` | Model name (default `qwen2.5:3b`) |
+| `OLLAMA_MODEL` | Seed model name (default `qwen2.5:3b`); runtime picker on AI Info |
 | `KAP_LANGUAGE` | Classify language (default `tr`) |
 | `KAP_WATCHLIST` | Comma-separated tickers (e.g. `THYAO,ASELS`) |
 | `KAP_PROMPT_PATH` | Sentiment prompt file |
 | `KAP_POLL_INTERVAL_MS` | Scheduled scrape interval (default **1 hour** / `3600000`) |
 | `STOCKS_WATCHLIST` | Seed tickers for Stocks module (e.g. `THYAO,ASELS`) — separate from KAP |
 | `STOCKS_POLL_INTERVAL_MS` | Quote refresh interval (default **60s** / `60000`) |
+| `PAPER_STARTING_CASH_TRY` | Paper desk starting cash (default `100000`) |
+| `PAPER_AUTO_TRADE` | Enable KAP/news → paper strategy when `1` |
+| `NEWS_RSS_ENABLED` | Seed default for Investing.com RSS (UI can override) |
+| `AIINFO_POLL_MS` | AI Info refresh interval (default `30000`) |
 | `HOMEHUB_WATCH_SECONDS` | Watch-mode fetch interval (default `60`) |
 | `PORT` | HTTP port (default `3000`) |
 
