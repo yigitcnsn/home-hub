@@ -391,7 +391,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | Issue | Fix |
 |:------|:----|
 | Port `3000` in use | Stop the old process, then `npm start` / `./start.sh` |
-| Sync disconnected | Confirm the server is running; check firewall |
+| Sync disconnected | Confirm the server is running; check firewall. Without WebSocket, UI falls back to HTTP polling (`Poll`) |
 | Widgets empty after Update | Open Home once to re-seed; layout is in `data/dashboard-state.json` + browser storage |
 | Widget create error dialog | Check **Logs** for the failing widget; use **Clear widgets** if the layout is corrupt |
 | Network page stale | `git pull`, restart Node, hard-refresh |
