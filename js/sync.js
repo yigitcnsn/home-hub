@@ -184,16 +184,44 @@ Object.assign(ModuleManager.prototype, {
     },
 
     sendFullState() {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-        this.ws.send(JSON.stringify({
-            type: 'full_state_sync',
-            state: {
-                modules: this.modules,
-                instances: this.moduleInstances,
-                timestamp: Date.now(),
-                lastUpdated: Date.now()
-            }
-        }));
+        const state = {
+            modules: this.modules,
+            instances: this.moduleInstances,
+            timestamp: Date.now(),
+            lastUpdated: Date.now()
+        };
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: 'full_state_sync',
+                state
+            }));
+            return;
+        }
+
+        if (!this._pollingMode) return;
+
+        fetch('/api/dashboard/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state)
+        })
+            .then((res) => res.json())
+            .then((result) => {
+                if (!result || !result.ok) return;
+                if (result.action === 'keep_local' && result.state) {
+                    this.applyFullState(result.state);
+                    this._lastPolledUpdated = result.state.lastUpdated || Date.now();
+                } else if (result.state && result.state.lastUpdated) {
+                    this._lastPolledUpdated = result.state.lastUpdated;
+                }
+                this.syncEnabled = true;
+                this.updateSyncStatus('connected', 'Poll');
+                this.showSyncPulse();
+            })
+            .catch((err) => {
+                console.warn('[Sync] HTTP full state push failed:', err.message || err);
+            });
     },
 
     applyFullState(state) {
