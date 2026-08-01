@@ -299,11 +299,21 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 |:-------|:-----|:------------|
 | `GET` | `/api/version` | Build id, branch, startedAt |
 | `POST` | `/api/update/now` | Request watch-mode pull now |
+| `GET` | `/api/dashboard/state` | Persisted widget layout (HTTP sync) |
+| `POST` | `/api/dashboard/state` | Push / merge widget layout |
+| `POST` | `/api/dashboard/instance` | Push single instance update |
+| `GET` | `/api/notifications` | Global notifications snapshot |
+| `POST` | `/api/notifications` | Create notification `{ level, title, body, source }` |
+| `POST` | `/api/notifications/read-all` | Mark all read |
+| `POST` | `/api/notifications/clear` | Dismiss all |
 | `GET` | `/api/logs` | Recent log entries |
 | `POST` | `/api/logs/client` | Ingest client log |
 | `POST` | `/api/logs/clear-info` | Remove info-level logs |
 | `GET` | `/api/network` | Analyzer state + snapshot |
-| `GET` | `/api/stocksai` | KAP state |
+| `GET` | `/api/aiinfo` | Ollama model + token window |
+| `POST` | `/api/aiinfo/refresh` | Refresh model metadata |
+| `POST` | `/api/aiinfo/model` | `{ model }` select active Ollama model |
+| `GET` | `/api/stocksai` | Stocks AI / KAP state |
 | `GET` | `/api/stocksai/disclosures` | Watchlist + disclosures |
 | `GET` | `/api/stocksai/jobs/:id` | Classify / scrape job status |
 | `POST` | `/api/stocksai/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
