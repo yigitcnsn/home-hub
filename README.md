@@ -24,12 +24,17 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 │  Home Hub   │  page title · clock · theme · sync   │
 ├─────────────┼──────────────────────────────────────┤
 │  Home       │                                      │
-│  Logs       │   widgets  /  module page content    │
+│  Notifications│ widgets  /  module page content    │
+│  Logs       │                                      │
 │  Stocks AI  │                                      │
 │  Stocks     │                                      │
 │  Monitor    │                                      │
 │  Network    │                                      │
-│             │                                      │
+│  AI Info    │                                      │
+│  + Add      │                                      │
+│    Widget   │                                      │
+└─────────────�  Network    │                                      │
+│  AI Info    │                                      │
 │  + Add      │                                      │
 │    Widget   │                                      │
 └─────────────┴──────────────────────────────────────┘
@@ -37,8 +42,8 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Logs · Stocks AI · Stocks · Monitor · Network |
-| **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist |
+| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info |
+| **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist, AI Model, AI Token Window |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
 New server features go in `modules/<name>/` (`server.js` + `client.js`). Core UI lives under `js/`.
