@@ -245,7 +245,7 @@ home-hub/
 │   ├── widgets.js             # Complication render + Fitness rings
 │   ├── system-monitor.js      # Live stats → Home widget
 │   ├── storage.js             # localStorage + Clear All
-│   ├── sync.js                # WebSocket sync + auto-reload
+│   ├── sync.js                # WebSocket sync + HTTP polling fallback + auto-reload
 │   ├── dialog.js              # In-page dialogs / failsafe
 │   ├── logging.js             # Client → server logs
 │   └── utils.js
@@ -254,12 +254,14 @@ home-hub/
 │   └── build-id.js
 ├── modules/
 │   ├── index.js               # Server module registry
-│   ├── activity/              # Activity Monitor page
+│   ├── notifications/         # Global info/warn/error alerts (not Logs)
+│   ├── activity/              # Logs page (server activity stream)
 │   ├── system/                # System Monitor widget registration
 │   ├── network/               # Network page + Speed Test widget
-│   ├── kap/                   # KAP scrape / classify / store
-│   └── stocks/                # Yahoo quotes / watchlist / charts
-├── data/                      # Runtime (gitignored): dashboard-state, kap/, stocks/, flags
+│   ├── stocksai/              # KAP scrape / classify / store (Stocks AI)
+│   ├── stocks/                # Yahoo quotes / watchlist / charts / paper / news
+│   └── aiinfo/                # Ollama model + token window page/widgets
+├── data/                      # Runtime (gitignored): dashboard-state, stocksai/, stocks/, notifications/, aiinfo/, flags
 └── logs/                      # Runtime (gitignored): home-hub.log, system-metrics.log
 ```
 
