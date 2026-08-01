@@ -183,16 +183,20 @@ flowchart LR
     E[modules/network]
     F[modules/stocksai]
     F2[modules/stocks]
+    F3[modules/notifications]
+    F4[modules/aiinfo]
     G[lib/logger]
     H[(data/dashboard-state.json)]
   end
 
-  A <-->|JSON over WS| B
+  A <-->|JSON over WS / HTTP poll| B
   B --> C
   B --> D
   B --> E
   B --> F
   B --> F2
+  B --> F3
+  B --> F4
   B --> G
   B --> H
   G --> I[(logs/home-hub.log)]
