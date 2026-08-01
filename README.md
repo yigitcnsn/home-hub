@@ -112,6 +112,18 @@ export STOCKS_WATCHLIST=THYAO,ASELS
 
 > Not investment advice. Data is delayed / unofficial Yahoo endpoints.
 
+### Paper desk & news
+
+Virtual BIST portfolio under the **Stocks** page (cash, orders, fills, soft limit friction). Optional auto strategy (`PAPER_AUTO_TRADE`) turns KAP / news sentiment into paper buys/sells with take-profit / stop-loss / hold timeout. Investing.com RSS headlines can be toggled from the Paper desk UI (state under `data/stocks/`). See `.env.example` for `PAPER_*` and `NEWS_RSS_*` knobs.
+
+### Notifications
+
+Global alerts with levels **info**, **warn**, and **error**. Sidebar inbox + corner toasts. Separate from **Logs** (does not subscribe to the logger). Other modules call `ctx.notify({ level, title, body, source })`. Runtime store: `data/notifications/`.
+
+### AI Info
+
+Sidebar **AI Info** shows the active Ollama model, online status, parameter size, and reported context / token window (`/api/show`). Use the model picker to switch among installed tags without restart (persisted in `data/aiinfo/`). Home widgets: **AI Model**, **AI Token Window**.
+
 ---
 
 ## Quick start
