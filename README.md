@@ -339,9 +339,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `system_stats` | Pi metrics → System / Activity Monitor |
 | `full_state` / `instance_update` | Widget layout & instance sync |
 | `logs_snapshot` / `log_entry` | Log stream |
+| `notifications_state` / `notification_entry` | Global notifications |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
-| `stocksai_state` | KAP updates |
+| `aiinfo_state` | Ollama model / token window |
+| `stocksai_state` | Stocks AI / KAP updates |
 | `stocks_state` | Stocks watchlist + quotes |
+| `stocks_paper_state` | Paper desk portfolio |
 | `ping` | Keep-alive |
 
 **Client → server**
@@ -351,9 +354,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `full_state_sync` / `instance_update` | Push layout / instance data |
 | `client_log` | UI errors → Logs |
 | `clear_info_logs` | Clear info logs |
+| `notification_create` / `notification_dismiss` / `notification_read` | Notifications |
+| `notifications_read_all` / `notifications_clear` | Notifications bulk |
 | `pong` | Ping reply |
 | `run_network_test` | Full network analysis |
 | `refresh_network_snapshot` | Refresh interfaces / LAN / Wi‑Fi |
+| `aiinfo_refresh` / `aiinfo_set_model` | AI Info refresh / model picker |
 | `stocksai_scrape` / `stocksai_classify` | KAP jobs |
 | `stocksai_watchlist_add` / `stocksai_watchlist_remove` | Edit watchlist |
 | `stocks_watchlist_add` / `stocks_watchlist_remove` | Edit Stocks watchlist |
