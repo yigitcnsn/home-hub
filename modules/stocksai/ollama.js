@@ -165,7 +165,7 @@ function parseContextFromModelInfo(modelInfo) {
  */
 async function getModelInfo(opts = {}) {
     const baseUrl = opts.baseUrl || DEFAULT_BASE;
-    const model = opts.model || DEFAULT_MODEL;
+    const model = opts.model || getActiveModel();
     const timeoutMs = Number(opts.timeoutMs) || 8000;
     const checkedAt = new Date().toISOString();
     const controller = new AbortController();
@@ -229,7 +229,7 @@ async function getModelInfo(opts = {}) {
 async function classifyKap(opts) {
     const stock = opts.stock;
     const text = (opts.text || '').trim();
-    const model = opts.model || DEFAULT_MODEL;
+    const model = opts.model || getActiveModel();
     const baseUrl = opts.baseUrl || DEFAULT_BASE;
 
     if (!stock) throw new Error('stock is required');
@@ -294,6 +294,8 @@ module.exports = {
     classifyKap,
     checkHealth,
     getModelInfo,
+    getActiveModel,
+    setActiveModel,
     loadSystemPrompt,
     resolvePromptPath,
     chatCompletionsUrl,
