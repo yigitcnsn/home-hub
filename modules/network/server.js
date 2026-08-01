@@ -581,7 +581,7 @@ class NetworkAnalyzer {
 }
 
 function register(ctx) {
-    const { app, logger, broadcastToAll, onClientConnected, onClientMessage } = ctx;
+    const { app, logger, broadcastToAll, onClientConnected, onClientMessage, notify } = ctx;
 
     const analyzer = new NetworkAnalyzer({
         logger,
@@ -597,6 +597,14 @@ function register(ctx) {
                     snapshot: analyzer.snapshot
                 }
             });
+            if (result && result.status === 'error' && typeof notify === 'function') {
+                notify({
+                    level: 'error',
+                    source: 'Network',
+                    title: 'Network test failed',
+                    body: result.error || 'Full network test did not complete'
+                });
+            }
         },
         onSnapshot: (snapshot) => {
             broadcastToAll({

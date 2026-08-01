@@ -20,7 +20,7 @@ const CHART_RANGE_INTERVAL = {
 };
 
 function register(ctx) {
-    const { app, logger, broadcastToAll, onClientConnected, onClientMessage } = ctx;
+    const { app, logger, broadcastToAll, onClientConnected, onClientMessage, notify } = ctx;
 
     let lastError = null;
     let lastRefreshAt = null;
@@ -115,6 +115,14 @@ function register(ctx) {
                 const out = strategy.onClassification(record, quotesBySymbol);
                 if (out && out.order) {
                     logger.info('Stocks', `Paper auto order: ${out.order.side} ${out.order.symbol} (${out.signal && out.signal.detail})`);
+                    if (typeof notify === 'function') {
+                        notify({
+                            level: 'info',
+                            source: 'Paper desk',
+                            title: `Auto ${out.order.side} ${out.order.symbol}`,
+                            body: (out.signal && out.signal.detail) || `Qty ${out.order.qty}`
+                        });
+                    }
                 } else if (out && out.skipped) {
                     logger.info('Stocks', `Paper signal skipped: ${out.skipped}`);
                 }

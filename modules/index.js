@@ -2,16 +2,21 @@
  * Server-side module registry.
  * Add new feature folders under modules/<name>/ with a server.js that exports { id, register }.
  */
+const notifications = require('./notifications/server');
 const activity = require('./activity/server');
 const network = require('./network/server');
 const stocksai = require('./stocksai/server');
 const stocks = require('./stocks/server');
+const aiinfo = require('./aiinfo/server');
 
+/** Notifications first so ctx.notify is available to every other module. */
 const modules = [
+    notifications,
     activity,
     network,
     stocksai,
-    stocks
+    stocks,
+    aiinfo
 ];
 
 function registerAll(ctx) {

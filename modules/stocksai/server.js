@@ -36,7 +36,7 @@ function buildDailyDigest(disclosures, watchlist) {
 }
 
 function register(ctx) {
-    const { app, logger, broadcastToAll, onClientConnected, onClientMessage } = ctx;
+    const { app, logger, broadcastToAll, onClientConnected, onClientMessage, notify } = ctx;
 
     const queue = [];
     const jobsById = new Map();
@@ -46,6 +46,7 @@ function register(ctx) {
     let oracleOnline = false;
     let oracleCheckedAt = null;
     let oracleError = null;
+    let oracleInitialized = false;
 
     // Restore recent jobs into memory map (display only)
     store.getJobs().forEach((job) => {
@@ -102,8 +103,27 @@ function register(ctx) {
             } else {
                 logger.info('StocksAI', 'Eclipse lifted: oracle online');
             }
+            // Notify only after the first probe so boot does not spam the inbox
+            if (oracleInitialized && typeof notify === 'function') {
+                if (!oracleOnline) {
+                    notify({
+                        level: 'error',
+                        source: 'Stocks AI',
+                        title: 'Ollama offline',
+                        body: oracleError || 'Classify paused until Ollama is back'
+                    });
+                } else {
+                    notify({
+                        level: 'info',
+                        source: 'Stocks AI',
+                        title: 'Ollama online',
+                        body: 'Sentiment classification resumed'
+                    });
+                }
+            }
             broadcastState();
         }
+        oracleInitialized = true;
         return oracleOnline;
     }
 

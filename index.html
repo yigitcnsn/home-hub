@@ -79,6 +79,34 @@
                 <!-- Widgets added here -->
             </div>
 
+            <!-- Notifications (global alerts — not Logs) -->
+            <section class="module-page notifications-view" id="notificationsView" data-view-panel="notifications" hidden>
+                <div class="notif-toolbar">
+                    <div class="notif-filters" id="notifFilters" role="group" aria-label="Notification type filter">
+                        <button type="button" class="notif-filter-btn active" data-filter="all">All</button>
+                        <button type="button" class="notif-filter-btn" data-filter="info">Info</button>
+                        <button type="button" class="notif-filter-btn" data-filter="warn">Warn</button>
+                        <button type="button" class="notif-filter-btn" data-filter="error">Error</button>
+                    </div>
+                    <div class="notif-toolbar-meta">
+                        <span id="notifUnreadCount">0 unread</span>
+                        <span class="notif-toolbar-sep">/</span>
+                        <span id="notifVisibleCount">0 shown</span>
+                        <span class="notif-toolbar-sep">/</span>
+                        <span id="notifTotalCount">0 total</span>
+                        <button type="button" class="notif-toolbar-btn" id="notifReadAllBtn" title="Mark all as read">
+                            Mark all read
+                        </button>
+                        <button type="button" class="notif-toolbar-btn notif-toolbar-danger" id="notifClearBtn" title="Dismiss all notifications">
+                            Clear all
+                        </button>
+                    </div>
+                </div>
+                <div class="notif-list" id="notifList">
+                    <div class="notif-empty">No notifications yet</div>
+                </div>
+            </section>
+
             <!-- Logs module page -->
             <section class="module-page logs-view" id="logsView" data-view-panel="logs" hidden>
                 <div class="logs-toolbar">
@@ -129,6 +157,13 @@
                     <div class="network-history-empty">Loading network analyzer...</div>
                 </div>
             </section>
+
+            <!-- AI Information (Ollama model + token window) -->
+            <section class="module-page aiinfo-view" id="aiinfoView" data-view-panel="aiinfo" hidden>
+                <div id="aiinfoViewBody">
+                    <div class="aiinfo-empty">Loading AI information…</div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -147,6 +182,8 @@
                         <option value="stocksai_digest">Stocks AI Digest</option>
                         <option value="stocksai_watchlist">Stocks AI Watchlist</option>
                         <option value="stocks_watchlist">Stocks Watchlist</option>
+                        <option value="aiinfo_model">AI Model</option>
+                        <option value="aiinfo_tokens">AI Token Window</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -177,11 +214,13 @@
         </div>
     </div>
 
+    <script src="modules/notifications/client.js"></script>
     <script src="modules/activity/client.js"></script>
     <script src="modules/system/client.js"></script>
     <script src="modules/network/client.js"></script>
     <script src="modules/stocksai/client.js"></script>
     <script src="modules/stocks/client.js"></script>
+    <script src="modules/aiinfo/client.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/module-manager.js"></script>
     <script src="js/logging.js"></script>
