@@ -217,6 +217,8 @@ flowchart LR
 | **Stocks AI Digest** | Today’s filing count + good / bad / other |
 | **Stocks AI Watchlist** | Tickers with sentiment; add / remove |
 | **Stocks Watchlist** | Yahoo prices + change %; add / remove |
+| **AI Model** | Active Ollama model + online status |
+| **AI Token Window** | Reported context / max tokens for the model |
 
 **Sizes:** Small `1×1` (circular) · Medium `2×1` · Large `2×2`  
 System Monitor always spans the full row.
