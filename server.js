@@ -175,6 +175,44 @@ app.post('/api/dashboard/state', (req, res) => {
     }
 });
 
+function applyInstanceUpdate(instanceKey, data, { broadcast = false, sender = null } = {}) {
+    const key = String(instanceKey || '');
+    if (!key) {
+        throw new Error('instanceKey required');
+    }
+    if (!dashboardState.instances || typeof dashboardState.instances !== 'object') {
+        dashboardState.instances = {};
+    }
+    dashboardState.instances[key] = {
+        ...(dashboardState.instances[key] || {}),
+        ...(data && typeof data === 'object' ? data : {})
+    };
+    dashboardState.lastUpdated = Date.now();
+    saveDashboardState();
+
+    const message = {
+        type: 'instance_update',
+        instanceKey: key,
+        data: dashboardState.instances[key],
+        timestamp: Date.now()
+    };
+    if (broadcast) {
+        if (sender) broadcastToOthers(sender, message);
+        else broadcastToAll(message);
+    }
+    return message;
+}
+
+app.post('/api/dashboard/instance', (req, res) => {
+    try {
+        const body = req.body || {};
+        const message = applyInstanceUpdate(body.instanceKey, body.data, { broadcast: true });
+        res.json({ ok: true, ...message, state: getDashboardStatePublic() });
+    } catch (err) {
+        res.status(400).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
 // Connected clients
 const clients = new Set();
 const clientConnectedHandlers = [];
