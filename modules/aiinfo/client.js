@@ -157,14 +157,30 @@
 
                 <div class="aiinfo-section">
                     <div class="aiinfo-section-head">
-                        <h4>Installed models</h4>
+                        <h4>Model picker</h4>
                         <button type="button" class="aiinfo-refresh-btn" id="aiinfoRefreshBtn">
                             ${state.refreshing ? 'Refreshing…' : 'Refresh'}
                         </button>
                     </div>
+                    <div class="aiinfo-picker">
+                        <label class="aiinfo-picker-label" for="aiinfoModelSelect">Active model</label>
+                        <div class="aiinfo-picker-row">
+                            <select id="aiinfoModelSelect" class="aiinfo-model-select" ${installed.length ? '' : 'disabled'}>
+                                ${installed.length
+                                    ? installed.map((name) => `
+                                        <option value="${esc(name)}" ${name === state.model ? 'selected' : ''}>${esc(name)}</option>
+                                    `).join('')
+                                    : `<option value="">No models available</option>`}
+                            </select>
+                            <button type="button" class="aiinfo-apply-btn" id="aiinfoApplyModelBtn" ${installed.length ? '' : 'disabled'}>
+                                Apply
+                            </button>
+                        </div>
+                        <p class="aiinfo-empty">Applies to Stocks AI classify and news sentiment without restart.</p>
+                    </div>
                     ${installed.length
                         ? `<ul class="aiinfo-model-list">${installed.map((name) => `
-                            <li class="${name === state.model ? 'is-active' : ''}">${esc(name)}</li>
+                            <li class="${name === state.model ? 'is-active' : ''}" data-model="${esc(name)}" role="button" tabindex="0">${esc(name)}</li>
                         `).join('')}</ul>`
                         : '<p class="aiinfo-empty">No models reported by Ollama yet.</p>'}
                 </div>
@@ -178,6 +194,23 @@
             btn.disabled = !!state.refreshing;
             btn.addEventListener('click', () => requestRefresh());
         }
+
+        const applyBtn = document.getElementById('aiinfoApplyModelBtn');
+        const select = document.getElementById('aiinfoModelSelect');
+        if (applyBtn && select) {
+            applyBtn.addEventListener('click', () => requestSetModel(select.value));
+        }
+
+        document.querySelectorAll('.aiinfo-model-list li[data-model]').forEach((el) => {
+            const pick = () => requestSetModel(el.dataset.model);
+            el.addEventListener('click', pick);
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    pick();
+                }
+            });
+        });
     }
 
     function requestRefresh() {
@@ -192,6 +225,29 @@
             })
             .catch((err) => {
                 console.warn('[AIInfo] Refresh failed:', err.message);
+            });
+    }
+
+    function requestSetModel(model) {
+        const next = String(model || '').trim();
+        if (!next || next === state.model) return;
+
+        if (managerRef && managerRef.ws && managerRef.ws.readyState === WebSocket.OPEN) {
+            managerRef.ws.send(JSON.stringify({ type: 'aiinfo_set_model', model: next }));
+            return;
+        }
+        fetch('/api/aiinfo/model', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: next })
+        })
+            .then((r) => r.json())
+            .then((data) => {
+                if (data && data.ok !== false) applyState(data);
+                else if (data && data.error) console.warn('[AIInfo] Set model failed:', data.error);
+            })
+            .catch((err) => {
+                console.warn('[AIInfo] Set model failed:', err.message);
             });
     }
 

@@ -24,11 +24,13 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 │  Home Hub   │  page title · clock · theme · sync   │
 ├─────────────┼──────────────────────────────────────┤
 │  Home       │                                      │
-│  Logs       │   widgets  /  module page content    │
+│  Notify     │   widgets  /  module page content    │
+│  Logs       │                                      │
 │  Stocks AI  │                                      │
 │  Stocks     │                                      │
 │  Monitor    │                                      │
 │  Network    │                                      │
+│  AI Info    │                                      │
 │             │                                      │
 │  + Add      │                                      │
 │    Widget   │                                      │
@@ -37,8 +39,8 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Logs · Stocks AI · Stocks · Monitor · Network |
-| **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist |
+| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info |
+| **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist, AI Model, AI Token Window |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
 New server features go in `modules/<name>/` (`server.js` + `client.js`). Core UI lives under `js/`.
@@ -52,12 +54,16 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Home widgets** — Apple Watch–style complications (circular small / modular medium & large); add, edit, resize, drag to reorder (type + size only — no custom names)
 - **System Monitor** — pinned Fitness rings (CPU · Mem · Disk) with temperature at the center; live stats every 5s
 - **Activity Monitor** — sidebar page with large history charts + metrics table (deep view; Home keeps the compact rings)
+- **Notifications** — global info / warn / error inbox + toasts (not a mirror of Logs); modules push via `ctx.notify`
 - **Logs** — live server + client log stream with All / Info / Warn / Error filters and Clear info
 - **Network Analyzer** — full diagnostics on the Network page
 - **Speed Test widget** — download / upload + Run on Home only
 - **Stocks AI** — Borsa İstanbul disclosures: editable watchlist, hourly scrape, daily digest, Ollama sentiment (sidebar + Home widget)
 - **Stocks** — Yahoo Finance quotes (no API key): separate watchlist, BIST browse, simple charts; Home watchlist widget; ~60s poll
-- **Light & dark theme**, fullscreen, multi-device sync over WebSocket
+- **Paper desk** — BIST-only virtual portfolio under Stocks (orders, fills, mark-to-market); optional auto strategy from KAP / news sentiment
+- **News RSS** — Investing.com headlines → Ollama classify → paper signals (toggle on Paper desk)
+- **AI Info** — configured Ollama model, online status, context / token window; model picker; Home widgets
+- **Light & dark theme**, fullscreen, multi-device sync over WebSocket (HTTP polling fallback if WS unavailable)
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
 - **Client → server logging** — UI errors land in Logs / `logs/home-hub.log`
@@ -105,6 +111,18 @@ export STOCKS_WATCHLIST=THYAO,ASELS
 ```
 
 > Not investment advice. Data is delayed / unofficial Yahoo endpoints.
+
+### Paper desk & news
+
+Virtual BIST portfolio under the **Stocks** page (cash, orders, fills, soft limit friction). Optional auto strategy (`PAPER_AUTO_TRADE`) turns KAP / news sentiment into paper buys/sells with take-profit / stop-loss / hold timeout. Investing.com RSS headlines can be toggled from the Paper desk UI (state under `data/stocks/`). See `.env.example` for `PAPER_*` and `NEWS_RSS_*` knobs.
+
+### Notifications
+
+Global alerts with levels **info**, **warn**, and **error**. Sidebar inbox + corner toasts. Separate from **Logs** (does not subscribe to the logger). Other modules call `ctx.notify({ level, title, body, source })`. Runtime store: `data/notifications/`.
+
+### AI Info
+
+Sidebar **AI Info** shows the active Ollama model, online status, parameter size, and reported context / token window (`/api/show`). Use the model picker to switch among installed tags without restart (persisted in `data/aiinfo/`). Home widgets: **AI Model**, **AI Token Window**.
 
 ---
 
@@ -165,16 +183,20 @@ flowchart LR
     E[modules/network]
     F[modules/stocksai]
     F2[modules/stocks]
+    F3[modules/notifications]
+    F4[modules/aiinfo]
     G[lib/logger]
     H[(data/dashboard-state.json)]
   end
 
-  A <-->|JSON over WS| B
+  A <-->|JSON over WS / HTTP poll| B
   B --> C
   B --> D
   B --> E
   B --> F
   B --> F2
+  B --> F3
+  B --> F4
   B --> G
   B --> H
   G --> I[(logs/home-hub.log)]
@@ -199,6 +221,8 @@ flowchart LR
 | **Stocks AI Digest** | Today’s filing count + good / bad / other |
 | **Stocks AI Watchlist** | Tickers with sentiment; add / remove |
 | **Stocks Watchlist** | Yahoo prices + change %; add / remove |
+| **AI Model** | Active Ollama model + online status |
+| **AI Token Window** | Reported context / max tokens for the model |
 
 **Sizes:** Small `1×1` (circular) · Medium `2×1` · Large `2×2`  
 System Monitor always spans the full row.
@@ -221,7 +245,7 @@ home-hub/
 │   ├── widgets.js             # Complication render + Fitness rings
 │   ├── system-monitor.js      # Live stats → Home widget
 │   ├── storage.js             # localStorage + Clear All
-│   ├── sync.js                # WebSocket sync + auto-reload
+│   ├── sync.js                # WebSocket sync + HTTP polling fallback + auto-reload
 │   ├── dialog.js              # In-page dialogs / failsafe
 │   ├── logging.js             # Client → server logs
 │   └── utils.js
@@ -230,12 +254,14 @@ home-hub/
 │   └── build-id.js
 ├── modules/
 │   ├── index.js               # Server module registry
-│   ├── activity/              # Activity Monitor page
+│   ├── notifications/         # Global info/warn/error alerts (not Logs)
+│   ├── activity/              # Logs page (server activity stream)
 │   ├── system/                # System Monitor widget registration
 │   ├── network/               # Network page + Speed Test widget
-│   ├── kap/                   # KAP scrape / classify / store
-│   └── stocks/                # Yahoo quotes / watchlist / charts
-├── data/                      # Runtime (gitignored): dashboard-state, kap/, stocks/, flags
+│   ├── stocksai/              # KAP scrape / classify / store (Stocks AI)
+│   ├── stocks/                # Yahoo quotes / watchlist / charts / paper / news
+│   └── aiinfo/                # Ollama model + token window page/widgets
+├── data/                      # Runtime (gitignored): dashboard-state, stocksai/, stocks/, notifications/, aiinfo/, flags
 └── logs/                      # Runtime (gitignored): home-hub.log, system-metrics.log
 ```
 
@@ -248,13 +274,17 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | Variable | Purpose |
 |:---------|:--------|
 | `OLLAMA_BASE_URL` | Ollama API (default `http://127.0.0.1:11434`) |
-| `OLLAMA_MODEL` | Model name (default `qwen2.5:3b`) |
+| `OLLAMA_MODEL` | Seed model name (default `qwen2.5:3b`); runtime picker on AI Info |
 | `KAP_LANGUAGE` | Classify language (default `tr`) |
 | `KAP_WATCHLIST` | Comma-separated tickers (e.g. `THYAO,ASELS`) |
 | `KAP_PROMPT_PATH` | Sentiment prompt file |
 | `KAP_POLL_INTERVAL_MS` | Scheduled scrape interval (default **1 hour** / `3600000`) |
 | `STOCKS_WATCHLIST` | Seed tickers for Stocks module (e.g. `THYAO,ASELS`) — separate from KAP |
 | `STOCKS_POLL_INTERVAL_MS` | Quote refresh interval (default **60s** / `60000`) |
+| `PAPER_STARTING_CASH_TRY` | Paper desk starting cash (default `100000`) |
+| `PAPER_AUTO_TRADE` | Enable KAP/news → paper strategy when `1` |
+| `NEWS_RSS_ENABLED` | Seed default for Investing.com RSS (UI can override) |
+| `AIINFO_POLL_MS` | AI Info refresh interval (default `30000`) |
 | `HOMEHUB_WATCH_SECONDS` | Watch-mode fetch interval (default `60`) |
 | `PORT` | HTTP port (default `3000`) |
 
@@ -269,11 +299,21 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 |:-------|:-----|:------------|
 | `GET` | `/api/version` | Build id, branch, startedAt |
 | `POST` | `/api/update/now` | Request watch-mode pull now |
+| `GET` | `/api/dashboard/state` | Persisted widget layout (HTTP sync) |
+| `POST` | `/api/dashboard/state` | Push / merge widget layout |
+| `POST` | `/api/dashboard/instance` | Push single instance update |
+| `GET` | `/api/notifications` | Global notifications snapshot |
+| `POST` | `/api/notifications` | Create notification `{ level, title, body, source }` |
+| `POST` | `/api/notifications/read-all` | Mark all read |
+| `POST` | `/api/notifications/clear` | Dismiss all |
 | `GET` | `/api/logs` | Recent log entries |
 | `POST` | `/api/logs/client` | Ingest client log |
 | `POST` | `/api/logs/clear-info` | Remove info-level logs |
 | `GET` | `/api/network` | Analyzer state + snapshot |
-| `GET` | `/api/stocksai` | KAP state |
+| `GET` | `/api/aiinfo` | Ollama model + token window |
+| `POST` | `/api/aiinfo/refresh` | Refresh model metadata |
+| `POST` | `/api/aiinfo/model` | `{ model }` select active Ollama model |
+| `GET` | `/api/stocksai` | Stocks AI / KAP state |
 | `GET` | `/api/stocksai/disclosures` | Watchlist + disclosures |
 | `GET` | `/api/stocksai/jobs/:id` | Classify / scrape job status |
 | `POST` | `/api/stocksai/watchlist` | `{ action: 'add'\|'remove'\|'set', code?, codes? }` |
@@ -285,6 +325,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `GET` | `/api/stocks/search` | `?q=` BIST browse / direct symbol |
 | `GET` | `/api/stocks/chart` | `?symbol=THYAO&range=1mo` OHLCV |
 | `POST` | `/api/stocks/refresh` | Force watchlist quote refresh |
+| `GET` | `/api/stocks/paper` | Paper desk portfolio / orders / fills |
+| `POST` | `/api/stocks/paper/order` | Place paper order |
+| `POST` | `/api/stocks/paper/cancel` | Cancel paper order |
+| `POST` | `/api/stocks/paper/reset` | Reset paper portfolio |
+| `POST` | `/api/stocks/paper/auto` | Toggle auto strategy |
+| `POST` | `/api/stocks/news` | Toggle / status for Investing.com RSS |
 
 </details>
 
@@ -299,9 +345,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `system_stats` | Pi metrics → System / Activity Monitor |
 | `full_state` / `instance_update` | Widget layout & instance sync |
 | `logs_snapshot` / `log_entry` | Log stream |
+| `notifications_state` / `notification_entry` | Global notifications |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
-| `stocksai_state` | KAP updates |
+| `aiinfo_state` | Ollama model / token window |
+| `stocksai_state` | Stocks AI / KAP updates |
 | `stocks_state` | Stocks watchlist + quotes |
+| `stocks_paper_state` | Paper desk portfolio |
 | `ping` | Keep-alive |
 
 **Client → server**
@@ -311,9 +360,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `full_state_sync` / `instance_update` | Push layout / instance data |
 | `client_log` | UI errors → Logs |
 | `clear_info_logs` | Clear info logs |
+| `notification_create` / `notification_dismiss` / `notification_read` | Notifications |
+| `notifications_read_all` / `notifications_clear` | Notifications bulk |
 | `pong` | Ping reply |
 | `run_network_test` | Full network analysis |
 | `refresh_network_snapshot` | Refresh interfaces / LAN / Wi‑Fi |
+| `aiinfo_refresh` / `aiinfo_set_model` | AI Info refresh / model picker |
 | `stocksai_scrape` / `stocksai_classify` | KAP jobs |
 | `stocksai_watchlist_add` / `stocksai_watchlist_remove` | Edit watchlist |
 | `stocks_watchlist_add` / `stocks_watchlist_remove` | Edit Stocks watchlist |
@@ -339,7 +391,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | Issue | Fix |
 |:------|:----|
 | Port `3000` in use | Stop the old process, then `npm start` / `./start.sh` |
-| Sync disconnected | Confirm the server is running; check firewall |
+| Sync disconnected | Confirm the server is running; check firewall. Without WebSocket, UI falls back to HTTP polling (`Poll`) |
 | Widgets empty after Update | Open Home once to re-seed; layout is in `data/dashboard-state.json` + browser storage |
 | Widget create error dialog | Check **Logs** for the failing widget; use **Clear widgets** if the layout is corrupt |
 | Network page stale | `git pull`, restart Node, hard-refresh |

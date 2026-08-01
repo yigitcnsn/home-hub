@@ -31,7 +31,7 @@ No model runtime / weights in home-hub.
 | Variable | Default | Notes |
 |----------|---------|--------|
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Root URL only (no `/v1`) |
-| `OLLAMA_MODEL` | `qwen2.5:3b` | Configurable; UI picker optional later |
+| `OLLAMA_MODEL` | `qwen2.5:3b` | Seed default; runtime picker on AI Info (persisted under `data/aiinfo/`) |
 | `KAP_LANGUAGE` | `tr` | v1 scrapes Turkish KAP (`/tr`) |
 | `KAP_WATCHLIST` | _(empty)_ | Seed for `data/stocksai/watchlist.json` (UI can edit after) |
 | `KAP_POLL_INTERVAL_MS` | `3600000` (1 hour) | Scheduled scrape |
@@ -90,18 +90,19 @@ Merged stored record = model fields + home-hub fields above.
 
 `id`, `date`, `stock`, `company`, `type`, `subject`/`title`, `summary`, `sourceUrl`, `language`
 
-## Planned home-hub API (wrapper)
+## home-hub API (wrapper)
 
 Browser talks only to home-hub, never to Ollama directly.
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| `GET` | `/api/stocksai` | Full Stocks AI state |
 | `GET` | `/api/stocksai/disclosures` | Watchlist + latest |
 | `POST` | `/api/stocksai/classify` | Enqueue classify job |
 | `GET` | `/api/stocksai/jobs/:id` | Job status |
 | `POST` | `/api/stocksai/scrape` | Manual scrape run |
-
-Exact paths may be adjusted at implement time; behavior stays as above.
+| `GET` | `/api/aiinfo` | Active model + context / token window |
+| `POST` | `/api/aiinfo/model` | Select active Ollama model |
 
 ## pi-llm references
 

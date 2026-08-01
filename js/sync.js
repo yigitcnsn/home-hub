@@ -85,13 +85,44 @@ Object.assign(ModuleManager.prototype, {
     },
 
     initPollingSync() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+        this._pollingMode = true;
+        this._lastPolledUpdated = typeof this._lastPolledUpdated === 'number'
+            ? this._lastPolledUpdated
+            : 0;
         this.syncEnabled = true;
         this.updateSyncStatus('connecting', '...');
-        this.pollingInterval = setInterval(() => this.checkForUpdates(), 30000);
+        this.checkForUpdates();
+        this.sendFullState();
+        this.pollingInterval = setInterval(() => this.checkForUpdates(), 5000);
     },
 
     checkForUpdates() {
-        // Placeholder for polling fallback
+        return fetch('/api/dashboard/state')
+            .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            })
+            .then((state) => {
+                const remoteTs = typeof state.lastUpdated === 'number' ? state.lastUpdated : 0;
+                if (remoteTs > (this._lastPolledUpdated || 0)) {
+                    this.applyFullState(state);
+                    this._lastPolledUpdated = remoteTs;
+                    this.showSyncPulse();
+                } else if (!this._lastPolledUpdated && remoteTs) {
+                    this._lastPolledUpdated = remoteTs;
+                }
+                this.syncEnabled = true;
+                this.updateSyncStatus('connected', 'Poll');
+            })
+            .catch((err) => {
+                this.syncEnabled = false;
+                this.updateSyncStatus('disconnected', 'Off');
+                console.warn('[Sync] Polling failed:', err.message || err);
+            });
     },
 
     handleSyncMessage(message) {
@@ -153,16 +184,44 @@ Object.assign(ModuleManager.prototype, {
     },
 
     sendFullState() {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-        this.ws.send(JSON.stringify({
-            type: 'full_state_sync',
-            state: {
-                modules: this.modules,
-                instances: this.moduleInstances,
-                timestamp: Date.now(),
-                lastUpdated: Date.now()
-            }
-        }));
+        const state = {
+            modules: this.modules,
+            instances: this.moduleInstances,
+            timestamp: Date.now(),
+            lastUpdated: Date.now()
+        };
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                type: 'full_state_sync',
+                state
+            }));
+            return;
+        }
+
+        if (!this._pollingMode) return;
+
+        fetch('/api/dashboard/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state)
+        })
+            .then((res) => res.json())
+            .then((result) => {
+                if (!result || !result.ok) return;
+                if (result.action === 'keep_local' && result.state) {
+                    this.applyFullState(result.state);
+                    this._lastPolledUpdated = result.state.lastUpdated || Date.now();
+                } else if (result.state && result.state.lastUpdated) {
+                    this._lastPolledUpdated = result.state.lastUpdated;
+                }
+                this.syncEnabled = true;
+                this.updateSyncStatus('connected', 'Poll');
+                this.showSyncPulse();
+            })
+            .catch((err) => {
+                console.warn('[Sync] HTTP full state push failed:', err.message || err);
+            });
     },
 
     applyFullState(state) {
@@ -211,6 +270,27 @@ Object.assign(ModuleManager.prototype, {
             return;
         }
 
+        if (this._pollingMode) {
+            fetch('/api/dashboard/instance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ instanceKey, data })
+            })
+                .then((res) => res.json())
+                .then((result) => {
+                    if (result && result.state && result.state.lastUpdated) {
+                        this._lastPolledUpdated = result.state.lastUpdated;
+                    }
+                    this.syncEnabled = true;
+                    this.updateSyncStatus('connected', 'Poll');
+                    this.showSyncPulse();
+                })
+                .catch((err) => {
+                    console.warn('[syncInstanceData] HTTP sync failed:', err.message || err);
+                });
+            return;
+        }
+
         console.warn('[syncInstanceData] Cannot sync — WebSocket not ready');
     },
 
@@ -230,7 +310,9 @@ Object.assign(ModuleManager.prototype, {
         if (iconEl) iconEl.textContent = icon;
 
         const titles = {
-            connected: 'Sync: Connected - Real-time updates active',
+            connected: icon === 'Poll'
+                ? 'Sync: Connected - HTTP polling fallback'
+                : 'Sync: Connected - Real-time updates active',
             connecting: 'Sync: Connecting...',
             disconnected: 'Sync: Disconnected - Changes won\'t sync'
         };

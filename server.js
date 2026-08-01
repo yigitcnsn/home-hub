@@ -107,6 +107,112 @@ function saveDashboardState(immediate = false) {
 let dashboardState = loadDashboardState();
 logger.info('Sync', `Loaded dashboard state with ${dashboardState.modules.length} module(s)`);
 
+function getDashboardStatePublic() {
+    return {
+        modules: Array.isArray(dashboardState.modules) ? dashboardState.modules : [],
+        instances: dashboardState.instances && typeof dashboardState.instances === 'object'
+            ? dashboardState.instances
+            : {},
+        lastUpdated: typeof dashboardState.lastUpdated === 'number'
+            ? dashboardState.lastUpdated
+            : Date.now()
+    };
+}
+
+app.get('/api/dashboard/state', (req, res) => {
+    res.json(getDashboardStatePublic());
+});
+
+/**
+ * Merge an incoming dashboard layout with persisted state.
+ * @returns {{ action: 'keep_local'|'noop'|'accepted', state: object }}
+ */
+function mergeDashboardState(incoming, { broadcast = false, sender = null } = {}) {
+    const incomingModules = Array.isArray(incoming && incoming.modules) ? incoming.modules : [];
+    const localCount = Array.isArray(dashboardState.modules) ? dashboardState.modules.length : 0;
+    const incomingTs = typeof (incoming && incoming.lastUpdated) === 'number'
+        ? incoming.lastUpdated
+        : (typeof (incoming && incoming.timestamp) === 'number' ? incoming.timestamp : Date.now());
+    const localTs = typeof dashboardState.lastUpdated === 'number' ? dashboardState.lastUpdated : 0;
+
+    if (incomingModules.length === 0 && localCount > 0) {
+        return { action: 'keep_local', state: getDashboardStatePublic() };
+    }
+
+    if (incomingModules.length > 0 && localCount > 0 && localTs > incomingTs) {
+        return { action: 'keep_local', state: getDashboardStatePublic() };
+    }
+
+    if (incomingModules.length === 0 && localCount === 0) {
+        return { action: 'noop', state: getDashboardStatePublic() };
+    }
+
+    dashboardState = {
+        modules: incomingModules,
+        instances: incoming && incoming.instances && typeof incoming.instances === 'object'
+            ? incoming.instances
+            : {},
+        lastUpdated: Date.now()
+    };
+    saveDashboardState(true);
+
+    const publicState = getDashboardStatePublic();
+    if (broadcast) {
+        const message = { type: 'full_state', state: publicState };
+        if (sender) broadcastToOthers(sender, message);
+        else broadcastToAll(message);
+    }
+    return { action: 'accepted', state: publicState };
+}
+
+app.post('/api/dashboard/state', (req, res) => {
+    try {
+        const result = mergeDashboardState(req.body || {}, { broadcast: true });
+        res.json({ ok: true, ...result });
+    } catch (err) {
+        logger.error('Sync', `HTTP state sync failed: ${err.message}`);
+        res.status(500).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
+function applyInstanceUpdate(instanceKey, data, { broadcast = false, sender = null } = {}) {
+    const key = String(instanceKey || '');
+    if (!key) {
+        throw new Error('instanceKey required');
+    }
+    if (!dashboardState.instances || typeof dashboardState.instances !== 'object') {
+        dashboardState.instances = {};
+    }
+    dashboardState.instances[key] = {
+        ...(dashboardState.instances[key] || {}),
+        ...(data && typeof data === 'object' ? data : {})
+    };
+    dashboardState.lastUpdated = Date.now();
+    saveDashboardState();
+
+    const message = {
+        type: 'instance_update',
+        instanceKey: key,
+        data: dashboardState.instances[key],
+        timestamp: Date.now()
+    };
+    if (broadcast) {
+        if (sender) broadcastToOthers(sender, message);
+        else broadcastToAll(message);
+    }
+    return message;
+}
+
+app.post('/api/dashboard/instance', (req, res) => {
+    try {
+        const body = req.body || {};
+        const message = applyInstanceUpdate(body.instanceKey, body.data, { broadcast: true });
+        res.json({ ok: true, ...message, state: getDashboardStatePublic() });
+    } catch (err) {
+        res.status(400).json({ ok: false, error: err.message || String(err) });
+    }
+});
+
 // Connected clients
 const clients = new Set();
 const clientConnectedHandlers = [];
@@ -206,80 +312,26 @@ function handleMessage(ws, data) {
     switch (data.type) {
         case 'instance_update':
             logger.info('Sync', `Instance update: ${data.instanceKey}`);
-
-            // Update server state
-            if (!dashboardState.instances) {
-                dashboardState.instances = {};
+            try {
+                applyInstanceUpdate(data.instanceKey, data.data, { broadcast: true, sender: ws });
+            } catch (err) {
+                logger.warn('Sync', `Instance update ignored: ${err.message || err}`);
             }
-            if (!dashboardState.instances[data.instanceKey]) {
-                dashboardState.instances[data.instanceKey] = {};
-            }
-
-            // Merge the update data
-            Object.assign(dashboardState.instances[data.instanceKey], data.data);
-            dashboardState.lastUpdated = Date.now();
-            saveDashboardState();
-
-            // Broadcast to all other clients
-            broadcastToOthers(ws, {
-                type: 'instance_update',
-                instanceKey: data.instanceKey,
-                data: data.data,
-                timestamp: data.timestamp
-            });
             break;
 
         case 'full_state_sync':
             logger.info('Sync', 'Full state sync received');
-
-            // Update server state with client's full state
             if (data.state) {
-                const incomingModules = Array.isArray(data.state.modules) ? data.state.modules : [];
-                const localCount = Array.isArray(dashboardState.modules) ? dashboardState.modules.length : 0;
-                const incomingTs = typeof data.state.lastUpdated === 'number'
-                    ? data.state.lastUpdated
-                    : (typeof data.state.timestamp === 'number' ? data.state.timestamp : Date.now());
-                const localTs = typeof dashboardState.lastUpdated === 'number' ? dashboardState.lastUpdated : 0;
-
-                // Empty client: restore from disk/RAM if we have a layout
-                if (incomingModules.length === 0 && localCount > 0) {
-                    logger.info('Sync', 'Client empty; sending persisted modules back');
+                const result = mergeDashboardState(data.state, { broadcast: true, sender: ws });
+                if (result.action === 'keep_local') {
+                    logger.info('Sync', 'Sending persisted modules back to client');
                     ws.send(JSON.stringify({
                         type: 'full_state',
-                        state: dashboardState
+                        state: result.state
                     }));
-                    break;
+                } else if (result.action === 'accepted') {
+                    logger.info('Sync', `Updated state with ${result.state.modules.length} modules`);
                 }
-
-                // Both sides have layouts: keep the newer one
-                if (incomingModules.length > 0 && localCount > 0 && localTs > incomingTs) {
-                    logger.info('Sync', 'Persisted state is newer; sending it to client');
-                    ws.send(JSON.stringify({
-                        type: 'full_state',
-                        state: dashboardState
-                    }));
-                    break;
-                }
-
-                if (incomingModules.length === 0 && localCount === 0) {
-                    break;
-                }
-
-                dashboardState = {
-                    modules: incomingModules,
-                    instances: data.state.instances && typeof data.state.instances === 'object'
-                        ? data.state.instances
-                        : {},
-                    lastUpdated: Date.now()
-                };
-                saveDashboardState(true);
-                logger.info('Sync', `Updated state with ${incomingModules.length} modules`);
-
-                // Broadcast full state to all other clients
-                broadcastToOthers(ws, {
-                    type: 'full_state',
-                    state: dashboardState
-                });
             }
             break;
 

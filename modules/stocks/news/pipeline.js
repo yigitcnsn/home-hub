@@ -121,7 +121,7 @@ async function pumpClassify() {
                 date: next.item.publishedAt || new Date().toISOString(),
                 sourceUrl: next.item.link || null,
                 language: 'tr',
-                model: ollama.DEFAULT_MODEL,
+                model: ollama.getActiveModel(),
                 classifiedAt: new Date().toISOString(),
                 source: 'investing_rss',
                 headline: next.item.title

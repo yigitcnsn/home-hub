@@ -84,7 +84,7 @@ function register(ctx) {
             oracleCheckedAt,
             oracleError,
             eclipse: oracleOnline !== true,
-            model: ollama.DEFAULT_MODEL,
+            model: ollama.getActiveModel(),
             ollamaBaseUrl: ollama.DEFAULT_BASE,
             language: scrape.LANGUAGE,
             disclaimer: 'Not investment advice. For personal research only.'
@@ -220,7 +220,7 @@ function register(ctx) {
                 date: (disclosure && disclosure.date) || new Date().toISOString(),
                 sourceUrl: (disclosure && disclosure.sourceUrl) || null,
                 language: (disclosure && disclosure.language) || scrape.LANGUAGE,
-                model: ollama.DEFAULT_MODEL,
+                model: ollama.getActiveModel(),
                 classifiedAt: new Date().toISOString()
             };
 
@@ -489,7 +489,13 @@ function register(ctx) {
 
     scheduleOracleWatch();
 
-    logger.info('StocksAI', `Module registered (model=${ollama.DEFAULT_MODEL}, prompt=${ollama.resolvePromptPath()})`);
+    if (typeof ctx.on === 'function') {
+        ctx.on('ollama_model_changed', () => {
+            broadcastState();
+        });
+    }
+
+    logger.info('StocksAI', `Module registered (model=${ollama.getActiveModel()}, prompt=${ollama.resolvePromptPath()})`);
 }
 
 module.exports = {

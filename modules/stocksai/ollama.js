@@ -4,6 +4,62 @@ const path = require('path');
 const DEFAULT_BASE = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 const TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_SECONDS || 300) * 1000;
+const MODEL_FILE = path.join(__dirname, '..', '..', 'data', 'aiinfo', 'selected-model.json');
+
+let activeModel = null;
+
+function normalizeModelName(value) {
+    return String(value || '')
+        .trim()
+        .slice(0, 128);
+}
+
+function readPersistedModel() {
+    try {
+        if (!fs.existsSync(MODEL_FILE)) return null;
+        const raw = JSON.parse(fs.readFileSync(MODEL_FILE, 'utf8'));
+        const name = normalizeModelName(raw && raw.model);
+        return name || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function writePersistedModel(model) {
+    const dir = path.dirname(MODEL_FILE);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(
+        MODEL_FILE,
+        JSON.stringify({ model, updatedAt: new Date().toISOString() }, null, 2),
+        'utf8'
+    );
+}
+
+/**
+ * Active Ollama model (UI selection, else env default).
+ */
+function getActiveModel() {
+    if (activeModel) return activeModel;
+    activeModel = readPersistedModel() || DEFAULT_MODEL;
+    return activeModel;
+}
+
+/**
+ * Persist and activate a model name for classify + AI Info.
+ * @returns {{ model: string, changed: boolean }}
+ */
+function setActiveModel(name) {
+    const next = normalizeModelName(name);
+    if (!next) {
+        throw new Error('model name required');
+    }
+    const prev = getActiveModel();
+    activeModel = next;
+    writePersistedModel(next);
+    return { model: next, changed: prev !== next };
+}
 
 function resolvePromptPath() {
     if (process.env.KAP_PROMPT_PATH) {
@@ -109,7 +165,7 @@ function parseContextFromModelInfo(modelInfo) {
  */
 async function getModelInfo(opts = {}) {
     const baseUrl = opts.baseUrl || DEFAULT_BASE;
-    const model = opts.model || DEFAULT_MODEL;
+    const model = opts.model || getActiveModel();
     const timeoutMs = Number(opts.timeoutMs) || 8000;
     const checkedAt = new Date().toISOString();
     const controller = new AbortController();
@@ -173,7 +229,7 @@ async function getModelInfo(opts = {}) {
 async function classifyKap(opts) {
     const stock = opts.stock;
     const text = (opts.text || '').trim();
-    const model = opts.model || DEFAULT_MODEL;
+    const model = opts.model || getActiveModel();
     const baseUrl = opts.baseUrl || DEFAULT_BASE;
 
     if (!stock) throw new Error('stock is required');
@@ -238,6 +294,8 @@ module.exports = {
     classifyKap,
     checkHealth,
     getModelInfo,
+    getActiveModel,
+    setActiveModel,
     loadSystemPrompt,
     resolvePromptPath,
     chatCompletionsUrl,
