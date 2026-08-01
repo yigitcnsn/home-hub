@@ -107,6 +107,22 @@ function saveDashboardState(immediate = false) {
 let dashboardState = loadDashboardState();
 logger.info('Sync', `Loaded dashboard state with ${dashboardState.modules.length} module(s)`);
 
+function getDashboardStatePublic() {
+    return {
+        modules: Array.isArray(dashboardState.modules) ? dashboardState.modules : [],
+        instances: dashboardState.instances && typeof dashboardState.instances === 'object'
+            ? dashboardState.instances
+            : {},
+        lastUpdated: typeof dashboardState.lastUpdated === 'number'
+            ? dashboardState.lastUpdated
+            : Date.now()
+    };
+}
+
+app.get('/api/dashboard/state', (req, res) => {
+    res.json(getDashboardStatePublic());
+});
+
 // Connected clients
 const clients = new Set();
 const clientConnectedHandlers = [];
