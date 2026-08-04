@@ -8,6 +8,7 @@ const network = require('./network/server');
 const stocksai = require('./stocksai/server');
 const stocks = require('./stocks/server');
 const aiinfo = require('./aiinfo/server');
+const prismdesk = require('./prismdesk/server');
 
 /** Notifications first so ctx.notify is available to every other module. */
 const modules = [
@@ -16,7 +17,8 @@ const modules = [
     network,
     stocksai,
     stocks,
-    aiinfo
+    aiinfo,
+    prismdesk
 ];
 
 function registerAll(ctx) {
