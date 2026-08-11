@@ -64,6 +64,7 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Paper desk** — BIST-only virtual portfolio under Stocks (orders, fills, mark-to-market); optional auto strategy from KAP / news sentiment
 - **News RSS** — Investing.com headlines → Ollama classify → paper signals (toggle on Paper desk)
 - **AI Info** — configured Ollama model, online status, context / token window; model picker; Home widgets
+- **PrismDesk** — live annotated camera feed + telemetry debug console (ingest from the desk pipeline)
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket (HTTP polling fallback if WS unavailable)
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
@@ -124,6 +125,12 @@ Global alerts with levels **info**, **warn**, and **error**. Sidebar inbox + cor
 ### AI Info
 
 Sidebar **AI Info** shows the active Ollama model, online status, parameter size, and reported context / token window (`/api/show`). Use the model picker to switch among installed tags without restart (persisted in `data/aiinfo/`). Home widgets: **AI Model**, **AI Token Window**.
+
+### PrismDesk
+
+Sidebar **PrismDesk** is a debug console for the spatial AR desk pipeline (sibling [PrismDesk](https://github.com/yigitcnsn/PrismDesk) project). The desk can publish annotated JPEG frames and telemetry; Home Hub keeps only the newest frame in memory and shows live status chips (mat lock, hands, FPS, object). Overlay toggles on the page are polled by the desk via `GET /api/prismdesk/config`.
+
+This hub module does **not** run camera / measure / projector logic — it only ingests and displays what the desk posts.
 
 ---
 
