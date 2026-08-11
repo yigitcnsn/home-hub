@@ -68,7 +68,8 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket (HTTP polling fallback if WS unavailable)
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
-- **Client → server logging** — UI errors land in Logs / `logs/home-hub.log`
+- **Client → server logging** — UI errors land in Logs / `logs/home-hub.log` (including `window` errors and unhandled promise rejections)
+- **Health check** — `GET /api/health` for uptime, build, WebSocket clients, logger, PrismDesk ingest summary
 - **File logging** — `logs/home-hub.log` (events) + `logs/system-metrics.log` (CPU / temp / mem / disk / load every 5s)
 
 ### Network Analyzer
@@ -367,6 +368,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `notifications_state` / `notification_entry` | Global notifications |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
 | `aiinfo_state` | Ollama model / token window |
+| `prismdesk_update` | PrismDesk telemetry + frame metadata |
 | `stocksai_state` | Stocks AI / KAP updates |
 | `stocks_state` | Stocks watchlist + quotes |
 | `stocks_paper_state` | Paper desk portfolio |
