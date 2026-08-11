@@ -73,6 +73,9 @@
     function refreshFrame() {
         const img = document.getElementById('prismdeskFrame');
         const empty = document.getElementById('prismdeskFrameEmpty');
+        const feed = document.querySelector('.prismdesk-feed');
+        if (feed) feed.classList.toggle('is-live', !!state.hasFrame);
+
         if (!state.hasFrame) {
             if (img) {
                 img.hidden = true;
