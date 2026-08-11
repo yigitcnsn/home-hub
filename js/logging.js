@@ -78,4 +78,23 @@ Object.assign(ModuleManager.prototype, {
             stack: err && err.stack ? String(err.stack).slice(0, 2000) : null
         });
     });
+
+    window.addEventListener('unhandledrejection', (event) => {
+        const reason = event.reason;
+        let message = 'Unhandled promise rejection';
+        let stack = null;
+        if (reason instanceof Error) {
+            message = reason.message || message;
+            stack = reason.stack ? String(reason.stack).slice(0, 2000) : null;
+        } else if (typeof reason === 'string') {
+            message = reason;
+        } else if (reason != null) {
+            try {
+                message = JSON.stringify(reason);
+            } catch (_) {
+                message = String(reason);
+            }
+        }
+        report('error', 'Promise', message, { stack });
+    });
 })();
