@@ -4487,6 +4487,39 @@ body.dark-mode .stocks-paper-glow {
     max-width: 48ch;
 }
 
+.prismdesk-chip {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 110px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: var(--pd-panel);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.prismdesk-chip-label {
+    font-size: 10px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pd-muted);
+}
+
+.prismdesk-chip-value {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--pd-text);
+    word-break: break-word;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+#prismdeskChipMat .prismdesk-chip-label {
+    color: var(--pd-cyan-dim);
+}
+
 .prismdesk-status {
     display: inline-flex;
     align-items: center;
@@ -4520,44 +4553,27 @@ body.dark-mode .stocks-paper-glow {
 .prismdesk-status.is-live .prismdesk-status-dot {
     background: var(--pd-green);
     box-shadow: 0 0 10px rgba(61, 255, 138, 0.55);
+    animation: prismdeskPulse 1.6s ease-in-out infinite;
+}
+
+.prismdesk-status.is-idle {
+    color: var(--pd-cyan-dim);
+    border-color: rgba(0, 140, 140, 0.35);
 }
 
 .prismdesk-status.is-idle .prismdesk-status-dot {
-    background: var(--pd-muted);
+    background: var(--pd-cyan-dim);
 }
 
-.prismdesk-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+@keyframes prismdeskPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
 }
 
-.prismdesk-chip {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 110px;
-    padding: 10px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    background: var(--pd-panel);
-}
-
-.prismdesk-chip-label {
-    font-size: 10px;
-    font-weight: 650;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--pd-muted);
-}
-
-.prismdesk-chip-value {
-    font-size: 14px;
-    font-weight: 650;
-    color: var(--pd-text);
-    word-break: break-word;
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
+@media (prefers-reduced-motion: reduce) {
+    .prismdesk-status.is-live .prismdesk-status-dot {
+        animation: none;
+    }
 }
 
 .prismdesk-chip-ok {
