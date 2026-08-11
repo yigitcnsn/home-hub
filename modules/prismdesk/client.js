@@ -179,7 +179,10 @@
 
                 <div class="prismdesk-feed">
                     <div class="prismdesk-feed-empty" id="prismdeskFrameEmpty">
-                        Waiting for PrismDesk to POST frames…
+                        <p class="prismdesk-feed-empty-title">No live frame</p>
+                        <p class="prismdesk-feed-empty-hint">
+                            Start the desk pipeline with home-hub publish enabled. The newest annotated JPEG will appear here.
+                        </p>
                     </div>
                     <img
                         id="prismdeskFrame"
@@ -191,8 +194,8 @@
 
                 <div class="prismdesk-section">
                     <div class="prismdesk-section-head">
-                        <h4>Overlays (hub → desk)</h4>
-                        <span class="prismdesk-meta">PrismDesk polls GET /api/prismdesk/config</span>
+                        <h4>Overlay controls</h4>
+                        <span class="prismdesk-meta">hub → desk config</span>
                     </div>
                     <div class="prismdesk-toggles">
                         ${OVERLAY_KEYS.map((key) => `
@@ -233,8 +236,8 @@
         setText(
             'prismdeskHeroSub',
             state.capture
-                ? `Live annotated feed · capture ${state.capture}`
-                : 'Live annotated feed from the desk pipeline. Waiting for publisher.'
+                ? `Annotated feed · capture ${state.capture}`
+                : 'Operator console for the desk pipeline. Waiting for a publisher.'
         );
 
         const status = document.getElementById('prismdeskStatus');
@@ -242,7 +245,7 @@
             status.classList.toggle('is-live', !!state.hasFrame);
             status.classList.toggle('is-idle', !state.hasFrame);
         }
-        setText('prismdeskStatusText', state.hasFrame ? 'Live' : 'No frame');
+        setText('prismdeskStatusText', state.hasFrame ? 'Live' : 'Idle');
 
         const matChip = document.getElementById('prismdeskChipMat');
         if (matChip) {

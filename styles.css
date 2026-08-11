@@ -4487,6 +4487,12 @@ body.dark-mode .stocks-paper-glow {
     max-width: 48ch;
 }
 
+.prismdesk-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .prismdesk-chip {
     display: flex;
     flex-direction: column;
