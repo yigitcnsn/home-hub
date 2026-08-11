@@ -308,6 +308,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 
 | Method | Path | Description |
 |:-------|:-----|:------------|
+| `GET` | `/api/health` | Liveness: uptime, build, WS clients, logger writable, PrismDesk ingest summary |
 | `GET` | `/api/version` | Build id, branch, startedAt |
 | `POST` | `/api/update/now` | Request watch-mode pull now |
 | `GET` | `/api/dashboard/state` | Persisted widget layout (HTTP sync) |
@@ -342,6 +343,13 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `POST` | `/api/stocks/paper/reset` | Reset paper portfolio |
 | `POST` | `/api/stocks/paper/auto` | Toggle auto strategy |
 | `POST` | `/api/stocks/news` | Toggle / status for Investing.com RSS |
+| `POST` | `/api/prismdesk/frame` | Ingest annotated JPEG (or multipart `frame` + `state`) |
+| `POST` | `/api/prismdesk/state` | Ingest JSON telemetry |
+| `GET` | `/api/prismdesk/latest.jpg` | Newest annotated frame |
+| `GET` | `/api/prismdesk/state` | Telemetry + frame metadata |
+| `GET` | `/api/prismdesk/config` | Overlay toggles (desk polls) |
+| `PUT` | `/api/prismdesk/config` | Update overlay toggles |
+| `GET` | `/api/prismdesk/debug` | Ingest counters / last error (no image payload) |
 
 </details>
 
