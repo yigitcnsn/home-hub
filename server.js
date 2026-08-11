@@ -661,7 +661,7 @@ setInterval(() => {
 }, 30000);
 
 // Serve only dashboard UI assets — never expose .env, data/, logs/, .git, or server source
-const PUBLIC_ROOT_FILES = new Set(['styles.css', 'script.js']);
+const PUBLIC_ROOT_FILES = new Set(['styles.css', 'script.js', 'favicon.svg']);
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));

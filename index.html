@@ -4,7 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Hub - Smart Dashboard</title>
+    <meta name="description" content="Home Hub — modular smart home dashboard with live sync for Raspberry Pi.">
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)">
+    <title>Home Hub</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -13,7 +20,11 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h1 class="logo">Home Hub</h1>
+                <div class="logo-mark" aria-hidden="true"></div>
+                <div class="logo-block">
+                    <h1 class="logo">Home Hub</h1>
+                    <p class="logo-tagline">Smart dashboard</p>
+                </div>
             </div>
             <nav class="sidebar-nav" id="sidebarNav">
                 <button type="button" class="nav-item active" data-view="home">
@@ -59,17 +70,18 @@
                     </div>
                 </div>
                 <div class="top-bar-actions">
-                    <div class="sync-status disconnected" id="syncStatus" title="Sync Status">
+                    <div class="sync-status disconnected" id="syncStatus" title="Sync status">
+                        <span class="sync-dot" aria-hidden="true"></span>
                         <span class="sync-icon">Sync</span>
                     </div>
-                    <button class="icon-btn" id="darkModeBtn" title="Toggle Dark Mode">
-                        Theme
+                    <button class="icon-btn" id="darkModeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">
+                        <span class="icon-btn-label">Theme</span>
                     </button>
-                    <button class="icon-btn" id="refreshBtn" title="Refresh">
-                        Refresh
+                    <button class="icon-btn" id="refreshBtn" title="Refresh page" aria-label="Refresh page">
+                        <span class="icon-btn-label">Refresh</span>
                     </button>
-                    <button class="icon-btn" id="fullscreenBtn" title="Fullscreen">
-                        Full
+                    <button class="icon-btn" id="fullscreenBtn" title="Toggle fullscreen" aria-label="Toggle fullscreen">
+                        <span class="icon-btn-label">Full</span>
                     </button>
                 </div>
             </header>
