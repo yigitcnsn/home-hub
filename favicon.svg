@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Home Hub">
+  <rect width="32" height="32" rx="7" fill="#0f172a"/>
+  <path d="M8 16.5 16 9l8 7.5V24a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 8 24v-7.5z" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="13.25" y="17.5" width="5.5" height="8" rx="1" fill="#94a3b8"/>
+</svg>

@@ -248,6 +248,44 @@ hubModules.registerAll({
     onClientMessage
 });
 
+app.get('/api/health', (req, res) => {
+    const startedMs = Date.parse(buildInfo.startedAt) || Date.now();
+    let logsWritable = false;
+    try {
+        fs.mkdirSync(logger.LOG_DIR, { recursive: true });
+        fs.accessSync(logger.LOG_DIR, fs.constants.W_OK);
+        logsWritable = true;
+    } catch (_) {
+        logsWritable = false;
+    }
+
+    const prismdeskMod = hubModules.modules.find((mod) => mod && mod.id === 'prismdesk');
+    const prismdesk = prismdeskMod && typeof prismdeskMod.getStatus === 'function'
+        ? prismdeskMod.getStatus()
+        : { registered: Boolean(prismdeskMod) };
+
+    res.json({
+        ok: true,
+        status: 'ok',
+        uptimeSec: Math.max(0, Math.round((Date.now() - startedMs) / 1000)),
+        build: {
+            buildId: buildInfo.buildId,
+            branch: buildInfo.branch,
+            version: buildInfo.version,
+            dirty: buildInfo.dirty,
+            startedAt: buildInfo.startedAt
+        },
+        websocket: {
+            clients: clients.size
+        },
+        logger: {
+            writable: logsWritable,
+            logFile: path.basename(logger.LOG_FILE)
+        },
+        prismdesk
+    });
+});
+
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
     const remote = req.socket.remoteAddress;
@@ -382,7 +420,6 @@ function getCpuUsage() {
 }
 
 function getCpuTemperature() {
-    console.log("[Temperature] Starting temperature detection...");
     return new Promise((resolve, reject) => {
         try {
             // For Raspberry Pi, try multiple temperature sources
@@ -392,7 +429,6 @@ function getCpuTemperature() {
                 '/sys/class/hwmon/hwmon1/temp1_input'      // Another alternative
             ];
 
-            console.log("[Temperature] Checking thermal zone files...");
             for (const source of tempSources) {
                 try {
                     if (fs.existsSync(source)) {
@@ -403,7 +439,6 @@ function getCpuTemperature() {
                         }
                         // Handle both millidegrees (typical) and degrees
                         const finalTemp = tempValue > 200 ? Math.round(tempValue / 1000) : tempValue;
-                        console.log(`[Temperature] Read ${finalTemp}°C from ${source}`);
                         resolve(finalTemp);
                         return;
                     }
@@ -417,9 +452,7 @@ function getCpuTemperature() {
             }
 
             // If all thermal zone reads fail, try vcgencmd (Raspberry Pi specific)
-            console.log('[Temperature] Trying vcgencmd fallback...' );
             exec('vcgencmd measure_temp', (error, stdout) => {
-                console.log('[Temperature] vcgencmd error:', error, 'stdout:', stdout);
                 if (error) {
                     reject(new Error(`vcgencmd command failed: ${error.message}`));
                     return;
@@ -437,7 +470,6 @@ function getCpuTemperature() {
                 }
 
                 const temp = Math.round(parseFloat(match[1]));
-                console.log(`[Temperature] Read ${temp}°C from vcgencmd`);
                 resolve(temp);
             });
         } catch (e) {
@@ -473,8 +505,6 @@ function getMemoryUsage() {
         used: formatBytes(usedMem),
         free: formatBytes(freeMem)
     };
-
-    console.log(`[Memory] Total: ${result.total}, Used: ${result.used}, Free: ${result.free}, Usage: ${result.usage}%`);
 
     return result;
 }
@@ -607,8 +637,6 @@ async function updateSystemStats() {
             loadAverage: os.loadavg().map(x => x.toFixed(2)).join(', ')
         };
 
-        console.log(`[System Monitor] Updated stats - CPU: ${systemStats.cpuUsage}%, Temp: ${systemStats.cpuTemp}°C, Memory: ${systemStats.memoryUsage}%`);
-
         // Persist history for later review + graph source
         logger.logSystemMetrics(systemStats);
         systemStats.history = logger.getSystemMetricsHistory(60);
@@ -661,7 +689,7 @@ setInterval(() => {
 }, 30000);
 
 // Serve only dashboard UI assets — never expose .env, data/, logs/, .git, or server source
-const PUBLIC_ROOT_FILES = new Set(['styles.css', 'script.js']);
+const PUBLIC_ROOT_FILES = new Set(['styles.css', 'script.js', 'favicon.svg']);
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));

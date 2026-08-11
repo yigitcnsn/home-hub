@@ -31,6 +31,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 │  Monitor    │                                      │
 │  Network    │                                      │
 │  AI Info    │                                      │
+│  PrismDesk  │                                      │
 │             │                                      │
 │  + Add      │                                      │
 │    Widget   │                                      │
@@ -39,7 +40,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info |
+| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info · PrismDesk |
 | **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist, AI Model, AI Token Window |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
@@ -63,10 +64,12 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Paper desk** — BIST-only virtual portfolio under Stocks (orders, fills, mark-to-market); optional auto strategy from KAP / news sentiment
 - **News RSS** — Investing.com headlines → Ollama classify → paper signals (toggle on Paper desk)
 - **AI Info** — configured Ollama model, online status, context / token window; model picker; Home widgets
+- **PrismDesk** — live annotated camera feed + telemetry debug console (ingest from the desk pipeline)
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket (HTTP polling fallback if WS unavailable)
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
 - **In-page dialogs** — no browser `alert`/`confirm`; widget create failures show which widget broke and offer Clear widgets
-- **Client → server logging** — UI errors land in Logs / `logs/home-hub.log`
+- **Client → server logging** — UI errors land in Logs / `logs/home-hub.log` (including `window` errors and unhandled promise rejections)
+- **Health check** — `GET /api/health` for uptime, build, WebSocket clients, logger, PrismDesk ingest summary
 - **File logging** — `logs/home-hub.log` (events) + `logs/system-metrics.log` (CPU / temp / mem / disk / load every 5s)
 
 ### Network Analyzer
@@ -123,6 +126,12 @@ Global alerts with levels **info**, **warn**, and **error**. Sidebar inbox + cor
 ### AI Info
 
 Sidebar **AI Info** shows the active Ollama model, online status, parameter size, and reported context / token window (`/api/show`). Use the model picker to switch among installed tags without restart (persisted in `data/aiinfo/`). Home widgets: **AI Model**, **AI Token Window**.
+
+### PrismDesk
+
+Sidebar **PrismDesk** is a debug console for the spatial AR desk pipeline (sibling [PrismDesk](https://github.com/yigitcnsn/PrismDesk) project). The desk can publish annotated JPEG frames and telemetry; Home Hub keeps only the newest frame in memory and shows live status chips (mat lock, hands, FPS, object). Overlay toggles on the page are polled by the desk via `GET /api/prismdesk/config`.
+
+This hub module does **not** run camera / measure / projector logic — it only ingests and displays what the desk posts.
 
 ---
 
@@ -185,6 +194,7 @@ flowchart LR
     F2[modules/stocks]
     F3[modules/notifications]
     F4[modules/aiinfo]
+    F5[modules/prismdesk]
     G[lib/logger]
     H[(data/dashboard-state.json)]
   end
@@ -197,6 +207,7 @@ flowchart LR
   B --> F2
   B --> F3
   B --> F4
+  B --> F5
   B --> G
   B --> H
   G --> I[(logs/home-hub.log)]
@@ -260,7 +271,8 @@ home-hub/
 │   ├── network/               # Network page + Speed Test widget
 │   ├── stocksai/              # KAP scrape / classify / store (Stocks AI)
 │   ├── stocks/                # Yahoo quotes / watchlist / charts / paper / news
-│   └── aiinfo/                # Ollama model + token window page/widgets
+│   ├── aiinfo/                # Ollama model + token window page/widgets
+│   └── prismdesk/             # Desk feed ingest + debug console
 ├── data/                      # Runtime (gitignored): dashboard-state, stocksai/, stocks/, notifications/, aiinfo/, flags
 └── logs/                      # Runtime (gitignored): home-hub.log, system-metrics.log
 ```
@@ -297,6 +309,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 
 | Method | Path | Description |
 |:-------|:-----|:------------|
+| `GET` | `/api/health` | Liveness: uptime, build, WS clients, logger writable, PrismDesk ingest summary |
 | `GET` | `/api/version` | Build id, branch, startedAt |
 | `POST` | `/api/update/now` | Request watch-mode pull now |
 | `GET` | `/api/dashboard/state` | Persisted widget layout (HTTP sync) |
@@ -331,6 +344,13 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `POST` | `/api/stocks/paper/reset` | Reset paper portfolio |
 | `POST` | `/api/stocks/paper/auto` | Toggle auto strategy |
 | `POST` | `/api/stocks/news` | Toggle / status for Investing.com RSS |
+| `POST` | `/api/prismdesk/frame` | Ingest annotated JPEG (or multipart `frame` + `state`) |
+| `POST` | `/api/prismdesk/state` | Ingest JSON telemetry |
+| `GET` | `/api/prismdesk/latest.jpg` | Newest annotated frame |
+| `GET` | `/api/prismdesk/state` | Telemetry + frame metadata |
+| `GET` | `/api/prismdesk/config` | Overlay toggles (desk polls) |
+| `PUT` | `/api/prismdesk/config` | Update overlay toggles |
+| `GET` | `/api/prismdesk/debug` | Ingest counters / last error (no image payload) |
 
 </details>
 
@@ -348,6 +368,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `notifications_state` / `notification_entry` | Global notifications |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
 | `aiinfo_state` | Ollama model / token window |
+| `prismdesk_update` | PrismDesk telemetry + frame metadata |
 | `stocksai_state` | Stocks AI / KAP updates |
 | `stocks_state` | Stocks watchlist + quotes |
 | `stocks_paper_state` | Paper desk portfolio |

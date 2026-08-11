@@ -10,6 +10,7 @@
  * GET  /api/prismdesk/state
  * GET  /api/prismdesk/config  — overlay toggles for PrismDesk to poll
  * PUT  /api/prismdesk/config
+ * GET  /api/prismdesk/debug   — ingest counters / last error (no frame bytes)
  */
 
 const MAX_FRAME_BYTES = 800 * 1024;
@@ -192,6 +193,22 @@ function publicState(store) {
     };
 }
 
+let statusProvider = () => ({
+    registered: false,
+    hasFrame: false,
+    frameBytes: 0,
+    frameUpdatedAt: null,
+    stateUpdatedAt: null,
+    framesReceived: 0,
+    statePosts: 0,
+    lastIngestError: null,
+    overlays: defaultConfig().overlays
+});
+
+function getStatus() {
+    return statusProvider();
+}
+
 function register(ctx) {
     const { app, logger, broadcastToAll, onClientConnected } = ctx;
 
@@ -201,6 +218,24 @@ function register(ctx) {
         state: defaultState(),
         config: defaultConfig()
     };
+
+    const stats = {
+        framesReceived: 0,
+        statePosts: 0,
+        lastIngestError: null
+    };
+
+    statusProvider = () => ({
+        registered: true,
+        hasFrame: Buffer.isBuffer(store.frame) && store.frame.length > 0,
+        frameBytes: Buffer.isBuffer(store.frame) ? store.frame.length : 0,
+        frameUpdatedAt: store.frameUpdatedAt,
+        stateUpdatedAt: store.state.updatedAt || null,
+        framesReceived: stats.framesReceived,
+        statePosts: stats.statePosts,
+        lastIngestError: stats.lastIngestError,
+        overlays: { ...store.config.overlays }
+    });
 
     function broadcastUpdate() {
         broadcastToAll({
@@ -280,6 +315,8 @@ function register(ctx) {
                 store.state.frameUpdatedAt = store.frameUpdatedAt;
             }
 
+            stats.framesReceived += 1;
+            stats.lastIngestError = null;
             broadcastUpdate();
             res.json({
                 ok: true,
@@ -288,6 +325,11 @@ function register(ctx) {
             });
         } catch (err) {
             const status = err.status || 500;
+            stats.lastIngestError = {
+                at: new Date().toISOString(),
+                status,
+                message: err.message || String(err)
+            };
             if (status >= 500) {
                 logger.error('PrismDesk', `Frame ingest failed: ${err.message}`, { stack: err.stack });
             } else {
@@ -300,9 +342,16 @@ function register(ctx) {
     app.post('/api/prismdesk/state', (req, res) => {
         try {
             applyStatePatch(req.body || {});
+            stats.statePosts += 1;
+            stats.lastIngestError = null;
             broadcastUpdate();
             res.json({ ok: true, state: publicState(store) });
         } catch (err) {
+            stats.lastIngestError = {
+                at: new Date().toISOString(),
+                status: 500,
+                message: err.message || String(err)
+            };
             logger.error('PrismDesk', `State ingest failed: ${err.message}`, { stack: err.stack });
             res.status(500).json({ ok: false, error: err.message || String(err) });
         }
@@ -333,6 +382,10 @@ function register(ctx) {
         res.json(store.config);
     });
 
+    app.get('/api/prismdesk/debug', (req, res) => {
+        res.json({ ok: true, ...getStatus() });
+    });
+
     app.put('/api/prismdesk/config', (req, res) => {
         try {
             store.config = sanitizeConfig(req.body || {});
@@ -361,5 +414,6 @@ function register(ctx) {
 module.exports = {
     id: 'prismdesk',
     name: 'PrismDesk',
-    register
+    register,
+    getStatus
 };
