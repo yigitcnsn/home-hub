@@ -193,6 +193,7 @@ flowchart LR
     F2[modules/stocks]
     F3[modules/notifications]
     F4[modules/aiinfo]
+    F5[modules/prismdesk]
     G[lib/logger]
     H[(data/dashboard-state.json)]
   end
@@ -205,6 +206,7 @@ flowchart LR
   B --> F2
   B --> F3
   B --> F4
+  B --> F5
   B --> G
   B --> H
   G --> I[(logs/home-hub.log)]
