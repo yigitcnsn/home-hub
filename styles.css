@@ -5,25 +5,29 @@
 }
 
 :root {
-    --primary-color: #2563eb;
-    --primary-hover: #1d4ed8;
+    --primary-color: #0e7490;
+    --primary-hover: #0f766e;
     --secondary-color: #64748b;
-    --bg-main: #f8fafc;
-    --bg-sidebar: #ffffff;
+    --bg-main: #eef2f6;
+    --bg-sidebar: #f8fafc;
     --bg-card: #ffffff;
-    --bg-hover: #f1f5f9;
+    --bg-hover: #e8eef5;
     --text-primary: #0f172a;
-    --text-secondary: #64748b;
+    --text-secondary: #475569;
     --text-muted: #94a3b8;
-    --border-color: #e2e8f0;
-    --border-hover: #cbd5e1;
+    --border-color: #d8e0ea;
+    --border-hover: #b8c4d4;
     --success: #059669;
     --warning: #d97706;
     --danger: #dc2626;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 10px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+    --shadow-lg: 0 12px 20px -6px rgba(15, 23, 42, 0.1), 0 4px 8px -4px rgba(15, 23, 42, 0.06);
+    --shadow-xl: 0 20px 28px -8px rgba(15, 23, 42, 0.12), 0 8px 12px -6px rgba(15, 23, 42, 0.05);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
     /* Complication tiles — light */
     --comp-bg: #ffffff;
     --comp-bg-elevated: #f1f5f9;
