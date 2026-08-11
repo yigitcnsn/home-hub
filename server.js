@@ -260,7 +260,7 @@ app.get('/api/health', (req, res) => {
     }
 
     const prismdeskMod = hubModules.modules.find((mod) => mod && mod.id === 'prismdesk');
-    const prismdesk = typeof prismdeskMod.getStatus === 'function'
+    const prismdesk = prismdeskMod && typeof prismdeskMod.getStatus === 'function'
         ? prismdeskMod.getStatus()
         : { registered: Boolean(prismdeskMod) };
 
@@ -420,7 +420,6 @@ function getCpuUsage() {
 }
 
 function getCpuTemperature() {
-    console.log("[Temperature] Starting temperature detection...");
     return new Promise((resolve, reject) => {
         try {
             // For Raspberry Pi, try multiple temperature sources
@@ -430,7 +429,6 @@ function getCpuTemperature() {
                 '/sys/class/hwmon/hwmon1/temp1_input'      // Another alternative
             ];
 
-            console.log("[Temperature] Checking thermal zone files...");
             for (const source of tempSources) {
                 try {
                     if (fs.existsSync(source)) {
@@ -441,7 +439,6 @@ function getCpuTemperature() {
                         }
                         // Handle both millidegrees (typical) and degrees
                         const finalTemp = tempValue > 200 ? Math.round(tempValue / 1000) : tempValue;
-                        console.log(`[Temperature] Read ${finalTemp}°C from ${source}`);
                         resolve(finalTemp);
                         return;
                     }
@@ -455,9 +452,7 @@ function getCpuTemperature() {
             }
 
             // If all thermal zone reads fail, try vcgencmd (Raspberry Pi specific)
-            console.log('[Temperature] Trying vcgencmd fallback...' );
             exec('vcgencmd measure_temp', (error, stdout) => {
-                console.log('[Temperature] vcgencmd error:', error, 'stdout:', stdout);
                 if (error) {
                     reject(new Error(`vcgencmd command failed: ${error.message}`));
                     return;
@@ -475,7 +470,6 @@ function getCpuTemperature() {
                 }
 
                 const temp = Math.round(parseFloat(match[1]));
-                console.log(`[Temperature] Read ${temp}°C from vcgencmd`);
                 resolve(temp);
             });
         } catch (e) {
@@ -511,8 +505,6 @@ function getMemoryUsage() {
         used: formatBytes(usedMem),
         free: formatBytes(freeMem)
     };
-
-    console.log(`[Memory] Total: ${result.total}, Used: ${result.used}, Free: ${result.free}, Usage: ${result.usage}%`);
 
     return result;
 }
@@ -644,8 +636,6 @@ async function updateSystemStats() {
             networkStatus: getNetworkStatus(),
             loadAverage: os.loadavg().map(x => x.toFixed(2)).join(', ')
         };
-
-        console.log(`[System Monitor] Updated stats - CPU: ${systemStats.cpuUsage}%, Temp: ${systemStats.cpuTemp}°C, Memory: ${systemStats.memoryUsage}%`);
 
         // Persist history for later review + graph source
         logger.logSystemMetrics(systemStats);
