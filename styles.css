@@ -265,51 +265,20 @@ body {
     background: rgba(220, 38, 38, 0.14);
 }
 
-.sidebar-footer {
-    padding: 20px;
-    border-top: 1px solid var(--border-color);
-}
-
-.add-module-btn {
-    width: 100%;
-    padding: 12px 16px;
-    background: var(--primary-color);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: var(--shadow-sm);
-}
-
-.add-module-btn:hover {
-    background: var(--primary-hover);
-    box-shadow: var(--shadow-md);
-}
-
-.add-module-btn:active {
-    transform: translateY(1px);
-}
-
 /* Developer Section */
 .developer-section {
-    padding: 16px 12px;
+    padding: 14px 12px 12px;
     border-top: 1px solid var(--border-color);
     margin-top: auto;
     flex-shrink: 0;
+    background: color-mix(in srgb, var(--bg-hover) 45%, transparent);
 }
 
 .developer-header {
     display: flex;
     align-items: center;
-    margin-bottom: 12px;
-    padding: 0 8px;
+    margin-bottom: 10px;
+    padding: 0 6px;
 }
 
 .developer-icon {
@@ -319,11 +288,11 @@ body {
 }
 
 .developer-text {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.08em;
 }
 
 .developer-actions {
@@ -334,15 +303,15 @@ body {
 
 .developer-btn {
     width: 100%;
-    padding: 8px 12px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    border-radius: 6px;
+    padding: 9px 12px;
+    background: color-mix(in srgb, var(--danger) 8%, var(--bg-card));
+    border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border-color));
+    border-radius: var(--radius-sm);
     color: var(--danger);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -350,7 +319,7 @@ body {
 }
 
 .developer-btn:hover {
-    background: rgba(239, 68, 68, 0.2);
+    background: color-mix(in srgb, var(--danger) 16%, var(--bg-card));
     border-color: var(--danger);
     color: var(--danger);
 }
@@ -365,6 +334,39 @@ body {
 
 .btn-text {
     font-size: 11px;
+    letter-spacing: 0.02em;
+}
+
+.sidebar-footer {
+    padding: 16px 12px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.add-module-btn {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--primary-color);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: var(--shadow-sm);
+}
+
+.add-module-btn:hover {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-md);
+}
+
+.add-module-btn:active {
+    transform: translateY(1px);
 }
 
 /* Main Content */
