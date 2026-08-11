@@ -7,7 +7,6 @@ Object.assign(ModuleManager.prototype, {
         console.error(`[${source}] ${message}`, meta || '');
         this.sendClientLog('error', source, message, meta);
     },
-
     logWarn(source, message, meta) {
         console.warn(`[${source}] ${message}`, meta || '');
         this.sendClientLog('warn', source, message, meta);
@@ -39,3 +38,44 @@ Object.assign(ModuleManager.prototype, {
         });
     }
 });
+
+(function installGlobalClientErrorBridge() {
+    let managerRef = null;
+
+    function resolveManager() {
+        if (managerRef) return managerRef;
+        if (typeof window !== 'undefined' && window.moduleManager) {
+            managerRef = window.moduleManager;
+        }
+        return managerRef;
+    }
+
+    function report(level, source, message, meta) {
+        const manager = resolveManager();
+        if (manager && typeof manager.sendClientLog === 'function') {
+            manager.sendClientLog(level, source, message, meta);
+            return;
+        }
+        fetch('/api/logs/client', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'client_log',
+                level,
+                source,
+                message: String(message || ''),
+                meta: meta || null
+            })
+        }).catch(() => {});
+    }
+
+    window.addEventListener('error', (event) => {
+        const err = event.error;
+        report('error', 'Window', err && err.message ? err.message : (event.message || 'Unhandled error'), {
+            filename: event.filename || null,
+            lineno: event.lineno || null,
+            colno: event.colno || null,
+            stack: err && err.stack ? String(err.stack).slice(0, 2000) : null
+        });
+    });
+})();
