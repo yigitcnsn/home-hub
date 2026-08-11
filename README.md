@@ -270,7 +270,8 @@ home-hub/
 │   ├── network/               # Network page + Speed Test widget
 │   ├── stocksai/              # KAP scrape / classify / store (Stocks AI)
 │   ├── stocks/                # Yahoo quotes / watchlist / charts / paper / news
-│   └── aiinfo/                # Ollama model + token window page/widgets
+│   ├── aiinfo/                # Ollama model + token window page/widgets
+│   └── prismdesk/             # Desk feed ingest + debug console
 ├── data/                      # Runtime (gitignored): dashboard-state, stocksai/, stocks/, notifications/, aiinfo/, flags
 └── logs/                      # Runtime (gitignored): home-hub.log, system-metrics.log
 ```
