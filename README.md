@@ -31,6 +31,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 │  Monitor    │                                      │
 │  Network    │                                      │
 │  AI Info    │                                      │
+│  PrismDesk  │                                      │
 │             │                                      │
 │  + Add      │                                      │
 │    Widget   │                                      │
@@ -39,7 +40,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info |
+| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info · PrismDesk |
 | **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist, AI Model, AI Token Window |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
