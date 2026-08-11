@@ -248,6 +248,44 @@ hubModules.registerAll({
     onClientMessage
 });
 
+app.get('/api/health', (req, res) => {
+    const startedMs = Date.parse(buildInfo.startedAt) || Date.now();
+    let logsWritable = false;
+    try {
+        fs.mkdirSync(logger.LOG_DIR, { recursive: true });
+        fs.accessSync(logger.LOG_DIR, fs.constants.W_OK);
+        logsWritable = true;
+    } catch (_) {
+        logsWritable = false;
+    }
+
+    const prismdeskMod = hubModules.modules.find((mod) => mod && mod.id === 'prismdesk');
+    const prismdesk = typeof prismdeskMod.getStatus === 'function'
+        ? prismdeskMod.getStatus()
+        : { registered: Boolean(prismdeskMod) };
+
+    res.json({
+        ok: true,
+        status: 'ok',
+        uptimeSec: Math.max(0, Math.round((Date.now() - startedMs) / 1000)),
+        build: {
+            buildId: buildInfo.buildId,
+            branch: buildInfo.branch,
+            version: buildInfo.version,
+            dirty: buildInfo.dirty,
+            startedAt: buildInfo.startedAt
+        },
+        websocket: {
+            clients: clients.size
+        },
+        logger: {
+            writable: logsWritable,
+            logFile: path.basename(logger.LOG_FILE)
+        },
+        prismdesk
+    });
+});
+
 // WebSocket connection handling
 wss.on('connection', (ws, req) => {
     const remote = req.socket.remoteAddress;
