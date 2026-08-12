@@ -1,9 +1,25 @@
 /**
- * PrismDesk (browser) — sidebar debug UI for live annotated camera feed + telemetry.
+ * PrismDesk (browser) — sidebar debug UI for live multi-layer camera feeds + telemetry.
  */
 (function () {
     const VIEW = 'prismdesk';
     const OVERLAY_KEYS = ['mat', 'object', 'hands'];
+    const LAYER_IDS = ['final', 'raw', 'mat', 'hands', 'object'];
+    const LAYER_LABELS = {
+        final: 'Final',
+        raw: 'Raw',
+        mat: 'Mat',
+        hands: 'Hands',
+        object: 'Object'
+    };
+
+    function emptyLayersMeta() {
+        const meta = {};
+        LAYER_IDS.forEach((id) => {
+            meta[id] = { hasFrame: false, bytes: 0, updatedAt: null };
+        });
+        return meta;
+    }
 
     let state = {
         fps: null,
@@ -13,10 +29,13 @@
         object: null,
         capture: null,
         overlays: [],
+        layers: [],
+        rotate: null,
         updatedAt: null,
         hasFrame: false,
         frameBytes: 0,
         frameUpdatedAt: null,
+        layersMeta: emptyLayersMeta(),
         config: {
             overlays: { mat: true, object: true, hands: true }
         }
@@ -24,7 +43,7 @@
     let initialized = false;
     let pageBuilt = false;
     let managerRef = null;
-    let lastFrameStamp = '';
+    const lastFrameStamps = Object.create(null);
 
     function esc(value) {
         return String(value == null ? '' : value)
@@ -70,31 +89,55 @@
             : '—';
     }
 
-    function refreshFrame() {
-        const img = document.getElementById('prismdeskFrame');
-        const empty = document.getElementById('prismdeskFrameEmpty');
-        const feed = document.querySelector('.prismdesk-feed');
-        if (feed) feed.classList.toggle('is-live', !!state.hasFrame);
+    function layerMeta(layer) {
+        const meta = state.layersMeta && state.layersMeta[layer];
+        if (meta && typeof meta === 'object') return meta;
+        if (layer === 'final') {
+            return {
+                hasFrame: !!state.hasFrame,
+                bytes: state.frameBytes || 0,
+                updatedAt: state.frameUpdatedAt || null
+            };
+        }
+        return { hasFrame: false, bytes: 0, updatedAt: null };
+    }
 
-        if (!state.hasFrame) {
+    function anyLayerLive() {
+        return LAYER_IDS.some((id) => layerMeta(id).hasFrame);
+    }
+
+    function refreshLayer(layer) {
+        const panel = document.getElementById(`prismdeskPanel_${layer}`);
+        const img = document.getElementById(`prismdeskFrame_${layer}`);
+        const empty = document.getElementById(`prismdeskEmpty_${layer}`);
+        const meta = layerMeta(layer);
+        const has = !!meta.hasFrame;
+
+        if (panel) panel.classList.toggle('is-live', has);
+
+        if (!has) {
             if (img) {
                 img.hidden = true;
                 img.removeAttribute('src');
             }
             if (empty) empty.hidden = false;
-            lastFrameStamp = '';
+            lastFrameStamps[layer] = '';
             return;
         }
 
-        const stamp = state.frameUpdatedAt || String(Date.now());
+        const stamp = meta.updatedAt || String(Date.now());
         if (empty) empty.hidden = true;
         if (img) img.hidden = false;
 
-        if (stamp === lastFrameStamp && img && img.getAttribute('src')) return;
-        lastFrameStamp = stamp;
+        if (stamp === lastFrameStamps[layer] && img && img.getAttribute('src')) return;
+        lastFrameStamps[layer] = stamp;
         if (img) {
-            img.src = `/api/prismdesk/latest.jpg?t=${encodeURIComponent(stamp)}`;
+            img.src = `/api/prismdesk/latest.jpg/${encodeURIComponent(layer)}?t=${encodeURIComponent(stamp)}`;
         }
+    }
+
+    function refreshFrames() {
+        LAYER_IDS.forEach(refreshLayer);
     }
 
     function saveConfig(config) {
@@ -133,6 +176,39 @@
                 saveConfig({ overlays });
             });
         });
+    }
+
+    function panelMarkup(layer) {
+        const isPrimary = layer === 'final';
+        const label = LAYER_LABELS[layer] || layer;
+        return `
+            <div
+                class="prismdesk-panel${isPrimary ? ' prismdesk-panel-primary' : ''}"
+                id="prismdeskPanel_${esc(layer)}"
+                data-layer="${esc(layer)}"
+            >
+                <div class="prismdesk-panel-head">
+                    <span class="prismdesk-panel-title">${esc(label)}</span>
+                    <span class="prismdesk-panel-meta" id="prismdeskPanelMeta_${esc(layer)}">—</span>
+                </div>
+                <div class="prismdesk-feed">
+                    <div class="prismdesk-feed-empty" id="prismdeskEmpty_${esc(layer)}">
+                        <p class="prismdesk-feed-empty-title">No ${esc(label.toLowerCase())} frame</p>
+                        <p class="prismdesk-feed-empty-hint">
+                            ${isPrimary
+                                ? 'Start the desk pipeline with home-hub publish enabled. Layer JPEGs will appear here.'
+                                : `Waiting for desk to post the ${esc(layer)} layer.`}
+                        </p>
+                    </div>
+                    <img
+                        id="prismdeskFrame_${esc(layer)}"
+                        class="prismdesk-frame"
+                        alt="PrismDesk ${esc(label)} layer"
+                        hidden
+                    />
+                </div>
+            </div>
+        `;
     }
 
     function buildPage() {
@@ -180,19 +256,11 @@
                     </div>
                 </div>
 
-                <div class="prismdesk-feed">
-                    <div class="prismdesk-feed-empty" id="prismdeskFrameEmpty">
-                        <p class="prismdesk-feed-empty-title">No live frame</p>
-                        <p class="prismdesk-feed-empty-hint">
-                            Start the desk pipeline with home-hub publish enabled. The newest annotated JPEG will appear here.
-                        </p>
+                <div class="prismdesk-layers">
+                    ${panelMarkup('final')}
+                    <div class="prismdesk-layers-grid">
+                        ${['raw', 'mat', 'hands', 'object'].map(panelMarkup).join('')}
                     </div>
-                    <img
-                        id="prismdeskFrame"
-                        class="prismdesk-frame"
-                        alt="PrismDesk annotated camera feed"
-                        hidden
-                    />
                 </div>
 
                 <div class="prismdesk-section">
@@ -235,20 +303,21 @@
 
         const locked = state.mat_locked === true;
         const overlays = (state.config && state.config.overlays) || {};
+        const live = anyLayerLive() || !!state.hasFrame;
 
         setText(
             'prismdeskHeroSub',
             state.capture
-                ? `Annotated feed · capture ${state.capture}`
-                : 'Operator console for the desk pipeline. Waiting for a publisher.'
+                ? `Multi-layer debug feeds · capture ${state.capture}`
+                : 'Operator console for the desk pipeline. Waiting for layer publishers.'
         );
 
         const status = document.getElementById('prismdeskStatus');
         if (status) {
-            status.classList.toggle('is-live', !!state.hasFrame);
-            status.classList.toggle('is-idle', !state.hasFrame);
+            status.classList.toggle('is-live', live);
+            status.classList.toggle('is-idle', !live);
         }
-        setText('prismdeskStatusText', state.hasFrame ? 'Live' : 'Idle');
+        setText('prismdeskStatusText', live ? 'Live' : 'Idle');
 
         const matChip = document.getElementById('prismdeskChipMat');
         if (matChip) {
@@ -262,7 +331,15 @@
         setText('prismdeskValObject', objectText());
         setText('prismdeskValBytes', formatBytes(state.frameBytes));
         setText('prismdeskMetaState', `State ${formatWhen(state.updatedAt)}`);
-        setText('prismdeskMetaFrame', `Frame ${formatWhen(state.frameUpdatedAt)}`);
+        setText('prismdeskMetaFrame', `Final ${formatWhen(state.frameUpdatedAt)}`);
+
+        LAYER_IDS.forEach((layer) => {
+            const meta = layerMeta(layer);
+            setText(
+                `prismdeskPanelMeta_${layer}`,
+                meta.hasFrame ? formatBytes(meta.bytes) : 'empty'
+            );
+        });
 
         OVERLAY_KEYS.forEach((key) => {
             const el = document.getElementById(`prismdeskOverlay_${key}`);
@@ -271,7 +348,33 @@
             }
         });
 
-        refreshFrame();
+        refreshFrames();
+    }
+
+    function normalizeLayersMeta(incoming) {
+        const next = emptyLayersMeta();
+        const src = (incoming && incoming.layersMeta && typeof incoming.layersMeta === 'object')
+            ? incoming.layersMeta
+            : {};
+        LAYER_IDS.forEach((id) => {
+            const item = src[id];
+            if (item && typeof item === 'object') {
+                next[id] = {
+                    hasFrame: !!item.hasFrame,
+                    bytes: Number.isFinite(Number(item.bytes)) ? Number(item.bytes) : 0,
+                    updatedAt: item.updatedAt || null
+                };
+            }
+        });
+        // Backward compat: if layersMeta.final missing but legacy hasFrame is set, mirror onto final.
+        if (!src.final && incoming && incoming.hasFrame) {
+            next.final = {
+                hasFrame: true,
+                bytes: Number.isFinite(Number(incoming.frameBytes)) ? Number(incoming.frameBytes) : 0,
+                updatedAt: incoming.frameUpdatedAt || null
+            };
+        }
+        return next;
     }
 
     function applyState(incoming) {
@@ -279,6 +382,7 @@
         state = {
             ...state,
             ...incoming,
+            layersMeta: normalizeLayersMeta(incoming),
             config: incoming.config
                 ? {
                     overlays: {

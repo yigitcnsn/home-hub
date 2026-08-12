@@ -142,7 +142,7 @@ Closed means timers are cleared and queues drained (not left idle). State persis
 
 ### PrismDesk
 
-Sidebar **PrismDesk** is a debug console for the spatial AR desk pipeline (sibling [PrismDesk](https://github.com/yigitcnsn/PrismDesk) project). The desk can publish annotated JPEG frames and telemetry; Home Hub keeps only the newest frame in memory and shows live status chips (mat lock, hands, FPS, object). Overlay toggles on the page are polled by the desk via `GET /api/prismdesk/config`.
+Sidebar **PrismDesk** is a debug console for the spatial AR desk pipeline (sibling [PrismDesk](https://github.com/yigitcnsn/PrismDesk) project). The desk can publish separate JPEG debug layers (`raw`, `mat`, `hands`, `object`, `final`) plus telemetry; Home Hub keeps only the newest JPEG **per layer** in memory and shows a multi-panel live grid with status chips (mat lock, hands, FPS, object). Overlay toggles on the page are polled by the desk via `GET /api/prismdesk/config`. Legacy `POST /api/prismdesk/frame` and `GET /api/prismdesk/latest.jpg` still map to the **final** layer.
 
 This hub module does **not** run camera / measure / projector logic — it only ingests and displays what the desk posts.
 
@@ -358,10 +358,12 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `POST` | `/api/stocks/paper/reset` | Reset paper portfolio |
 | `POST` | `/api/stocks/paper/auto` | Toggle auto strategy |
 | `POST` | `/api/stocks/news` | Toggle / status for Investing.com RSS |
-| `POST` | `/api/prismdesk/frame` | Ingest annotated JPEG (or multipart `frame` + `state`) |
-| `POST` | `/api/prismdesk/state` | Ingest JSON telemetry |
-| `GET` | `/api/prismdesk/latest.jpg` | Newest annotated frame |
-| `GET` | `/api/prismdesk/state` | Telemetry + frame metadata |
+| `POST` | `/api/prismdesk/frame` | Ingest JPEG → layer `final` (or multipart `frame` + `state`) |
+| `POST` | `/api/prismdesk/frame/:layer` | Ingest JPEG for `raw` \| `mat` \| `hands` \| `object` \| `final` |
+| `POST` | `/api/prismdesk/state` | Ingest JSON telemetry (`layers`, `rotate`, etc.) |
+| `GET` | `/api/prismdesk/latest.jpg` | Newest **final** layer JPEG |
+| `GET` | `/api/prismdesk/latest.jpg/:layer` | Newest JPEG for that layer (404 if missing) |
+| `GET` | `/api/prismdesk/state` | Telemetry + `layersMeta` + frame metadata |
 | `GET` | `/api/prismdesk/config` | Overlay toggles (desk polls) |
 | `PUT` | `/api/prismdesk/config` | Update overlay toggles |
 | `GET` | `/api/prismdesk/debug` | Ingest counters / last error (no image payload) |
@@ -382,7 +384,7 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `notifications_state` / `notification_entry` | Global notifications |
 | `network_state` / `network_stats` / `network_snapshot` | Analyzer updates |
 | `aiinfo_state` | Ollama model / token window |
-| `prismdesk_update` | PrismDesk telemetry + frame metadata |
+| `prismdesk_update` | PrismDesk telemetry + `layersMeta` + frame metadata |
 | `stocksai_state` | Stocks AI / KAP updates |
 | `stocks_state` | Stocks watchlist + quotes |
 | `stocks_paper_state` | Paper desk portfolio |

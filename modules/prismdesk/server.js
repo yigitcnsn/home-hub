@@ -1,20 +1,23 @@
 /**
  * PrismDesk bridge (server)
  *
- * Ingest annotated JPEG + telemetry from the Pi desk pipeline.
- * Expose latest frame/state to the dashboard; keep only the newest frame in memory.
+ * Ingest annotated JPEG layers + telemetry from the Pi desk pipeline.
+ * Expose latest frame/state to the dashboard; keep only the newest JPEG per layer.
  *
- * POST /api/prismdesk/frame   — image/jpeg or multipart { frame, state }
- * POST /api/prismdesk/state   — JSON telemetry
- * GET  /api/prismdesk/latest.jpg
+ * POST /api/prismdesk/frame          — JPEG → layer "final" (legacy)
+ * POST /api/prismdesk/frame/:layer   — JPEG for raw|mat|hands|object|final
+ * POST /api/prismdesk/state          — JSON telemetry
+ * GET  /api/prismdesk/latest.jpg     — final layer
+ * GET  /api/prismdesk/latest.jpg/:layer
  * GET  /api/prismdesk/state
- * GET  /api/prismdesk/config  — overlay toggles for PrismDesk to poll
+ * GET  /api/prismdesk/config         — overlay toggles for PrismDesk to poll
  * PUT  /api/prismdesk/config
- * GET  /api/prismdesk/debug   — ingest counters / last error (no frame bytes)
+ * GET  /api/prismdesk/debug          — ingest counters / last error (no frame bytes)
  */
 
 const MAX_FRAME_BYTES = 800 * 1024;
 const OVERLAY_KEYS = ['mat', 'object', 'hands'];
+const LAYER_IDS = ['raw', 'mat', 'hands', 'object', 'final'];
 
 function defaultConfig() {
     return {
@@ -26,6 +29,14 @@ function defaultConfig() {
     };
 }
 
+function emptyLayerSlots() {
+    const layers = Object.create(null);
+    LAYER_IDS.forEach((id) => {
+        layers[id] = { frame: null, updatedAt: null };
+    });
+    return layers;
+}
+
 function defaultState() {
     return {
         fps: null,
@@ -35,11 +46,17 @@ function defaultState() {
         object: null,
         capture: null,
         overlays: [],
+        layers: [],
+        rotate: null,
         updatedAt: null,
         hasFrame: false,
         frameBytes: 0,
         frameUpdatedAt: null
     };
+}
+
+function isValidLayer(layer) {
+    return typeof layer === 'string' && LAYER_IDS.includes(layer);
 }
 
 function isJpeg(buf) {
@@ -167,6 +184,14 @@ function sanitizeState(input) {
             .map((v) => v.slice(0, 32))
             .slice(0, 16);
     }
+    if (Array.isArray(input.layers)) {
+        out.layers = input.layers
+            .filter((v) => typeof v === 'string' && LAYER_IDS.includes(v))
+            .slice(0, LAYER_IDS.length);
+    }
+    if (input.rotate != null && Number.isFinite(Number(input.rotate))) {
+        out.rotate = Number(input.rotate);
+    }
 
     return out;
 }
@@ -183,14 +208,56 @@ function sanitizeConfig(input) {
     return next;
 }
 
+function layerMeta(slot) {
+    const has = Buffer.isBuffer(slot && slot.frame) && slot.frame.length > 0;
+    return {
+        hasFrame: has,
+        bytes: has ? slot.frame.length : 0,
+        updatedAt: (slot && slot.updatedAt) || null
+    };
+}
+
+function buildLayersMeta(store) {
+    const meta = {};
+    LAYER_IDS.forEach((id) => {
+        meta[id] = layerMeta(store.layers[id]);
+    });
+    return meta;
+}
+
+function finalSlot(store) {
+    return store.layers.final;
+}
+
 function publicState(store) {
+    const final = finalSlot(store);
+    const finalMeta = layerMeta(final);
     return {
         ...store.state,
-        hasFrame: Buffer.isBuffer(store.frame) && store.frame.length > 0,
-        frameBytes: Buffer.isBuffer(store.frame) ? store.frame.length : 0,
-        frameUpdatedAt: store.frameUpdatedAt,
+        hasFrame: finalMeta.hasFrame,
+        frameBytes: finalMeta.bytes,
+        frameUpdatedAt: finalMeta.updatedAt,
+        layersMeta: buildLayersMeta(store),
         config: { ...store.config, overlays: { ...store.config.overlays } }
     };
+}
+
+function sendJpeg(res, slot) {
+    if (!slot || !Buffer.isBuffer(slot.frame) || !slot.frame.length) {
+        return false;
+    }
+    res.set({
+        'Content-Type': 'image/jpeg',
+        'Content-Length': String(slot.frame.length),
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0'
+    });
+    if (slot.updatedAt) {
+        res.set('Last-Modified', new Date(slot.updatedAt).toUTCString());
+    }
+    res.send(slot.frame);
+    return true;
 }
 
 let statusProvider = () => ({
@@ -202,7 +269,11 @@ let statusProvider = () => ({
     framesReceived: 0,
     statePosts: 0,
     lastIngestError: null,
-    overlays: defaultConfig().overlays
+    overlays: defaultConfig().overlays,
+    layers: LAYER_IDS.reduce((acc, id) => {
+        acc[id] = { hasFrame: false, bytes: 0, updatedAt: null };
+        return acc;
+    }, {})
 });
 
 function getStatus() {
@@ -213,8 +284,7 @@ function register(ctx) {
     const { app, logger, broadcastToAll, onClientConnected } = ctx;
 
     const store = {
-        frame: null,
-        frameUpdatedAt: null,
+        layers: emptyLayerSlots(),
         state: defaultState(),
         config: defaultConfig()
     };
@@ -225,17 +295,22 @@ function register(ctx) {
         lastIngestError: null
     };
 
-    statusProvider = () => ({
-        registered: true,
-        hasFrame: Buffer.isBuffer(store.frame) && store.frame.length > 0,
-        frameBytes: Buffer.isBuffer(store.frame) ? store.frame.length : 0,
-        frameUpdatedAt: store.frameUpdatedAt,
-        stateUpdatedAt: store.state.updatedAt || null,
-        framesReceived: stats.framesReceived,
-        statePosts: stats.statePosts,
-        lastIngestError: stats.lastIngestError,
-        overlays: { ...store.config.overlays }
-    });
+    statusProvider = () => {
+        const final = finalSlot(store);
+        const finalMeta = layerMeta(final);
+        return {
+            registered: true,
+            hasFrame: finalMeta.hasFrame,
+            frameBytes: finalMeta.bytes,
+            frameUpdatedAt: finalMeta.updatedAt,
+            stateUpdatedAt: store.state.updatedAt || null,
+            framesReceived: stats.framesReceived,
+            statePosts: stats.statePosts,
+            lastIngestError: stats.lastIngestError,
+            overlays: { ...store.config.overlays },
+            layers: buildLayersMeta(store)
+        };
+    };
 
     function broadcastUpdate() {
         broadcastToAll({
@@ -253,7 +328,12 @@ function register(ctx) {
         };
     }
 
-    function setFrame(buf) {
+    function setLayerFrame(layer, buf) {
+        if (!isValidLayer(layer)) {
+            const err = new Error(`Unknown layer "${layer}"`);
+            err.status = 400;
+            throw err;
+        }
         if (!isJpeg(buf)) {
             const err = new Error('Body is not a JPEG image');
             err.status = 400;
@@ -264,55 +344,79 @@ function register(ctx) {
             err.status = 413;
             throw err;
         }
-        store.frame = buf;
-        store.frameUpdatedAt = new Date().toISOString();
-        store.state.hasFrame = true;
-        store.state.frameBytes = buf.length;
-        store.state.frameUpdatedAt = store.frameUpdatedAt;
-        if (!store.state.updatedAt) {
-            store.state.updatedAt = store.frameUpdatedAt;
+
+        const updatedAt = new Date().toISOString();
+        store.layers[layer] = { frame: buf, updatedAt };
+
+        if (layer === 'final') {
+            store.state.hasFrame = true;
+            store.state.frameBytes = buf.length;
+            store.state.frameUpdatedAt = updatedAt;
         }
+        if (!store.state.updatedAt) {
+            store.state.updatedAt = updatedAt;
+        }
+
+        return updatedAt;
     }
 
-    app.post('/api/prismdesk/frame', async (req, res) => {
-        try {
-            const ct = String(req.headers['content-type'] || '');
-            let jpeg = null;
-            let statePatch = null;
+    async function ingestFrameBody(req) {
+        const ct = String(req.headers['content-type'] || '');
+        let jpeg = null;
+        let statePatch = null;
 
-            if (ct.includes('multipart/form-data')) {
-                const boundary = multipartBoundary(ct);
-                if (!boundary) {
-                    return res.status(400).json({ ok: false, error: 'Missing multipart boundary' });
+        if (ct.includes('multipart/form-data')) {
+            const boundary = multipartBoundary(ct);
+            if (!boundary) {
+                const err = new Error('Missing multipart boundary');
+                err.status = 400;
+                throw err;
+            }
+            const raw = await readBody(req, MAX_FRAME_BYTES + 64 * 1024);
+            const parts = parseMultipart(raw, boundary);
+            if (!parts.frame || !parts.frame.length) {
+                const err = new Error('multipart field "frame" is required');
+                err.status = 400;
+                throw err;
+            }
+            jpeg = parts.frame;
+            if (parts.stateText) {
+                try {
+                    statePatch = JSON.parse(parts.stateText);
+                } catch (_) {
+                    const err = new Error('multipart field "state" must be JSON');
+                    err.status = 400;
+                    throw err;
                 }
-                const raw = await readBody(req, MAX_FRAME_BYTES + 64 * 1024);
-                const parts = parseMultipart(raw, boundary);
-                if (!parts.frame || !parts.frame.length) {
-                    return res.status(400).json({ ok: false, error: 'multipart field "frame" is required' });
-                }
-                jpeg = parts.frame;
-                if (parts.stateText) {
-                    try {
-                        statePatch = JSON.parse(parts.stateText);
-                    } catch (_) {
-                        return res.status(400).json({ ok: false, error: 'multipart field "state" must be JSON' });
-                    }
-                }
-            } else if (ct.includes('image/jpeg') || ct.includes('application/octet-stream')) {
-                jpeg = await readBody(req, MAX_FRAME_BYTES);
-            } else {
-                return res.status(415).json({
+            }
+        } else if (ct.includes('image/jpeg') || ct.includes('application/octet-stream')) {
+            jpeg = await readBody(req, MAX_FRAME_BYTES);
+        } else {
+            const err = new Error('Expected Content-Type image/jpeg or multipart/form-data');
+            err.status = 415;
+            throw err;
+        }
+
+        return { jpeg, statePatch };
+    }
+
+    async function handleFrameIngest(req, res, layer) {
+        try {
+            if (!isValidLayer(layer)) {
+                return res.status(400).json({
                     ok: false,
-                    error: 'Expected Content-Type image/jpeg or multipart/form-data'
+                    error: `Unknown layer "${layer}". Expected one of: ${LAYER_IDS.join(', ')}`
                 });
             }
 
-            setFrame(jpeg);
+            const { jpeg, statePatch } = await ingestFrameBody(req);
+            const updatedAt = setLayerFrame(layer, jpeg);
+
             if (statePatch) applyStatePatch(statePatch);
-            else {
+            else if (layer === 'final') {
                 store.state.hasFrame = true;
                 store.state.frameBytes = jpeg.length;
-                store.state.frameUpdatedAt = store.frameUpdatedAt;
+                store.state.frameUpdatedAt = updatedAt;
             }
 
             stats.framesReceived += 1;
@@ -320,8 +424,9 @@ function register(ctx) {
             broadcastUpdate();
             res.json({
                 ok: true,
+                layer,
                 bytes: jpeg.length,
-                updatedAt: store.frameUpdatedAt
+                updatedAt
             });
         } catch (err) {
             const status = err.status || 500;
@@ -337,6 +442,14 @@ function register(ctx) {
             }
             res.status(status).json({ ok: false, error: err.message || String(err) });
         }
+    }
+
+    app.post('/api/prismdesk/frame/:layer', async (req, res) => {
+        await handleFrameIngest(req, res, req.params.layer);
+    });
+
+    app.post('/api/prismdesk/frame', async (req, res) => {
+        await handleFrameIngest(req, res, 'final');
     });
 
     app.post('/api/prismdesk/state', (req, res) => {
@@ -357,21 +470,23 @@ function register(ctx) {
         }
     });
 
+    app.get('/api/prismdesk/latest.jpg/:layer', (req, res) => {
+        const layer = req.params.layer;
+        if (!isValidLayer(layer)) {
+            return res.status(400).json({
+                ok: false,
+                error: `Unknown layer "${layer}". Expected one of: ${LAYER_IDS.join(', ')}`
+            });
+        }
+        if (!sendJpeg(res, store.layers[layer])) {
+            return res.status(404).json({ ok: false, error: `No ${layer} frame yet` });
+        }
+    });
+
     app.get('/api/prismdesk/latest.jpg', (req, res) => {
-        if (!store.frame || !store.frame.length) {
+        if (!sendJpeg(res, finalSlot(store))) {
             return res.status(404).json({ ok: false, error: 'No frame yet' });
         }
-        res.set({
-            'Content-Type': 'image/jpeg',
-            'Content-Length': String(store.frame.length),
-            'Cache-Control': 'no-store, no-cache, must-revalidate',
-            Pragma: 'no-cache',
-            Expires: '0'
-        });
-        if (store.frameUpdatedAt) {
-            res.set('Last-Modified', new Date(store.frameUpdatedAt).toUTCString());
-        }
-        res.send(store.frame);
     });
 
     app.get('/api/prismdesk/state', (req, res) => {
@@ -408,12 +523,13 @@ function register(ctx) {
         }
     });
 
-    logger.info('PrismDesk', `Module registered (max frame ${MAX_FRAME_BYTES} bytes)`);
+    logger.info('PrismDesk', `Module registered (max frame ${MAX_FRAME_BYTES} bytes, layers: ${LAYER_IDS.join(', ')})`);
 }
 
 module.exports = {
     id: 'prismdesk',
     name: 'PrismDesk',
     register,
-    getStatus
+    getStatus,
+    LAYER_IDS
 };
