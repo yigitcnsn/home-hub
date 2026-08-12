@@ -383,6 +383,10 @@
             if (browserEl && document.activeElement !== browserEl) {
                 browserEl.checked = browser[key] !== false;
             }
+            const layerPanel = document.getElementById(`prismdeskPanel_${key}`);
+            if (layerPanel) {
+                layerPanel.classList.toggle('is-muted', browser[key] === false);
+            }
         });
 
         refreshFrames();
@@ -414,34 +418,64 @@
         return next;
     }
 
+    function flagsFromList(list) {
+        const set = new Set(Array.isArray(list) ? list : []);
+        return {
+            mat: set.has('mat'),
+            object: set.has('object'),
+            hands: set.has('hands')
+        };
+    }
+
     function applyState(incoming) {
         if (!incoming || typeof incoming !== 'object') return;
+
+        let nextConfig = state.config;
+        if (incoming.config && typeof incoming.config === 'object') {
+            nextConfig = {
+                overlays: {
+                    mat: true,
+                    object: true,
+                    hands: true,
+                    ...((incoming.config.overlays) || {})
+                },
+                projector: {
+                    mat: true,
+                    object: true,
+                    hands: true,
+                    ...((incoming.config.projector) || (incoming.config.overlays) || {})
+                },
+                browser: {
+                    mat: true,
+                    object: true,
+                    hands: true,
+                    ...((incoming.config.browser) || (incoming.config.overlays) || {})
+                }
+            };
+        } else if (
+            Array.isArray(incoming.projector_overlays)
+            || Array.isArray(incoming.browser_overlays)
+            || Array.isArray(incoming.overlays)
+        ) {
+            // Desk pinch toggles often arrive as lists on state without a config block.
+            const projector = flagsFromList(
+                incoming.projector_overlays || incoming.overlays || []
+            );
+            const browser = flagsFromList(
+                incoming.browser_overlays || incoming.projector_overlays || incoming.overlays || []
+            );
+            nextConfig = {
+                overlays: { ...projector },
+                projector,
+                browser
+            };
+        }
+
         state = {
             ...state,
             ...incoming,
             layersMeta: normalizeLayersMeta(incoming),
-            config: incoming.config
-                ? {
-                    overlays: {
-                        mat: true,
-                        object: true,
-                        hands: true,
-                        ...((incoming.config.overlays) || {})
-                    },
-                    projector: {
-                        mat: true,
-                        object: true,
-                        hands: true,
-                        ...((incoming.config.projector) || (incoming.config.overlays) || {})
-                    },
-                    browser: {
-                        mat: true,
-                        object: true,
-                        hands: true,
-                        ...((incoming.config.browser) || (incoming.config.overlays) || {})
-                    }
-                }
-                : state.config
+            config: nextConfig
         };
         updatePage();
     }

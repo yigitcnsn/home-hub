@@ -4617,6 +4617,11 @@ body.dark-mode .stocks-paper-glow {
     min-width: 0;
 }
 
+.prismdesk-panel.is-muted {
+    opacity: 0.35;
+    filter: grayscale(0.4);
+}
+
 .prismdesk-panel-head {
     display: flex;
     justify-content: space-between;
