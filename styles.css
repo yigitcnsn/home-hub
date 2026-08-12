@@ -4746,6 +4746,29 @@ body.dark-mode .stocks-paper-glow {
     gap: 10px 14px;
 }
 
+.prismdesk-toggle-group {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.prismdesk-toggle-group-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 12px;
+}
+
+.prismdesk-toggle-group-head strong {
+    font-size: 13px;
+    color: var(--pd-text);
+}
+
 .prismdesk-toggle {
     display: inline-flex;
     align-items: center;

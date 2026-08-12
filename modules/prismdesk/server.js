@@ -19,13 +19,21 @@ const MAX_FRAME_BYTES = 800 * 1024;
 const OVERLAY_KEYS = ['mat', 'object', 'hands'];
 const LAYER_IDS = ['raw', 'mat', 'hands', 'object', 'final'];
 
-function defaultConfig() {
+function defaultOverlayFlags() {
     return {
-        overlays: {
-            mat: true,
-            object: true,
-            hands: true
-        }
+        mat: true,
+        object: true,
+        hands: true
+    };
+}
+
+function defaultConfig() {
+    const overlays = defaultOverlayFlags();
+    return {
+        // Legacy flat key — kept in sync with projector for older desks.
+        overlays: { ...overlays },
+        projector: { ...overlays },
+        browser: { ...overlays }
     };
 }
 
@@ -196,15 +204,47 @@ function sanitizeState(input) {
     return out;
 }
 
+function applyOverlayFlags(target, source) {
+    if (!source || typeof source !== 'object') return;
+    OVERLAY_KEYS.forEach((key) => {
+        if (typeof source[key] === 'boolean') {
+            target[key] = source[key];
+        }
+    });
+}
+
 function sanitizeConfig(input) {
     const next = defaultConfig();
     if (!input || typeof input !== 'object') return next;
-    const overlays = input.overlays && typeof input.overlays === 'object' ? input.overlays : {};
-    OVERLAY_KEYS.forEach((key) => {
-        if (typeof overlays[key] === 'boolean') {
-            next.overlays[key] = overlays[key];
-        }
-    });
+
+    const hasProjector = input.projector && typeof input.projector === 'object';
+    const hasBrowser = input.browser && typeof input.browser === 'object';
+    const hasLegacy = input.overlays && typeof input.overlays === 'object';
+
+    if (!hasProjector && !hasBrowser && hasLegacy) {
+        // Old clients: one toggle set controls both surfaces.
+        applyOverlayFlags(next.overlays, input.overlays);
+        applyOverlayFlags(next.projector, input.overlays);
+        applyOverlayFlags(next.browser, input.overlays);
+        return next;
+    }
+
+    if (hasLegacy) {
+        applyOverlayFlags(next.overlays, input.overlays);
+    }
+    if (hasProjector) {
+        applyOverlayFlags(next.projector, input.projector);
+    } else if (hasLegacy) {
+        applyOverlayFlags(next.projector, input.overlays);
+    }
+    if (hasBrowser) {
+        applyOverlayFlags(next.browser, input.browser);
+    } else if (hasLegacy) {
+        applyOverlayFlags(next.browser, input.overlays);
+    }
+
+    // Keep legacy overlays mirrored to projector for older PrismDesk builds.
+    next.overlays = { ...next.projector };
     return next;
 }
 
@@ -238,7 +278,12 @@ function publicState(store) {
         frameBytes: finalMeta.bytes,
         frameUpdatedAt: finalMeta.updatedAt,
         layersMeta: buildLayersMeta(store),
-        config: { ...store.config, overlays: { ...store.config.overlays } }
+        config: {
+            ...store.config,
+            overlays: { ...store.config.overlays },
+            projector: { ...store.config.projector },
+            browser: { ...store.config.browser }
+        }
     };
 }
 
@@ -308,6 +353,8 @@ function register(ctx) {
             statePosts: stats.statePosts,
             lastIngestError: stats.lastIngestError,
             overlays: { ...store.config.overlays },
+            projector: { ...store.config.projector },
+            browser: { ...store.config.browser },
             layers: buildLayersMeta(store)
         };
     };

@@ -37,7 +37,9 @@
         frameUpdatedAt: null,
         layersMeta: emptyLayersMeta(),
         config: {
-            overlays: { mat: true, object: true, hands: true }
+            overlays: { mat: true, object: true, hands: true },
+            projector: { mat: true, object: true, hands: true },
+            browser: { mat: true, object: true, hands: true }
         }
     };
     let initialized = false;
@@ -140,6 +142,18 @@
         LAYER_IDS.forEach(refreshLayer);
     }
 
+    function currentSurfaceFlags(surface) {
+        const cfg = state.config || {};
+        const block = (cfg[surface] && typeof cfg[surface] === 'object')
+            ? cfg[surface]
+            : (cfg.overlays || {});
+        return {
+            mat: block.mat !== false,
+            object: block.object !== false,
+            hands: block.hands !== false
+        };
+    }
+
     function saveConfig(config) {
         fetch('/api/prismdesk/config', {
             method: 'PUT',
@@ -162,20 +176,44 @@
     }
 
     function bindOverlayToggles() {
-        OVERLAY_KEYS.forEach((key) => {
-            const el = document.getElementById(`prismdeskOverlay_${key}`);
-            if (!el || el._prismBound) return;
-            el._prismBound = true;
-            el.addEventListener('change', () => {
-                const overlays = {
-                    mat: !!(state.config && state.config.overlays && state.config.overlays.mat),
-                    object: !!(state.config && state.config.overlays && state.config.overlays.object),
-                    hands: !!(state.config && state.config.overlays && state.config.overlays.hands)
-                };
-                overlays[key] = !!el.checked;
-                saveConfig({ overlays });
+        ['projector', 'browser'].forEach((surface) => {
+            OVERLAY_KEYS.forEach((key) => {
+                const el = document.getElementById(`prismdeskOverlay_${surface}_${key}`);
+                if (!el || el._prismBound) return;
+                el._prismBound = true;
+                el.addEventListener('change', () => {
+                    const projector = currentSurfaceFlags('projector');
+                    const browser = currentSurfaceFlags('browser');
+                    const target = surface === 'projector' ? projector : browser;
+                    target[key] = !!el.checked;
+                    // Keep legacy overlays = projector for older desks.
+                    saveConfig({
+                        projector,
+                        browser,
+                        overlays: { ...projector }
+                    });
+                });
             });
         });
+    }
+
+    function toggleGroupMarkup(surface, title, hint) {
+        return `
+            <div class="prismdesk-toggle-group" data-surface="${esc(surface)}">
+                <div class="prismdesk-toggle-group-head">
+                    <strong>${esc(title)}</strong>
+                    <span class="prismdesk-meta">${esc(hint)}</span>
+                </div>
+                <div class="prismdesk-toggles">
+                    ${OVERLAY_KEYS.map((key) => `
+                        <label class="prismdesk-toggle">
+                            <input type="checkbox" id="prismdeskOverlay_${esc(surface)}_${esc(key)}" checked />
+                            <span>${esc(key)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            </div>
+        `;
     }
 
     function panelMarkup(layer) {
@@ -266,16 +304,10 @@
                 <div class="prismdesk-section">
                     <div class="prismdesk-section-head">
                         <h4>Overlay controls</h4>
-                        <span class="prismdesk-meta">hub → desk config</span>
+                        <span class="prismdesk-meta">separate projector HUD vs browser debug</span>
                     </div>
-                    <div class="prismdesk-toggles">
-                        ${OVERLAY_KEYS.map((key) => `
-                            <label class="prismdesk-toggle">
-                                <input type="checkbox" id="prismdeskOverlay_${key}" checked />
-                                <span>${esc(key)}</span>
-                            </label>
-                        `).join('')}
-                    </div>
+                    ${toggleGroupMarkup('projector', 'Projector HUD', 'drawn on HY300')}
+                    ${toggleGroupMarkup('browser', 'Browser final', 'composed into Final panel')}
                 </div>
 
                 <div class="prismdesk-meta-row">
@@ -302,7 +334,8 @@
         }
 
         const locked = state.mat_locked === true;
-        const overlays = (state.config && state.config.overlays) || {};
+        const projector = currentSurfaceFlags('projector');
+        const browser = currentSurfaceFlags('browser');
         const live = anyLayerLive() || !!state.hasFrame;
 
         setText(
@@ -342,9 +375,13 @@
         });
 
         OVERLAY_KEYS.forEach((key) => {
-            const el = document.getElementById(`prismdeskOverlay_${key}`);
-            if (el && document.activeElement !== el) {
-                el.checked = overlays[key] !== false;
+            const projEl = document.getElementById(`prismdeskOverlay_projector_${key}`);
+            if (projEl && document.activeElement !== projEl) {
+                projEl.checked = projector[key] !== false;
+            }
+            const browserEl = document.getElementById(`prismdeskOverlay_browser_${key}`);
+            if (browserEl && document.activeElement !== browserEl) {
+                browserEl.checked = browser[key] !== false;
             }
         });
 
@@ -389,7 +426,19 @@
                         mat: true,
                         object: true,
                         hands: true,
-                        ...(incoming.config.overlays || {})
+                        ...((incoming.config.overlays) || {})
+                    },
+                    projector: {
+                        mat: true,
+                        object: true,
+                        hands: true,
+                        ...((incoming.config.projector) || (incoming.config.overlays) || {})
+                    },
+                    browser: {
+                        mat: true,
+                        object: true,
+                        hands: true,
+                        ...((incoming.config.browser) || (incoming.config.overlays) || {})
                     }
                 }
                 : state.config
