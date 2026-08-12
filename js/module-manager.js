@@ -473,7 +473,16 @@ class ModuleManager {
             .forEach((el) => el.remove());
 
         Object.values(window.HomeHubModules)
-            .filter((mod) => mod.nav && mod.view)
+            .filter((mod) => {
+                if (!mod.nav || !mod.view) return false;
+                if (mod.featureGate) {
+                    // Until Control state arrives, keep nav visible; then honor kill-switches.
+                    const gates = window.HomeHubFeatureGates;
+                    if (!gates) return true;
+                    return gates[mod.featureGate] === true;
+                }
+                return true;
+            })
             .forEach((mod) => {
                 const btn = document.createElement('button');
                 btn.type = 'button';

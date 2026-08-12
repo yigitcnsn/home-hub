@@ -177,6 +177,13 @@
                 </div>
             </section>
 
+            <!-- Control (kill / start background features) -->
+            <section class="module-page control-view" id="controlView" data-view-panel="control" hidden>
+                <div id="controlViewBody">
+                    <div class="control-empty">Loading control panel…</div>
+                </div>
+            </section>
+
             <!-- PrismDesk (live annotated desk feed) -->
             <section class="module-page prismdesk-view" id="prismdeskView" data-view-panel="prismdesk" hidden>
                 <div id="prismdeskViewBody">
@@ -234,6 +241,7 @@
     </div>
 
     <script src="modules/notifications/client.js"></script>
+    <script src="modules/control/client.js"></script>
     <script src="modules/activity/client.js"></script>
     <script src="modules/system/client.js"></script>
     <script src="modules/network/client.js"></script>

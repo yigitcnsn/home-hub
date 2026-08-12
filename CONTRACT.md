@@ -103,6 +103,8 @@ Browser talks only to home-hub, never to Ollama directly.
 | `POST` | `/api/stocksai/scrape` | Manual scrape run |
 | `GET` | `/api/aiinfo` | Active model + context / token window |
 | `POST` | `/api/aiinfo/model` | Select active Ollama model |
+| `GET` | `/api/control` | Feature kill-switches (enabled / running) |
+| `POST` | `/api/control/features/:id` | `{ "enabled": true\|false }` — start or kill workers |
 
 ## pi-llm references
 

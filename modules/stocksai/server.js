@@ -47,6 +47,12 @@ function register(ctx) {
     let oracleCheckedAt = null;
     let oracleError = null;
     let oracleInitialized = false;
+    let workersAlive = false;
+    let workerGeneration = 0;
+    let scrapeStartTimer = null;
+    let scrapeInterval = null;
+    let oracleStartTimer = null;
+    let oracleInterval = null;
 
     // Restore recent jobs into memory map (display only)
     store.getJobs().forEach((job) => {
@@ -84,16 +90,29 @@ function register(ctx) {
             oracleCheckedAt,
             oracleError,
             eclipse: oracleOnline !== true,
+            killed: workersAlive !== true,
             model: ollama.getActiveModel(),
             ollamaBaseUrl: ollama.DEFAULT_BASE,
             language: scrape.LANGUAGE,
-            disclaimer: 'Not investment advice. For personal research only.'
+            disclaimer: workersAlive
+                ? 'Not investment advice. For personal research only.'
+                : 'Stocks AI is killed. Open it from Control to start workers.'
         };
     }
 
     async function refreshOracle(broadcast = true) {
+        if (!workersAlive) {
+            oracleOnline = false;
+            oracleError = 'Stocks AI killed';
+            oracleCheckedAt = new Date().toISOString();
+            return false;
+        }
         const prev = oracleOnline;
         const health = await ollama.checkHealth();
+        if (!workersAlive) {
+            oracleOnline = false;
+            return false;
+        }
         oracleOnline = health.online === true;
         oracleCheckedAt = health.checkedAt;
         oracleError = health.online ? null : (health.error || 'Ollama unreachable');
@@ -157,6 +176,11 @@ function register(ctx) {
     }
 
     function enqueueClassify(payload) {
+        if (!workersAlive) {
+            lastError = 'Stocks AI is killed — open it from Control';
+            broadcastState();
+            return null;
+        }
         if (!oracleOnline) {
             lastError = 'Oracle offline — classify paused until Ollama is back';
             broadcastState();
@@ -183,7 +207,7 @@ function register(ctx) {
         return job;
     }
 
-    async function runJob(job) {
+    async function runJob(job, generation) {
         job.status = 'running';
         job.startedAt = new Date().toISOString();
         persistJobs();
@@ -204,6 +228,14 @@ function register(ctx) {
                     stock: job.stock,
                     text: job.text
                 });
+            }
+
+            if (!workersAlive || generation !== workerGeneration) {
+                job.status = 'cancelled';
+                job.error = 'Feature killed';
+                job.finishedAt = new Date().toISOString();
+                job.result = null;
+                return;
             }
 
             const disclosure = job.disclosureId
@@ -235,13 +267,19 @@ function register(ctx) {
                 ctx.emit('stocksai_classified', record);
             }
         } catch (err) {
-            job.status = 'error';
-            job.error = err.message || String(err);
-            job.finishedAt = new Date().toISOString();
-            lastError = job.error;
-            logger.error('StocksAI', `Classify job ${job.id} failed: ${job.error}`);
-            // Likely connectivity — flip Eclipse if Ollama is gone
-            refreshOracle(true).catch(() => {});
+            if (!workersAlive || generation !== workerGeneration) {
+                job.status = 'cancelled';
+                job.error = 'Feature killed';
+                job.finishedAt = new Date().toISOString();
+            } else {
+                job.status = 'error';
+                job.error = err.message || String(err);
+                job.finishedAt = new Date().toISOString();
+                lastError = job.error;
+                logger.error('StocksAI', `Classify job ${job.id} failed: ${job.error}`);
+                // Likely connectivity — flip Eclipse if Ollama is gone
+                refreshOracle(true).catch(() => {});
+            }
         }
 
         persistJobs();
@@ -249,21 +287,26 @@ function register(ctx) {
     }
 
     async function pumpQueue() {
+        if (!workersAlive) return;
         if (running) return;
         const next = queue.shift();
         if (!next) return;
+        const generation = workerGeneration;
         running = true;
         try {
-            await runJob(next);
+            await runJob(next, generation);
         } finally {
             running = false;
-            if (queue.length) {
+            if (workersAlive && queue.length) {
                 setImmediate(() => pumpQueue());
             }
         }
     }
 
     async function scrapeNow({ mode = 'watchlist', autoClassify = AUTO_CLASSIFY } = {}) {
+        if (!workersAlive) {
+            throw new Error('Stocks AI is killed — open it from Control');
+        }
         const watchlist = store.getWatchlist();
         // Empty watchlist → general scan so the UI still does something useful
         const effectiveMode = (mode === 'watchlist' && !watchlist.length) ? 'general' : mode;
@@ -343,6 +386,14 @@ function register(ctx) {
     });
 
     app.post('/api/stocksai/scrape', async (req, res) => {
+        if (!workersAlive) {
+            res.status(503).json({
+                ok: false,
+                error: 'Stocks AI is killed — open it from Control',
+                state: getState()
+            });
+            return;
+        }
         try {
             const mode = (req.body && req.body.mode) === 'general' ? 'general' : 'watchlist';
             const out = await scrapeNow({
@@ -359,6 +410,14 @@ function register(ctx) {
     });
 
     app.post('/api/stocksai/classify', (req, res) => {
+        if (!workersAlive) {
+            res.status(503).json({
+                ok: false,
+                error: 'Stocks AI is killed — open it from Control',
+                state: getState()
+            });
+            return;
+        }
         const body = req.body || {};
         const stock = String(body.stock || '').trim().toUpperCase();
         const text = String(body.text || '').trim();
@@ -390,7 +449,9 @@ function register(ctx) {
         if (!job) {
             res.status(503).json({
                 ok: false,
-                error: 'Oracle offline — classify paused until Ollama is back',
+                error: workersAlive
+                    ? 'Oracle offline — classify paused until Ollama is back'
+                    : 'Stocks AI is killed — open it from Control',
                 state: getState()
             });
             return;
@@ -420,6 +481,11 @@ function register(ctx) {
             return true;
         }
         if (data.type === 'stocksai_scrape') {
+            if (!workersAlive) {
+                lastError = 'Stocks AI is killed — open it from Control';
+                broadcastState();
+                return true;
+            }
             const mode = data.mode === 'general' ? 'general' : 'watchlist';
             scrapeNow({
                 mode,
@@ -432,6 +498,11 @@ function register(ctx) {
             return true;
         }
         if (data.type === 'stocksai_classify') {
+            if (!workersAlive) {
+                lastError = 'Stocks AI is killed — open it from Control';
+                broadcastState();
+                return true;
+            }
             const stock = String(data.stock || '').trim().toUpperCase();
             const text = String(data.text || '').trim();
             const disclosureId = data.disclosureId ? String(data.disclosureId) : null;
@@ -454,6 +525,37 @@ function register(ctx) {
         return false;
     });
 
+    function clearWorkerTimers() {
+        if (scrapeStartTimer) {
+            clearTimeout(scrapeStartTimer);
+            scrapeStartTimer = null;
+        }
+        if (scrapeInterval) {
+            clearInterval(scrapeInterval);
+            scrapeInterval = null;
+        }
+        if (oracleStartTimer) {
+            clearTimeout(oracleStartTimer);
+            oracleStartTimer = null;
+        }
+        if (oracleInterval) {
+            clearInterval(oracleInterval);
+            oracleInterval = null;
+        }
+    }
+
+    function drainClassifyQueue(reason) {
+        while (queue.length) {
+            const job = queue.shift();
+            job.status = 'cancelled';
+            job.error = reason;
+            job.finishedAt = new Date().toISOString();
+            job.result = null;
+            jobsById.set(job.id, job);
+        }
+        persistJobs();
+    }
+
     function scheduleScrape() {
         if (!(POLL_MS > 0)) {
             logger.info('StocksAI', 'Scheduled scrape disabled (KAP_POLL_INTERVAL_MS <= 0)');
@@ -461,33 +563,79 @@ function register(ctx) {
         }
 
         const run = () => {
+            if (!workersAlive) return;
             const mode = store.getWatchlist().length ? 'watchlist' : 'general';
             scrapeNow({ mode, autoClassify: mode === 'watchlist' }).catch((err) => {
                 logger.warn('StocksAI', `Scheduled scrape failed: ${err.message || err}`);
             });
         };
 
-        setTimeout(() => {
+        scrapeStartTimer = setTimeout(() => {
+            scrapeStartTimer = null;
             run();
         }, 8000);
-        setInterval(run, POLL_MS);
+        scrapeInterval = setInterval(run, POLL_MS);
         logger.info('StocksAI', `Scheduled scrape every ${Math.round(POLL_MS / 60000)} min`);
     }
 
-    scheduleScrape();
-
     function scheduleOracleWatch() {
         const tick = () => {
+            if (!workersAlive) return;
             refreshOracle(true).catch((err) => {
                 logger.warn('StocksAI', `Oracle health check failed: ${err.message || err}`);
             });
         };
         // Immediate probe so widgets know eclipse state on boot
-        setTimeout(tick, 1500);
-        setInterval(tick, 30000);
+        oracleStartTimer = setTimeout(() => {
+            oracleStartTimer = null;
+            tick();
+        }, 1500);
+        oracleInterval = setInterval(tick, 30000);
     }
 
-    scheduleOracleWatch();
+    function startWorkers() {
+        if (workersAlive) return;
+        workersAlive = true;
+        workerGeneration += 1;
+        lastError = null;
+        scheduleScrape();
+        scheduleOracleWatch();
+        broadcastState();
+        logger.info('StocksAI', 'Workers started');
+    }
+
+    function stopWorkers() {
+        if (!workersAlive && !scrapeInterval && !oracleInterval) {
+            broadcastState();
+            return;
+        }
+        workersAlive = false;
+        workerGeneration += 1;
+        clearWorkerTimers();
+        drainClassifyQueue('Feature killed');
+        running = false;
+        oracleOnline = false;
+        oracleError = 'Stocks AI killed';
+        oracleCheckedAt = new Date().toISOString();
+        lastError = 'Stocks AI killed — timers cleared, classify queue drained';
+        broadcastState();
+        logger.info('StocksAI', 'Workers killed');
+    }
+
+    if (typeof ctx.registerFeature === 'function') {
+        ctx.registerFeature({
+            id: 'stocksai',
+            label: 'Stocks AI',
+            description: 'KAP scrape, Ollama classify queue, and oracle health checks',
+            navViews: ['stocksai'],
+            defaultEnabled: true,
+            start: startWorkers,
+            stop: stopWorkers,
+            isRunning: () => workersAlive
+        });
+    } else {
+        startWorkers();
+    }
 
     if (typeof ctx.on === 'function') {
         ctx.on('ollama_model_changed', () => {

@@ -488,10 +488,30 @@ function register(ctx) {
         refreshWatchlistQuotes({ force: false }).catch(() => {});
     }, POLL_MS);
 
-    newsPipeline.startScheduler({
+    const newsSchedulerCtx = {
         logger,
         onNewsClassified: handleNewsClassification
-    });
+    };
+
+    if (typeof ctx.registerFeature === 'function') {
+        ctx.registerFeature({
+            id: 'news_rss',
+            label: 'News RSS',
+            description: 'Investing.com RSS poll + Ollama headline classify',
+            navViews: [],
+            defaultEnabled: true,
+            start: () => {
+                newsPipeline.startScheduler(newsSchedulerCtx);
+            },
+            stop: () => {
+                newsPipeline.stopScheduler();
+                broadcastPaperState();
+            },
+            isRunning: () => newsPipeline.isSchedulerRunning()
+        });
+    } else {
+        newsPipeline.startScheduler(newsSchedulerCtx);
+    }
 
     logger.info('Stocks', `Registered (poll every ${Math.round(POLL_MS / 1000)}s, Yahoo Finance + paper trading)`);
 }

@@ -40,7 +40,7 @@ Home Hub is a modular dashboard for a Raspberry Pi (or any Node host). Use the *
 
 | Area | Role |
 |:-----|:-----|
-| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info · PrismDesk |
+| **Sidebar** | App modules (pages): Home · Notifications · Logs · Stocks AI · Stocks · Monitor · Network · AI Info · Control · PrismDesk |
 | **Home** | Widget grid: System Monitor, Speed Test, Stocks AI Digest, Stocks AI Watchlist, Stocks Watchlist, AI Model, AI Token Window |
 | **Developer** | Update (watch mode) · Clear All widgets |
 
@@ -64,6 +64,7 @@ KAP / Ollama integration: see [`CONTRACT.md`](./CONTRACT.md) (aligned with [pi-l
 - **Paper desk** — BIST-only virtual portfolio under Stocks (orders, fills, mark-to-market); optional auto strategy from KAP / news sentiment
 - **News RSS** — Investing.com headlines → Ollama classify → paper signals (toggle on Paper desk)
 - **AI Info** — configured Ollama model, online status, context / token window; model picker; Home widgets
+- **Control** — kill / start Stocks AI, AI Info, and News RSS workers (timers cleared, queues drained — not idle)
 - **PrismDesk** — live annotated camera feed + telemetry debug console (ingest from the desk pipeline)
 - **Light & dark theme**, fullscreen, multi-device sync over WebSocket (HTTP polling fallback if WS unavailable)
 - **Persistent layout** — browser `localStorage` + server `data/dashboard-state.json` (survives Update / `--watch` restarts)
@@ -126,6 +127,18 @@ Global alerts with levels **info**, **warn**, and **error**. Sidebar inbox + cor
 ### AI Info
 
 Sidebar **AI Info** shows the active Ollama model, online status, parameter size, and reported context / token window (`/api/show`). Use the model picker to switch among installed tags without restart (persisted in `data/aiinfo/`). Home widgets: **AI Model**, **AI Token Window**.
+
+### Control
+
+Sidebar **Control** hard-kills or starts background LLM workers:
+
+| Feature | What gets killed |
+|:--------|:-----------------|
+| **Stocks AI** | KAP scrape timer, Ollama health checks, classify queue |
+| **AI Info** | Ollama metadata poll timer |
+| **News RSS** | RSS poll timer + headline classify queue |
+
+Closed means timers are cleared and queues drained (not left idle). State persists in `data/control/features.json`. Killed features drop out of the sidebar until started again.
 
 ### PrismDesk
 
@@ -266,6 +279,7 @@ home-hub/
 ├── modules/
 │   ├── index.js               # Server module registry
 │   ├── notifications/         # Global info/warn/error alerts (not Logs)
+│   ├── control/               # Kill / start Stocks AI, AI Info, News RSS workers
 │   ├── activity/              # Logs page (server activity stream)
 │   ├── system/                # System Monitor widget registration
 │   ├── network/               # Network page + Speed Test widget
@@ -273,7 +287,7 @@ home-hub/
 │   ├── stocks/                # Yahoo quotes / watchlist / charts / paper / news
 │   ├── aiinfo/                # Ollama model + token window page/widgets
 │   └── prismdesk/             # Desk feed ingest + debug console
-├── data/                      # Runtime (gitignored): dashboard-state, stocksai/, stocks/, notifications/, aiinfo/, flags
+├── data/                      # Runtime (gitignored): dashboard-state, control/, stocksai/, stocks/, notifications/, aiinfo/, flags
 └── logs/                      # Runtime (gitignored): home-hub.log, system-metrics.log
 ```
 

@@ -4726,3 +4726,192 @@ body.dark-mode .stocks-paper-glow {
         font-size: 22px;
     }
 }
+
+/* Control panel — kill / start background workers */
+.control-page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 8px 4px 32px;
+}
+
+.control-hero {
+    margin-bottom: 22px;
+}
+
+.control-kicker {
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.control-title {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.control-lead {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    max-width: 52ch;
+}
+
+.control-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.control-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface) 88
+/* Control panel — kill / start background workers */
+.control-page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 8px 4px 32px;
+}
+
+.control-hero {
+    margin-bottom: 22px;
+}
+
+.control-kicker {
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.control-title {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.control-lead {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    max-width: 52ch;
+}
+
+.control-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.control-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.control-card.is-off {
+    opacity: 0.78;
+}
+
+.control-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.control-card-desc {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+.control-card-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--text-muted);
+}
+
+.control-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.control-card.is-on .control-dot {
+    background: var(--success);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.35);
+    animation: stocks-pulse 2s ease infinite;
+}
+
+.control-card.is-on .control-card-status {
+    color: var(--success);
+}
+
+.control-toggle {
+    flex-shrink: 0;
+    min-width: 84px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.control-toggle.is-on {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.control-toggle:not(.is-on) {
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border-color));
+    color: var(--success);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.control-empty {
+    padding: 24px 8px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+@media (max-width: 640px) {
+    .control-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .control-toggle {
+        width: 100%;
+    }
+}

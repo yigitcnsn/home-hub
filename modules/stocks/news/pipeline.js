@@ -16,6 +16,10 @@ let lastError = null;
 let polling = false;
 let classifying = false;
 let schedulerCtx = null;
+let schedulerAlive = false;
+let schedulerGeneration = 0;
+let schedulerStartTimer = null;
+let schedulerInterval = null;
 const classifyQueue = [];
 
 function isEnabled() {
@@ -24,9 +28,10 @@ function isEnabled() {
 
 function setEnabled(enabled) {
     const settings = newsStore.setEnabled(enabled);
-    if (settings.enabled && schedulerCtx) {
+    if (settings.enabled && schedulerAlive && schedulerCtx) {
         // Kick a poll soon after turning on
         setTimeout(() => {
+            if (!schedulerAlive || !isEnabled()) return;
             pollOnce({
                 onClassified: schedulerCtx.onNewsClassified
             }).catch(() => {});
@@ -39,15 +44,18 @@ function getStatus() {
     const enabled = isEnabled();
     return {
         enabled,
+        killed: schedulerAlive !== true,
         feeds: rss.DEFAULT_FEEDS,
         lastPollAt,
         lastError,
         polling,
         classifyQueue: classifyQueue.length,
         headlines: newsStore.getHeadlines().slice(0, 40),
-        disclaimer: enabled
-            ? 'RSS headlines only (no full-article scrape). Personal research. Not investment advice.'
-            : 'News RSS off. Toggle it on from the Paper desk when you want Investing.com headlines.'
+        disclaimer: !schedulerAlive
+            ? 'News RSS feature is killed. Open it from Control to start the scheduler.'
+            : (enabled
+                ? 'RSS headlines only (no full-article scrape). Personal research. Not investment advice.'
+                : 'News RSS off. Toggle it on from the Paper desk when you want Investing.com headlines.')
     };
 }
 
@@ -67,15 +75,24 @@ function enqueueClassify(job) {
 }
 
 async function pumpClassify() {
+    if (!schedulerAlive) {
+        classifyQueue.length = 0;
+        classifying = false;
+        return;
+    }
     if (classifying) return;
     const next = classifyQueue.shift();
     if (!next) return;
+    const generation = schedulerGeneration;
     classifying = true;
     try {
-        if (!isEnabled()) {
+        if (!schedulerAlive || !isEnabled()) {
             return;
         }
         const health = await ollama.checkHealth();
+        if (!schedulerAlive || generation !== schedulerGeneration) {
+            return;
+        }
         if (!health.online) {
             lastError = health.error || 'Ollama offline — news classify skipped';
             newsStore.upsertHeadlines([{
@@ -88,6 +105,9 @@ async function pumpClassify() {
         }
 
         for (const stock of next.stocks) {
+            if (!schedulerAlive || generation !== schedulerGeneration) {
+                return;
+            }
             let modelOut;
             try {
                 modelOut = await ollama.classifyKap({
@@ -109,6 +129,10 @@ async function pumpClassify() {
                     }]);
                     continue;
                 }
+            }
+
+            if (!schedulerAlive || generation !== schedulerGeneration) {
+                return;
             }
 
             const record = {
@@ -149,7 +173,7 @@ async function pumpClassify() {
         lastError = null;
     } finally {
         classifying = false;
-        if (classifyQueue.length) {
+        if (schedulerAlive && classifyQueue.length) {
             setImmediate(() => pumpClassify());
         }
     }
@@ -159,6 +183,9 @@ async function pumpClassify() {
  * Poll RSS feeds, persist new headlines, enqueue classify for BIST matches.
  */
 async function pollOnce({ onClassified, quotesBySymbol } = {}) {
+    if (!schedulerAlive) {
+        return { ok: false, skipped: 'killed', status: getStatus() };
+    }
     if (!isEnabled()) {
         return { ok: false, skipped: 'disabled', status: getStatus() };
     }
@@ -168,6 +195,9 @@ async function pollOnce({ onClassified, quotesBySymbol } = {}) {
     polling = true;
     try {
         const { items, errors, feeds } = await rss.fetchAllFeeds();
+        if (!schedulerAlive) {
+            return { ok: false, skipped: 'killed', status: getStatus() };
+        }
         lastPollAt = new Date().toISOString();
         if (errors.length) {
             lastError = errors.map((e) => `${e.url}: ${e.error}`).join('; ');
@@ -210,27 +240,71 @@ async function pollOnce({ onClassified, quotesBySymbol } = {}) {
     }
 }
 
+function clearSchedulerTimers() {
+    if (schedulerStartTimer) {
+        clearTimeout(schedulerStartTimer);
+        schedulerStartTimer = null;
+    }
+    if (schedulerInterval) {
+        clearInterval(schedulerInterval);
+        schedulerInterval = null;
+    }
+}
+
 function startScheduler(ctx) {
     schedulerCtx = ctx || null;
-    if (POLL_MS <= 0) return null;
+    if (schedulerAlive) return schedulerInterval;
+    if (POLL_MS <= 0) {
+        if (ctx && ctx.logger) {
+            ctx.logger.info('News', 'RSS scheduler disabled (NEWS_RSS_POLL_MS <= 0)');
+        }
+        return null;
+    }
+
+    schedulerAlive = true;
+    schedulerGeneration += 1;
+    lastError = null;
+
     if (ctx && ctx.logger) {
         ctx.logger.info(
             'News',
-            `RSS scheduler ready (poll every ${Math.round(POLL_MS / 1000)}s, currently ${isEnabled() ? 'on' : 'off'})`
+            `RSS scheduler started (poll every ${Math.round(POLL_MS / 1000)}s, soft-toggle ${isEnabled() ? 'on' : 'off'})`
         );
     }
-    setTimeout(() => {
-        if (!isEnabled()) return;
+
+    schedulerStartTimer = setTimeout(() => {
+        schedulerStartTimer = null;
+        if (!schedulerAlive || !isEnabled()) return;
         pollOnce({
             onClassified: ctx && ctx.onNewsClassified
         }).catch(() => {});
     }, 8000);
-    return setInterval(() => {
-        if (!isEnabled()) return;
+
+    schedulerInterval = setInterval(() => {
+        if (!schedulerAlive || !isEnabled()) return;
         pollOnce({
             onClassified: ctx && ctx.onNewsClassified
         }).catch(() => {});
     }, POLL_MS);
+
+    return schedulerInterval;
+}
+
+function stopScheduler() {
+    schedulerAlive = false;
+    schedulerGeneration += 1;
+    clearSchedulerTimers();
+    classifyQueue.length = 0;
+    classifying = false;
+    polling = false;
+    lastError = 'News RSS killed — scheduler stopped, classify queue drained';
+    if (schedulerCtx && schedulerCtx.logger) {
+        schedulerCtx.logger.info('News', 'RSS scheduler killed');
+    }
+}
+
+function isSchedulerRunning() {
+    return schedulerAlive === true;
 }
 
 module.exports = {
@@ -239,5 +313,7 @@ module.exports = {
     getStatus,
     pollOnce,
     startScheduler,
+    stopScheduler,
+    isSchedulerRunning,
     matchTickers: require('./tickers').matchTickers
 };

@@ -4,9 +4,15 @@ const REFRESH_MS = Number(process.env.AIINFO_POLL_MS || 30000);
 
 /**
  * AI information — configured Ollama model + context / token window.
+ * Workers start/stop via Control Panel (timers cleared when killed).
  */
 function register(ctx) {
     const { app, logger, broadcastToAll, onClientConnected, onClientMessage, notify, emit } = ctx;
+
+    let workersAlive = false;
+    let workerGeneration = 0;
+    let startTimer = null;
+    let pollInterval = null;
 
     let state = {
         online: false,
@@ -20,14 +26,18 @@ function register(ctx) {
         format: null,
         checkedAt: null,
         lastError: null,
-        refreshing: false
+        refreshing: false,
+        killed: true
     };
 
     function getState() {
         return {
             ...state,
+            killed: workersAlive !== true,
             maxTokens: state.contextLength,
-            disclaimer: 'Values reported by Ollama for the configured model. Not investment advice.'
+            disclaimer: workersAlive
+                ? 'Values reported by Ollama for the configured model. Not investment advice.'
+                : 'AI Info is killed. Open it from Control to start polling.'
         };
     }
 
@@ -38,11 +48,32 @@ function register(ctx) {
         });
     }
 
-    async function refresh({ broadcast = true } = {}) {
+    function clearWorkerTimers() {
+        if (startTimer) {
+            clearTimeout(startTimer);
+            startTimer = null;
+        }
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    }
+
+    async function refresh({ broadcast = true, generation = workerGeneration } = {}) {
+        if (!workersAlive) {
+            state.killed = true;
+            state.online = false;
+            state.lastError = 'AI Info killed';
+            if (broadcast) broadcastState();
+            return getState();
+        }
         if (state.refreshing) return getState();
         state.refreshing = true;
         try {
             const health = await ollama.checkHealth({ baseUrl: state.baseUrl });
+            if (!workersAlive || generation !== workerGeneration) {
+                return getState();
+            }
             state.online = health.online === true;
             state.checkedAt = health.checkedAt || new Date().toISOString();
             state.models = Array.isArray(health.models) ? health.models : [];
@@ -60,6 +91,9 @@ function register(ctx) {
                     baseUrl: state.baseUrl,
                     model: state.model
                 });
+                if (!workersAlive || generation !== workerGeneration) {
+                    return getState();
+                }
                 state.checkedAt = info.checkedAt || state.checkedAt;
                 if (info.ok) {
                     state.lastError = null;
@@ -76,18 +110,60 @@ function register(ctx) {
                 }
             }
         } catch (err) {
-            state.online = false;
-            state.lastError = err.message || String(err);
-            state.checkedAt = new Date().toISOString();
-            if (logger) {
-                logger.warn('AIInfo', `Refresh failed: ${state.lastError}`);
+            if (workersAlive && generation === workerGeneration) {
+                state.online = false;
+                state.lastError = err.message || String(err);
+                state.checkedAt = new Date().toISOString();
+                if (logger) {
+                    logger.warn('AIInfo', `Refresh failed: ${state.lastError}`);
+                }
             }
         } finally {
             state.refreshing = false;
+            state.killed = workersAlive !== true;
         }
 
-        if (broadcast) broadcastState();
+        if (broadcast && workersAlive && generation === workerGeneration) {
+            broadcastState();
+        }
         return getState();
+    }
+
+    function startWorkers() {
+        if (workersAlive) return;
+        workersAlive = true;
+        workerGeneration += 1;
+        state.killed = false;
+        state.lastError = null;
+        const generation = workerGeneration;
+        startTimer = setTimeout(() => {
+            startTimer = null;
+            refresh({ broadcast: true, generation }).catch(() => {});
+        }, 1200);
+        pollInterval = setInterval(() => {
+            refresh({ broadcast: true, generation: workerGeneration }).catch(() => {});
+        }, REFRESH_MS);
+        broadcastState();
+        if (logger) logger.info('AIInfo', 'Workers started');
+    }
+
+    function stopWorkers() {
+        workersAlive = false;
+        workerGeneration += 1;
+        clearWorkerTimers();
+        state.online = false;
+        state.models = [];
+        state.contextLength = null;
+        state.parameterSize = null;
+        state.family = null;
+        state.quantization = null;
+        state.format = null;
+        state.refreshing = false;
+        state.killed = true;
+        state.lastError = 'AI Info killed — polling stopped';
+        state.checkedAt = new Date().toISOString();
+        broadcastState();
+        if (logger) logger.info('AIInfo', 'Workers killed');
     }
 
     app.get('/api/aiinfo', (req, res) => {
@@ -95,6 +171,14 @@ function register(ctx) {
     });
 
     app.post('/api/aiinfo/refresh', async (req, res) => {
+        if (!workersAlive) {
+            res.status(503).json({
+                ok: false,
+                error: 'AI Info is killed — open it from Control',
+                ...getState()
+            });
+            return;
+        }
         try {
             const data = await refresh({ broadcast: true });
             res.json({ ok: true, ...data });
@@ -104,6 +188,9 @@ function register(ctx) {
     });
 
     async function selectModel(name) {
+        if (!workersAlive) {
+            throw new Error('AI Info is killed — open it from Control');
+        }
         const result = ollama.setActiveModel(name);
         state.model = result.model;
         if (result.changed && typeof emit === 'function') {
@@ -122,6 +209,14 @@ function register(ctx) {
 
     app.post('/api/aiinfo/model', async (req, res) => {
         try {
+            if (!workersAlive) {
+                res.status(503).json({
+                    ok: false,
+                    error: 'AI Info is killed — open it from Control',
+                    ...getState()
+                });
+                return;
+            }
             const model = String((req.body && req.body.model) || '').trim();
             if (!model) {
                 res.status(400).json({ ok: false, error: 'model required' });
@@ -148,6 +243,7 @@ function register(ctx) {
     onClientMessage((ws, data) => {
         if (!data || typeof data.type !== 'string') return false;
         if (data.type === 'aiinfo_refresh') {
+            if (!workersAlive) return true;
             refresh({ broadcast: true }).catch((err) => {
                 if (logger) {
                     logger.warn('AIInfo', `Manual refresh failed: ${err.message || err}`);
@@ -156,6 +252,7 @@ function register(ctx) {
             return true;
         }
         if (data.type === 'aiinfo_set_model') {
+            if (!workersAlive) return true;
             selectModel(data.model).catch((err) => {
                 if (logger) {
                     logger.warn('AIInfo', `Set model failed: ${err.message || err}`);
@@ -166,12 +263,20 @@ function register(ctx) {
         return false;
     });
 
-    setTimeout(() => {
-        refresh({ broadcast: true }).catch(() => {});
-    }, 1200);
-    setInterval(() => {
-        refresh({ broadcast: true }).catch(() => {});
-    }, REFRESH_MS);
+    if (typeof ctx.registerFeature === 'function') {
+        ctx.registerFeature({
+            id: 'aiinfo',
+            label: 'AI Info',
+            description: 'Ollama model metadata polling (health + /api/show)',
+            navViews: ['aiinfo'],
+            defaultEnabled: true,
+            start: startWorkers,
+            stop: stopWorkers,
+            isRunning: () => workersAlive
+        });
+    } else {
+        startWorkers();
+    }
 
     if (logger) {
         logger.info('AIInfo', `AI information module registered (model ${state.model})`);

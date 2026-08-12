@@ -694,6 +694,7 @@
         nav: true,
         view: VIEW,
         navLabel: 'Stocks AI',
+        featureGate: 'stocksai',
         persistent: false,
         getSampleData: null,
         render: null,

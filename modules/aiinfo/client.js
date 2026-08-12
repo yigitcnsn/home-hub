@@ -355,6 +355,7 @@
         nav: true,
         view: VIEW,
         navLabel: 'AI Info',
+        featureGate: 'aiinfo',
         persistent: false,
         getSampleData: null,
         render: null,
