@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Home Hub — modular smart home dashboard with live sync for Raspberry Pi.">
     <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)">
@@ -17,14 +17,19 @@
 
 <body>
     <div class="dashboard-container">
+        <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar" aria-label="Main navigation">
             <div class="sidebar-header">
                 <div class="logo-mark" aria-hidden="true"></div>
                 <div class="logo-block">
                     <h1 class="logo">Home Hub</h1>
                     <p class="logo-tagline">Smart dashboard</p>
                 </div>
+                <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close menu">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
             <nav class="sidebar-nav" id="sidebarNav">
                 <button type="button" class="nav-item active" data-view="home">
@@ -59,7 +64,16 @@
         <main class="main-content">
             <header class="top-bar">
                 <div class="top-bar-left">
-                    <h2 class="page-title" id="pageTitle">Home</h2>
+                    <div class="top-bar-heading">
+                        <button type="button" class="menu-toggle" id="menuToggle" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+                            <span class="menu-toggle-bars" aria-hidden="true">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </span>
+                        </button>
+                        <h2 class="page-title" id="pageTitle">Home</h2>
+                    </div>
                     <div class="time-display" id="timeDisplay">
                         <span class="time-value" id="timeValue"></span>
                         <span class="date-value" id="dateValue"></span>

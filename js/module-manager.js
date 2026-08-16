@@ -69,7 +69,10 @@ class ModuleManager {
             document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('active'));
             item.classList.add('active');
             this.setView(item.dataset.view || 'home');
+            this.closeMobileSidebar();
         });
+
+        this.setupMobileNav();
 
         const darkModeBtn = document.getElementById('darkModeBtn');
         if (darkModeBtn) {
@@ -125,6 +128,62 @@ class ModuleManager {
         document.getElementById('clearWidgetsBtn').addEventListener('click', () => {
             this.clearAllWidgets();
         });
+    }
+
+    setupMobileNav() {
+        const toggle = document.getElementById('menuToggle');
+        const closeBtn = document.getElementById('sidebarCloseBtn');
+        const backdrop = document.getElementById('sidebarBackdrop');
+
+        if (toggle) {
+            toggle.addEventListener('click', () => this.toggleMobileSidebar());
+        }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeMobileSidebar());
+        }
+        if (backdrop) {
+            backdrop.addEventListener('click', () => this.closeMobileSidebar());
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.closeMobileSidebar();
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) this.closeMobileSidebar();
+        });
+    }
+
+    isMobileSidebarOpen() {
+        return document.body.classList.contains('sidebar-open');
+    }
+
+    openMobileSidebar() {
+        document.body.classList.add('sidebar-open');
+        const toggle = document.getElementById('menuToggle');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-label', 'Close menu');
+        }
+        if (backdrop) backdrop.setAttribute('aria-hidden', 'false');
+    }
+
+    closeMobileSidebar() {
+        if (!this.isMobileSidebarOpen()) return;
+        document.body.classList.remove('sidebar-open');
+        const toggle = document.getElementById('menuToggle');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-label', 'Open menu');
+        }
+        if (backdrop) backdrop.setAttribute('aria-hidden', 'true');
+    }
+
+    toggleMobileSidebar() {
+        if (this.isMobileSidebarOpen()) this.closeMobileSidebar();
+        else this.openMobileSidebar();
     }
 
     setupDragAndDrop() {
