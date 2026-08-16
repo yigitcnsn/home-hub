@@ -10,20 +10,20 @@
  * GET  /api/prismdesk/latest.jpg     — final layer
  * GET  /api/prismdesk/latest.jpg/:layer
  * GET  /api/prismdesk/state
- * GET  /api/prismdesk/config         — overlay toggles for PrismDesk to poll
- * PUT  /api/prismdesk/config
+ * GET  /api/prismdesk/config         — overlays + mode + phone command (desk polls)
+ * PUT  /api/prismdesk/config         — merge overlay / mode / command updates
  * GET  /api/prismdesk/debug          — ingest counters / last error (no frame bytes)
  */
 
 const MAX_FRAME_BYTES = 800 * 1024;
-const OVERLAY_KEYS = ['mat', 'object', 'hands'];
+const COMMAND_TTL_MS = 10 * 1000;
+const OVERLAY_KEYS = ['mat', 'object'];
 const LAYER_IDS = ['raw', 'mat', 'hands', 'object', 'final'];
 
 function defaultOverlayFlags() {
     return {
         mat: true,
-        object: true,
-        hands: true
+        object: true
     };
 }
 
@@ -33,7 +33,10 @@ function defaultConfig() {
         // Legacy flat key — kept in sync with projector for older desks.
         overlays: { ...overlays },
         projector: { ...overlays },
-        browser: { ...overlays }
+        browser: { ...overlays },
+        mode: 'desk',
+        command: null,
+        command_at: null
     };
 }
 
@@ -53,6 +56,7 @@ function defaultState() {
         hands: 0,
         object: null,
         capture: null,
+        mode: 'desk',
         overlays: [],
         layers: [],
         rotate: null,
@@ -186,6 +190,9 @@ function sanitizeState(input) {
     if (typeof input.capture === 'string') {
         out.capture = input.capture.slice(0, 64);
     }
+    if (input.mode === 'desk' || input.mode === 'idle') {
+        out.mode = input.mode;
+    }
     if (Array.isArray(input.overlays)) {
         out.overlays = input.overlays
             .filter((v) => typeof v === 'string')
@@ -213,39 +220,65 @@ function applyOverlayFlags(target, source) {
     });
 }
 
-function sanitizeConfig(input) {
+function expireCommand(cfg) {
+    if (!cfg || cfg.command !== 'stop') {
+        return cfg;
+    }
+    const at = Date.parse(cfg.command_at || '');
+    if (!Number.isFinite(at) || (Date.now() - at) > COMMAND_TTL_MS) {
+        return { ...cfg, command: null, command_at: null };
+    }
+    return cfg;
+}
+
+function mergeConfig(current, input) {
+    const base = current && typeof current === 'object' ? current : defaultConfig();
     const next = defaultConfig();
-    if (!input || typeof input !== 'object') return next;
+    applyOverlayFlags(next.overlays, base.overlays);
+    applyOverlayFlags(next.projector, base.projector || base.overlays);
+    applyOverlayFlags(next.browser, base.browser || base.overlays);
+    next.mode = base.mode === 'idle' ? 'idle' : 'desk';
+    next.command = base.command === 'stop' ? 'stop' : null;
+    next.command_at = typeof base.command_at === 'string' ? base.command_at : null;
+
+    if (!input || typeof input !== 'object') {
+        next.overlays = { ...next.projector };
+        return next;
+    }
 
     const hasProjector = input.projector && typeof input.projector === 'object';
     const hasBrowser = input.browser && typeof input.browser === 'object';
     const hasLegacy = input.overlays && typeof input.overlays === 'object';
 
     if (!hasProjector && !hasBrowser && hasLegacy) {
-        // Old clients: one toggle set controls both surfaces.
         applyOverlayFlags(next.overlays, input.overlays);
         applyOverlayFlags(next.projector, input.overlays);
         applyOverlayFlags(next.browser, input.overlays);
-        return next;
+    } else {
+        if (hasLegacy) applyOverlayFlags(next.overlays, input.overlays);
+        if (hasProjector) applyOverlayFlags(next.projector, input.projector);
+        else if (hasLegacy) applyOverlayFlags(next.projector, input.overlays);
+        if (hasBrowser) applyOverlayFlags(next.browser, input.browser);
+        else if (hasLegacy) applyOverlayFlags(next.browser, input.overlays);
     }
 
-    if (hasLegacy) {
-        applyOverlayFlags(next.overlays, input.overlays);
+    if (input.mode === 'desk' || input.mode === 'idle') {
+        next.mode = input.mode;
     }
-    if (hasProjector) {
-        applyOverlayFlags(next.projector, input.projector);
-    } else if (hasLegacy) {
-        applyOverlayFlags(next.projector, input.overlays);
-    }
-    if (hasBrowser) {
-        applyOverlayFlags(next.browser, input.browser);
-    } else if (hasLegacy) {
-        applyOverlayFlags(next.browser, input.overlays);
+    if (input.command === null || input.command === '') {
+        next.command = null;
+        next.command_at = null;
+    } else if (input.command === 'stop') {
+        next.command = 'stop';
+        next.command_at = new Date().toISOString();
     }
 
-    // Keep legacy overlays mirrored to projector for older PrismDesk builds.
     next.overlays = { ...next.projector };
     return next;
+}
+
+function sanitizeConfig(input) {
+    return mergeConfig(defaultConfig(), input);
 }
 
 function layerMeta(slot) {
@@ -282,7 +315,10 @@ function publicState(store) {
             ...store.config,
             overlays: { ...store.config.overlays },
             projector: { ...store.config.projector },
-            browser: { ...store.config.browser }
+            browser: { ...store.config.browser },
+            mode: store.config.mode === 'idle' ? 'idle' : 'desk',
+            command: store.config.command === 'stop' ? 'stop' : null,
+            command_at: store.config.command_at || null
         }
     };
 }
@@ -541,6 +577,10 @@ function register(ctx) {
     });
 
     app.get('/api/prismdesk/config', (req, res) => {
+        const expired = expireCommand(store.config);
+        if (expired.command !== store.config.command) {
+            store.config = expired;
+        }
         res.json(store.config);
     });
 
@@ -550,7 +590,7 @@ function register(ctx) {
 
     app.put('/api/prismdesk/config', (req, res) => {
         try {
-            store.config = sanitizeConfig(req.body || {});
+            store.config = mergeConfig(store.config, req.body || {});
             broadcastUpdate();
             res.json({ ok: true, config: store.config });
         } catch (err) {

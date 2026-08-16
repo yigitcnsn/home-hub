@@ -142,7 +142,7 @@ Closed means timers are cleared and queues drained (not left idle). State persis
 
 ### PrismDesk
 
-Sidebar **PrismDesk** is a debug console for the spatial AR desk pipeline (sibling [PrismDesk](https://github.com/yigitcnsn/PrismDesk) project). The desk can publish separate JPEG debug layers (`raw`, `mat`, `hands`, `object`, `final`) plus telemetry; Home Hub keeps only the newest JPEG **per layer** in memory and shows a multi-panel live grid with status chips (mat lock, hands, FPS, object). Overlay toggles on the page are polled by the desk via `GET /api/prismdesk/config`. Legacy `POST /api/prismdesk/frame` and `GET /api/prismdesk/latest.jpg` still map to the **final** layer.
+Sidebar **PrismDesk** is a phone remote + debug console for the spatial AR desk pipeline (sibling [PrismDesk](https://github.com/yigitcnsn/PrismDesk) project). The desk publishes JPEG debug layers (`raw`, `mat`, `object`, `final`) plus telemetry. Open the PrismDesk page on a phone on the same LAN to switch **Desk / Idle**, **Stop** the session, and toggle mat/object overlays. The desk polls `GET /api/prismdesk/config`. Overlay PUTs are merged (partial updates do not reset other fields). Stop is a one-shot command with a 10s TTL. Legacy `POST /api/prismdesk/frame` and `GET /api/prismdesk/latest.jpg` still map to the **final** layer.
 
 This hub module does **not** run camera / measure / projector logic — it only ingests and displays what the desk posts.
 
@@ -364,8 +364,8 @@ Copy `.env.example` → `.env` (loaded by `./start.sh`):
 | `GET` | `/api/prismdesk/latest.jpg` | Newest **final** layer JPEG |
 | `GET` | `/api/prismdesk/latest.jpg/:layer` | Newest JPEG for that layer (404 if missing) |
 | `GET` | `/api/prismdesk/state` | Telemetry + `layersMeta` + frame metadata |
-| `GET` | `/api/prismdesk/config` | Overlay toggles (desk polls) |
-| `PUT` | `/api/prismdesk/config` | Update overlay toggles |
+| `GET` | `/api/prismdesk/config` | Overlays + `mode` (`desk`\|`idle`) + `command` (`stop`\|null); desk polls |
+| `PUT` | `/api/prismdesk/config` | Merge overlay / mode / command (partial body is OK) |
 | `GET` | `/api/prismdesk/debug` | Ingest counters / last error (no image payload) |
 
 </details>

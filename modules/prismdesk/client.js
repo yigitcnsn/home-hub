@@ -1,15 +1,14 @@
 /**
- * PrismDesk (browser) — sidebar debug UI for live multi-layer camera feeds + telemetry.
+ * PrismDesk (browser) — phone control + multi-layer debug feeds.
  */
 (function () {
     const VIEW = 'prismdesk';
-    const OVERLAY_KEYS = ['mat', 'object', 'hands'];
-    const LAYER_IDS = ['final', 'raw', 'mat', 'hands', 'object'];
+    const OVERLAY_KEYS = ['mat', 'object'];
+    const LAYER_IDS = ['final', 'raw', 'mat', 'object'];
     const LAYER_LABELS = {
         final: 'Final',
         raw: 'Raw',
         mat: 'Mat',
-        hands: 'Hands',
         object: 'Object'
     };
 
@@ -25,9 +24,9 @@
         fps: null,
         track_fps: null,
         mat_locked: false,
-        hands: 0,
         object: null,
         capture: null,
+        mode: 'desk',
         overlays: [],
         layers: [],
         rotate: null,
@@ -37,9 +36,11 @@
         frameUpdatedAt: null,
         layersMeta: emptyLayersMeta(),
         config: {
-            overlays: { mat: true, object: true, hands: true },
-            projector: { mat: true, object: true, hands: true },
-            browser: { mat: true, object: true, hands: true }
+            overlays: { mat: true, object: true },
+            projector: { mat: true, object: true },
+            browser: { mat: true, object: true },
+            mode: 'desk',
+            command: null
         }
     };
     let initialized = false;
@@ -89,6 +90,14 @@
         return state.object && String(state.object).trim()
             ? String(state.object)
             : '—';
+    }
+
+    function currentMode() {
+        const fromCfg = state.config && (state.config.mode === 'idle' || state.config.mode === 'desk')
+            ? state.config.mode
+            : null;
+        if (fromCfg) return fromCfg;
+        return state.mode === 'idle' ? 'idle' : 'desk';
     }
 
     function layerMeta(layer) {
@@ -149,9 +158,23 @@
             : (cfg.overlays || {});
         return {
             mat: block.mat !== false,
-            object: block.object !== false,
-            hands: block.hands !== false
+            object: block.object !== false
         };
+    }
+
+    function applyConfig(config) {
+        if (!config || typeof config !== 'object') return;
+        state.config = {
+            overlays: { mat: true, object: true, ...(config.overlays || {}) },
+            projector: { mat: true, object: true, ...(config.projector || config.overlays || {}) },
+            browser: { mat: true, object: true, ...(config.browser || config.overlays || {}) },
+            mode: config.mode === 'idle' ? 'idle' : 'desk',
+            command: config.command === 'stop' ? 'stop' : null
+        };
+        if (config.mode === 'idle' || config.mode === 'desk') {
+            state.mode = config.mode;
+        }
+        updatePage();
     }
 
     function saveConfig(config) {
@@ -165,14 +188,15 @@
                 return res.json();
             })
             .then((data) => {
-                if (data && data.config) {
-                    state.config = data.config;
-                    updatePage();
-                }
+                if (data && data.config) applyConfig(data.config);
             })
             .catch((err) => {
                 console.warn('[PrismDesk] Config save failed:', err.message);
             });
+    }
+
+    function patchConfig(partial) {
+        saveConfig(partial);
     }
 
     function bindOverlayToggles() {
@@ -186,7 +210,6 @@
                     const browser = currentSurfaceFlags('browser');
                     const target = surface === 'projector' ? projector : browser;
                     target[key] = !!el.checked;
-                    // Keep legacy overlays = projector for older desks.
                     saveConfig({
                         projector,
                         browser,
@@ -195,6 +218,24 @@
                 });
             });
         });
+    }
+
+    function bindRemoteButtons() {
+        const deskBtn = document.getElementById('prismdeskModeDesk');
+        const idleBtn = document.getElementById('prismdeskModeIdle');
+        const stopBtn = document.getElementById('prismdeskCmdStop');
+        if (deskBtn && !deskBtn._prismBound) {
+            deskBtn._prismBound = true;
+            deskBtn.addEventListener('click', () => patchConfig({ mode: 'desk' }));
+        }
+        if (idleBtn && !idleBtn._prismBound) {
+            idleBtn._prismBound = true;
+            idleBtn.addEventListener('click', () => patchConfig({ mode: 'idle' }));
+        }
+        if (stopBtn && !stopBtn._prismBound) {
+            stopBtn._prismBound = true;
+            stopBtn.addEventListener('click', () => patchConfig({ command: 'stop' }));
+        }
     }
 
     function toggleGroupMarkup(surface, title, hint) {
@@ -267,22 +308,33 @@
                     </div>
                 </div>
 
+                <div class="prismdesk-section prismdesk-remote">
+                    <div class="prismdesk-section-head">
+                        <h4>Phone control</h4>
+                        <span class="prismdesk-meta" id="prismdeskRemoteMeta">desk polls this page</span>
+                    </div>
+                    <div class="prismdesk-remote-actions">
+                        <button type="button" class="prismdesk-remote-btn" id="prismdeskModeDesk">Desk</button>
+                        <button type="button" class="prismdesk-remote-btn" id="prismdeskModeIdle">Idle</button>
+                        <button type="button" class="prismdesk-remote-btn prismdesk-remote-btn-stop" id="prismdeskCmdStop">Stop</button>
+                    </div>
+                    <p class="prismdesk-remote-hint">
+                        Requires <code>python main.py desk</code> with home-hub on. Stop expires in 10s if the desk is offline.
+                    </p>
+                </div>
+
                 <div class="prismdesk-chips">
+                    <div class="prismdesk-chip" id="prismdeskChipMode">
+                        <span class="prismdesk-chip-label">Mode</span>
+                        <span class="prismdesk-chip-value" id="prismdeskValMode">—</span>
+                    </div>
                     <div class="prismdesk-chip" id="prismdeskChipMat">
                         <span class="prismdesk-chip-label">Mat</span>
                         <span class="prismdesk-chip-value" id="prismdeskValMat">—</span>
                     </div>
                     <div class="prismdesk-chip">
-                        <span class="prismdesk-chip-label">Hands</span>
-                        <span class="prismdesk-chip-value" id="prismdeskValHands">—</span>
-                    </div>
-                    <div class="prismdesk-chip">
                         <span class="prismdesk-chip-label">FPS</span>
                         <span class="prismdesk-chip-value" id="prismdeskValFps">—</span>
-                    </div>
-                    <div class="prismdesk-chip">
-                        <span class="prismdesk-chip-label">Track FPS</span>
-                        <span class="prismdesk-chip-value" id="prismdeskValTrackFps">—</span>
                     </div>
                     <div class="prismdesk-chip">
                         <span class="prismdesk-chip-label">Object</span>
@@ -294,20 +346,20 @@
                     </div>
                 </div>
 
-                <div class="prismdesk-layers">
-                    ${panelMarkup('final')}
-                    <div class="prismdesk-layers-grid">
-                        ${['raw', 'mat', 'hands', 'object'].map(panelMarkup).join('')}
-                    </div>
-                </div>
-
                 <div class="prismdesk-section">
                     <div class="prismdesk-section-head">
                         <h4>Overlay controls</h4>
-                        <span class="prismdesk-meta">separate projector HUD vs browser debug</span>
+                        <span class="prismdesk-meta">projector HUD vs browser Final</span>
                     </div>
                     ${toggleGroupMarkup('projector', 'Projector HUD', 'drawn on HY300')}
                     ${toggleGroupMarkup('browser', 'Browser final', 'composed into Final panel')}
+                </div>
+
+                <div class="prismdesk-layers">
+                    ${panelMarkup('final')}
+                    <div class="prismdesk-layers-grid">
+                        ${['raw', 'mat', 'object'].map(panelMarkup).join('')}
+                    </div>
                 </div>
 
                 <div class="prismdesk-meta-row">
@@ -319,6 +371,7 @@
 
         pageBuilt = true;
         bindOverlayToggles();
+        bindRemoteButtons();
         updatePage();
     }
 
@@ -337,12 +390,13 @@
         const projector = currentSurfaceFlags('projector');
         const browser = currentSurfaceFlags('browser');
         const live = anyLayerLive() || !!state.hasFrame;
+        const mode = currentMode();
 
         setText(
             'prismdeskHeroSub',
             state.capture
-                ? `Multi-layer debug feeds · capture ${state.capture}`
-                : 'Operator console for the desk pipeline. Waiting for layer publishers.'
+                ? `Phone remote + debug feeds · capture ${state.capture}`
+                : 'Phone remote for the desk pipeline. Waiting for the Pi to connect.'
         );
 
         const status = document.getElementById('prismdeskStatus');
@@ -351,20 +405,25 @@
             status.classList.toggle('is-idle', !live);
         }
         setText('prismdeskStatusText', live ? 'Live' : 'Idle');
+        setText('prismdeskRemoteMeta', live ? 'desk connected' : 'waiting for desk');
 
         const matChip = document.getElementById('prismdeskChipMat');
         if (matChip) {
             matChip.classList.toggle('prismdesk-chip-ok', locked);
             matChip.classList.toggle('prismdesk-chip-warn', !locked);
         }
+        setText('prismdeskValMode', mode);
         setText('prismdeskValMat', locked ? 'Locked' : 'Searching');
-        setText('prismdeskValHands', String(state.hands != null ? state.hands : 0));
         setText('prismdeskValFps', formatNum(state.fps));
-        setText('prismdeskValTrackFps', formatNum(state.track_fps));
         setText('prismdeskValObject', objectText());
         setText('prismdeskValBytes', formatBytes(state.frameBytes));
         setText('prismdeskMetaState', `State ${formatWhen(state.updatedAt)}`);
         setText('prismdeskMetaFrame', `Final ${formatWhen(state.frameUpdatedAt)}`);
+
+        const deskBtn = document.getElementById('prismdeskModeDesk');
+        const idleBtn = document.getElementById('prismdeskModeIdle');
+        if (deskBtn) deskBtn.classList.toggle('is-active', mode === 'desk');
+        if (idleBtn) idleBtn.classList.toggle('is-active', mode === 'idle');
 
         LAYER_IDS.forEach((layer) => {
             const meta = layerMeta(layer);
@@ -407,7 +466,6 @@
                 };
             }
         });
-        // Backward compat: if layersMeta.final missing but legacy hasFrame is set, mirror onto final.
         if (!src.final && incoming && incoming.hasFrame) {
             next.final = {
                 hasFrame: true,
@@ -422,8 +480,7 @@
         const set = new Set(Array.isArray(list) ? list : []);
         return {
             mat: set.has('mat'),
-            object: set.has('object'),
-            hands: set.has('hands')
+            object: set.has('object')
         };
     }
 
@@ -432,32 +489,31 @@
 
         let nextConfig = state.config;
         if (incoming.config && typeof incoming.config === 'object') {
+            const cfg = incoming.config;
             nextConfig = {
                 overlays: {
                     mat: true,
                     object: true,
-                    hands: true,
-                    ...((incoming.config.overlays) || {})
+                    ...((cfg.overlays) || {})
                 },
                 projector: {
                     mat: true,
                     object: true,
-                    hands: true,
-                    ...((incoming.config.projector) || (incoming.config.overlays) || {})
+                    ...((cfg.projector) || cfg.overlays || {})
                 },
                 browser: {
                     mat: true,
                     object: true,
-                    hands: true,
-                    ...((incoming.config.browser) || (incoming.config.overlays) || {})
-                }
+                    ...((cfg.browser) || cfg.overlays || {})
+                },
+                mode: cfg.mode === 'idle' ? 'idle' : (cfg.mode === 'desk' ? 'desk' : (state.config.mode || 'desk')),
+                command: cfg.command === 'stop' ? 'stop' : null
             };
         } else if (
             Array.isArray(incoming.projector_overlays)
             || Array.isArray(incoming.browser_overlays)
             || Array.isArray(incoming.overlays)
         ) {
-            // Desk pinch toggles often arrive as lists on state without a config block.
             const projector = flagsFromList(
                 incoming.projector_overlays || incoming.overlays || []
             );
@@ -467,7 +523,9 @@
             nextConfig = {
                 overlays: { ...projector },
                 projector,
-                browser
+                browser,
+                mode: incoming.mode === 'idle' ? 'idle' : (incoming.mode === 'desk' ? 'desk' : (state.config.mode || 'desk')),
+                command: null
             };
         }
 

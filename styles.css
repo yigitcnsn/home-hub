@@ -5013,6 +5013,45 @@ body.dark-mode .stocks-paper-glow {
     accent-color: var(--pd-cyan);
 }
 
+.prismdesk-remote-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+}
+
+.prismdesk-remote-btn {
+    min-height: 48px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--pd-panel-elevated);
+    color: var(--pd-text);
+    font-size: 15px;
+    font-weight: 650;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.prismdesk-remote-btn.is-active {
+    border-color: var(--pd-cyan);
+    color: var(--pd-cyan);
+}
+
+.prismdesk-remote-btn-stop {
+    color: var(--pd-orange);
+}
+
+.prismdesk-remote-hint {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--pd-muted);
+}
+
+.prismdesk-remote-hint code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
 .prismdesk-meta-row {
     display: flex;
     flex-wrap: wrap;
@@ -5035,6 +5074,20 @@ body.dark-mode .stocks-paper-glow {
 
     .prismdesk-title {
         font-size: 22px;
+    }
+
+    .prismdesk-remote-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .prismdesk-remote-btn {
+        min-height: 52px;
+        font-size: 16px;
+    }
+
+    .prismdesk-toggle {
+        min-height: 44px;
+        padding: 12px 14px;
     }
 }
 
